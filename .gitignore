@@ -1,0 +1,211 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build output
+/bin/
+/build/
+/dist/
+main
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Temporary files
+/tmp/
+*.tmp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Application specific
+uploads/
+storage/
+cache/
+
+# Test files
+test_output/
+test_results/
+
+# Backup files
+*.bak
+*.backup
+
+# Lock files
+*.lock
+
+# Air (Go live reload tool)
+tmp/
+.air.toml
+air_tmp/
+
+# GoLand
+.idea/
+
+# Visual Studio Code
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/history/
+
+# JetBrains IDEs
+*.iml
+*.ipr
+*.iws
+.idea/
+.idea_modules/
+
+# Vim
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Local configuration
+config/local.yaml
+config/local.yml
+config/local.json
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+
+# Documentation generated files
+docs/build/
+site/
+
+# Profiling data
+cpu.prof
+mem.prof
+profile.out
+
+# Docker related files
+.dockerignore
+docker-compose.override.yml
+docker-compose.local.yml
+docker-compose.prod.yml
+.docker/
+volumes/
+data/
+
+# Docker volumes and persistent data
+postgres_data/
+mysql_data/
+redis_data/
+elasticsearch_data/
+
+# Migration files (if generated)
+*.sql.bak
+
+# Static files cache
+static/cache/
+
+# Session files
+sessions/
+
+# Error logs
+error.log
+access.log
+
+# PID files
+*.pid
+
+# Production configs
+production.env
+staging.env
+
+# Certificates and keys
+certs/
+keys/
+
+# Application logs
+app.log
+debug.log
+
+# Hot reload
+*.hot-update.*
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
+
+# Node modules (if any frontend build tools)
+node_modules/
+
+# Python cache (if any Python tools)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary Go files
+*.orig
+*.rej
+*.tmp
+
+# Code coverage
+coverage.txt
+coverage.html
