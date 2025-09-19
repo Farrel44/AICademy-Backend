@@ -13,12 +13,15 @@ RUN go build -o main cmd/server/main.go
 
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata   # timezone data biar Asia/Jakarta dikenali
+
+ENV TZ=Asia/Jakarta
 
 WORKDIR /root/
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/.env .
+COPY --from=builder /app/templates ./templates
 
 EXPOSE 3000
 

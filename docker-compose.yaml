@@ -6,10 +6,17 @@ services:
       POSTGRES_USER: aicademy
       POSTGRES_PASSWORD: root
       POSTGRES_DB: aicademy_db
+      PGADMIN_DEFAULT_EMAIL: aicademy@admin.com
+      PGADMIN_DEFAULT_PASSWORD: aicademy123
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aicademy -d aicademy_db"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
 
   backend:
     build:
@@ -19,7 +26,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy 
     ports:
       - "3000:3000"
 
@@ -27,8 +35,8 @@ services:
     image: dpage/pgadmin4
     container_name: aicademy_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: aicademy@admin.com
+      PGADMIN_DEFAULT_PASSWORD: aicademy123
     ports:
       - "8080:80"
     depends_on:
