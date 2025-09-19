@@ -1,33 +1,40 @@
 package middleware
 
 import (
+	"aicademy-backend/internal/domain/user"
 	"aicademy-backend/internal/utils"
+	"net/http"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func JWTProtected() fiber.Handler {
+func AuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		var token string
+
 		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(401).JSON(fiber.Map{
+		if authHeader != "" {
+			tokenParts := strings.Split(authHeader, " ")
+			if len(tokenParts) == 2 && tokenParts[0] == "Bearer" {
+				token = tokenParts[1]
+			}
+		}
+
+		if token == "" {
+			token = c.Cookies("token")
+		}
+
+		if token == "" {
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
-				"error":   "Missing authorization header",
+				"error":   "Authorization token required",
 			})
 		}
 
-		tokenParts := strings.Split(authHeader, " ")
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			return c.Status(401).JSON(fiber.Map{
-				"success": false,
-				"error":   "Invalid authorization format",
-			})
-		}
-
-		claims, err := utils.ValidateToken(tokenParts[1])
+		claims, err := utils.ValidateToken(token)
 		if err != nil {
-			return c.Status(401).JSON(fiber.Map{
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Invalid or expired token",
 			})
@@ -41,19 +48,28 @@ func JWTProtected() fiber.Handler {
 	}
 }
 
-func RequireRole(roles ...string) fiber.Handler {
+func AdminRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userRole := c.Locals("user_role").(string)
-
-		for _, role := range roles {
-			if userRole == role {
-				return c.Next()
-			}
+		role := c.Locals("user_role")
+		if role != user.RoleAdmin {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Admin access required",
+			})
 		}
+		return c.Next()
+	}
+}
 
-		return c.Status(403).JSON(fiber.Map{
-			"success": false,
-			"error":   "Insufficient permissions",
-		})
+func TeacherOrAdminRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleAdmin && role != user.RoleTeacher {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Teacher or Admin access required",
+			})
+		}
+		return c.Next()
 	}
 }
