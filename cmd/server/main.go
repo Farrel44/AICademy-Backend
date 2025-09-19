@@ -17,12 +17,10 @@ import (
 )
 
 func main() {
-	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
 
-	// Initialize database
 	db, err := config.InitDatabase()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
@@ -33,7 +31,6 @@ func main() {
 		log.Printf("Warning: Failed to seed data: %v", err)
 	}
 
-	// Initialize AI service
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 	var aiService ai.AIService
 	if geminiAPIKey != "" {
@@ -150,7 +147,7 @@ func main() {
 	// Start server
 	port := os.Getenv("APP_PORT")
 	if port == "" {
-		port = "3000"
+		port = "8000"
 	}
 
 	log.Printf("Server starting on port %s", port)
