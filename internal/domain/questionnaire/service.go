@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
+	"log"
 	"strings"
 	"time"
 
@@ -143,9 +143,8 @@ func (s *QuestionnaireService) processWithAI(response *QuestionnaireResponse, qu
 	ctx := context.Background()
 	aiResult, err := s.aiService.GenerateCareerRecommendations(ctx, prompt)
 	if err != nil {
-		fmt.Printf("Layanan AI gagal, menggunakan mock: %v\n", err)
-		mockResult := s.mockAIResponse(answers)
-		return s.processMockResponse(response, mockResult, questions, answers)
+		log.Printf("AI service failed for career recommendations: %v", err)
+		return fmt.Errorf("gagal memproses rekomendasi karir: %w", err)
 	}
 
 	return s.processAIResponse(response, aiResult, questions, answers)
@@ -197,98 +196,6 @@ func (s *QuestionnaireService) processAIResponse(response *QuestionnaireResponse
 	}
 
 	return s.repo.CreateRoleRecommendations(roleRecommendations)
-}
-
-func (s *QuestionnaireService) processMockResponse(response *QuestionnaireResponse, mockResult map[string]interface{}, questions []QuestionnaireQuestion, answers []AnswerItem) error {
-	recommendations, topRole, err := s.parseAIResponse(mockResult)
-	if err != nil {
-		return err
-	}
-
-	totalScore := s.calculateTotalScore(questions, answers)
-
-	aiAnalysisJSON, _ := json.Marshal(mockResult)
-	aiRecommendationsJSON, _ := json.Marshal(recommendations)
-	now := time.Now()
-
-	response.AIAnalysis = stringPtr(string(aiAnalysisJSON))
-	response.AIRecommendations = stringPtr(string(aiRecommendationsJSON))
-	response.AIModelVersion = stringPtr("career-analyzer-v1.0")
-	response.ProcessedAt = &now
-	response.RecommendedProfilingRoleID = topRole
-	response.TotalScore = &totalScore
-
-	err = s.repo.UpdateResponse(response)
-	if err != nil {
-		return err
-	}
-
-	var roleRecommendations []RoleRecommendation
-	for i, rec := range recommendations {
-		roleRecommendations = append(roleRecommendations, RoleRecommendation{
-			ResponseID:      response.ID,
-			ProfilingRoleID: uuid.MustParse(rec.RoleID),
-			Rank:            i + 1,
-			Score:           rec.Score,
-			Justification:   &rec.Justification,
-			CreatedAt:       time.Now(),
-		})
-	}
-
-	return s.repo.CreateRoleRecommendations(roleRecommendations)
-}
-
-func (s *QuestionnaireService) mockAIResponse(answers []AnswerItem) map[string]interface{} {
-	roles := []map[string]interface{}{
-		{
-			"role_id":       "550e8400-e29b-41d4-a716-446655440001",
-			"role_name":     "Frontend Developer",
-			"score":         85.5,
-			"justification": "Menunjukkan ketertarikan kuat pada desain antarmuka dan pengalaman pengguna",
-		},
-		{
-			"role_id":       "550e8400-e29b-41d4-a716-446655440002",
-			"role_name":     "Backend Developer",
-			"score":         75.2,
-			"justification": "Memiliki pemikiran logis yang kuat untuk pengembangan sistem",
-		},
-	}
-
-	return map[string]interface{}{
-		"analysis": map[string]interface{}{
-			"personality_traits": []string{"Analitis", "Kreatif", "Detail-oriented"},
-			"interests":          []string{"Teknologi", "Problem Solving", "Desain"},
-			"strengths":          []string{"Pemikiran Logis", "Kreativitas", "Komunikasi"},
-			"work_style":         "Kolaboratif dan Independent",
-		},
-		"recommendations": roles,
-	}
-}
-
-func (s *QuestionnaireService) parseAIResponse(aiResult map[string]interface{}) ([]AIRecommendation, *uuid.UUID, error) {
-	recommendations := make([]AIRecommendation, 0)
-
-	if recs, ok := aiResult["recommendations"].([]interface{}); ok {
-		for _, rec := range recs {
-			if recMap, ok := rec.(map[string]interface{}); ok {
-				recommendation := AIRecommendation{
-					RoleID:        recMap["role_id"].(string),
-					RoleName:      recMap["role_name"].(string),
-					Score:         recMap["score"].(float64),
-					Justification: recMap["justification"].(string),
-				}
-				recommendations = append(recommendations, recommendation)
-			}
-		}
-	}
-
-	var topRoleID *uuid.UUID
-	if len(recommendations) > 0 {
-		parsed := uuid.MustParse(recommendations[0].RoleID)
-		topRoleID = &parsed
-	}
-
-	return recommendations, topRoleID, nil
 }
 
 func (s *QuestionnaireService) calculateTotalScore(questions []QuestionnaireQuestion, answers []AnswerItem) int {
@@ -481,13 +388,31 @@ FORMAT OUTPUT JSON:
 }
 
 func (s *QuestionnaireService) processQuestionGeneration(questionnaireID uuid.UUID, promptUsed string, req GenerateQuestionnaireRequest) {
-	time.Sleep(5 * time.Second)
+	log.Printf("Starting AI question generation for questionnaire %s", questionnaireID)
 
-	aiResponse := s.mockAIQuestionGeneration(req)
+	time.Sleep(2 * time.Second)
+
+	var aiResponse *ai.QuestionGenerationResponse
+	var err error
+
+	if s.aiService != nil {
+		log.Println("Generating questions using AI service...")
+		ctx := context.Background()
+		aiResponse, err = s.aiService.GenerateQuestions(ctx, promptUsed)
+		if err != nil {
+			log.Printf("AI service failed: %v", err)
+			s.repo.DeleteQuestionnaire(questionnaireID)
+			return
+		}
+	} else {
+		log.Println("No AI service available")
+		s.repo.DeleteQuestionnaire(questionnaireID)
+		return
+	}
 
 	questionnaire, err := s.repo.GetQuestionnaireByID(questionnaireID)
 	if err != nil {
-		fmt.Printf("Error mendapatkan kuesioner: %v\n", err)
+		log.Printf("Error getting questionnaire: %v", err)
 		return
 	}
 
@@ -503,7 +428,14 @@ func (s *QuestionnaireService) processQuestionGeneration(questionnaireID uuid.UU
 		}
 
 		if aiQ.QuestionType == "mcq" && len(aiQ.Options) > 0 {
-			optionsJSON, _ := json.Marshal(aiQ.Options)
+			options := make([]QuestionOption, len(aiQ.Options))
+			for j, opt := range aiQ.Options {
+				options[j] = QuestionOption{
+					Label: opt.Label,
+					Value: opt.Value,
+				}
+			}
+			optionsJSON, _ := json.Marshal(options)
 			question.Options = stringPtr(string(optionsJSON))
 		}
 
@@ -512,90 +444,27 @@ func (s *QuestionnaireService) processQuestionGeneration(questionnaireID uuid.UU
 
 	err = s.repo.AddQuestionsToQuestionnaire(questionnaireID, questions)
 	if err != nil {
-		fmt.Printf("Error menyimpan pertanyaan: %v\n", err)
-		return
+		log.Printf("Error saving questions: %v", err)
 	}
 
 	questionnaire.AIPromptUsed = &promptUsed
 	err = s.repo.UpdateQuestionnaire(questionnaire)
 	if err != nil {
-		fmt.Printf("Error memperbarui kuesioner dengan prompt: %v\n", err)
+		log.Printf("Error updating questionnaire with prompt: %v", err)
 	}
 
-	err = s.repo.ActivateQuestionnaire(questionnaireID)
-	if err != nil {
-		fmt.Printf("Error mengaktifkan kuesioner: %v\n", err)
-	}
-}
-
-func (s *QuestionnaireService) mockAIQuestionGeneration(req GenerateQuestionnaireRequest) ai.QuestionGenerationResponse {
-	questions := make([]ai.GeneratedQuestion, req.QuestionCount)
-
-	for i := 0; i < req.QuestionCount; i++ {
-		switch i % 4 {
-		case 0:
-			questions[i] = ai.GeneratedQuestion{
-				QuestionText: fmt.Sprintf("Apa yang paling Anda sukai dalam bekerja dengan teknologi? (Pertanyaan %d)", i+1),
-				QuestionType: "mcq",
-				Options: []ai.QuestionOpt{
-					{Label: "Membuat tampilan yang menarik", Value: "frontend"},
-					{Label: "Membangun sistem yang kompleks", Value: "backend"},
-					{Label: "Menganalisis data", Value: "data"},
-					{Label: "Menguji aplikasi", Value: "testing"},
-				},
-				Category:  "interests",
-				Reasoning: "Mengidentifikasi preferensi area teknologi",
-			}
-		case 1:
-			questions[i] = ai.GeneratedQuestion{
-				QuestionText: fmt.Sprintf("Seberapa nyaman Anda bekerja dalam tim? (Pertanyaan %d)", i+1),
-				QuestionType: "likert",
-				Category:     "personality",
-				Reasoning:    "Menilai kemampuan kolaborasi",
-			}
-		case 2:
-			questions[i] = ai.GeneratedQuestion{
-				QuestionText: fmt.Sprintf("Jelaskan pengalaman Anda dengan teknologi terbaru (Pertanyaan %d)", i+1),
-				QuestionType: "text",
-				Category:     "experience",
-				Reasoning:    "Menggali latar belakang teknis",
-			}
-		case 3:
-			questions[i] = ai.GeneratedQuestion{
-				QuestionText: fmt.Sprintf("Bagaimana Anda menyelesaikan masalah teknis yang kompleks? (Pertanyaan %d)", i+1),
-				QuestionType: "case",
-				Category:     "skills",
-				Reasoning:    "Menilai kemampuan problem solving",
-			}
-		}
-	}
-
-	return ai.QuestionGenerationResponse{
-		Questions: questions,
-		Metadata: struct {
-			TotalQuestions      int            `json:"total_questions"`
-			Distribution        map[string]int `json:"distribution"`
-			TargetRolesCoverage []string       `json:"target_roles_coverage"`
-		}{
-			TotalQuestions: req.QuestionCount,
-			Distribution: map[string]int{
-				"mcq":    int(math.Ceil(float64(req.QuestionCount) * 0.4)),
-				"likert": int(math.Ceil(float64(req.QuestionCount) * 0.3)),
-				"text":   int(math.Ceil(float64(req.QuestionCount) * 0.2)),
-				"case":   int(math.Ceil(float64(req.QuestionCount) * 0.1)),
-			},
-			TargetRolesCoverage: req.TargetRoles,
-		},
-	}
+	log.Printf("Successfully generated %d questions for questionnaire %s", len(questions), questionnaireID)
 }
 
 func (s *QuestionnaireService) getMaxScoreForType(questionType QuestionType) int {
 	switch questionType {
-	case QuestionTypeLikert:
-		return 5
 	case QuestionTypeMCQ:
 		return 4
-	case QuestionTypeText, QuestionTypeCase:
+	case QuestionTypeLikert:
+		return 5
+	case QuestionTypeText:
+		return 3
+	case QuestionTypeCase:
 		return 3
 	default:
 		return 1

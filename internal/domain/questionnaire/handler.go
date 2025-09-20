@@ -122,7 +122,7 @@ func (h *QuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
 
 	status, err := h.service.GetGenerationStatus(questionnaireID)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusNotFound, "Kuesioner tidak ditemukan")
+		return utils.ErrorResponse(c, http.StatusNotFound, "Kuesioner tidak ditemukan. Mungkin generasi AI gagal dan kuesioner telah dihapus.")
 	}
 
 	return utils.SuccessResponse(c, status, "Status generasi berhasil diambil")

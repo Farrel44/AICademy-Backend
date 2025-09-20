@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
 
 	"aicademy-backend/internal/config"
@@ -21,30 +22,42 @@ func main() {
 		log.Println("No .env file found")
 	}
 
+	log.Println("Starting AICademy Backend Server...")
+
+	log.Println("Connecting to database...")
 	db, err := config.InitDatabase()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+	log.Println("Database connected successfully")
 
-	// Seed data
+	log.Println("Seeding database...")
 	if err := config.SeedData(db); err != nil {
 		log.Printf("Warning: Failed to seed data: %v", err)
+	} else {
+		log.Println("Database seeded successfully")
 	}
 
+	log.Println("Initializing AI service...")
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 	var aiService ai.AIService
+
 	if geminiAPIKey != "" {
 		aiService, err = ai.NewGeminiService(geminiAPIKey)
 		if err != nil {
-			log.Printf("Warning: Failed to initialize AI service: %v", err)
+			log.Printf("Failed to initialize Gemini AI service: %v", err)
+			log.Println("Falling back to NoAI service")
+			aiService = ai.NewNoAIService()
 		} else {
-			log.Println("AI service initialized successfully")
+			log.Println("Gemini AI service initialized successfully")
 		}
 	} else {
-		log.Println("Warning: GEMINI_API_KEY not found, AI features will be disabled")
+		log.Println("GEMINI_API_KEY not found in environment")
+		log.Println("Using NoAI service - AI features will be disabled")
+		aiService = ai.NewNoAIService()
 	}
 
-	// Initialize repositories and services
+	log.Println("Initializing services...")
 	authRepo := auth.NewAuthRepository(db)
 	authService := auth.NewAuthService(authRepo)
 	authHandler := auth.NewAuthHandler(authService)
@@ -53,7 +66,6 @@ func main() {
 	questionnaireService := questionnaire.NewQuestionnaireService(questionnaireRepo, aiService)
 	questionnaireHandler := questionnaire.NewQuestionnaireHandler(questionnaireService)
 
-	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
@@ -62,6 +74,9 @@ func main() {
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
 			}
+
+			log.Printf("Error: %v", err)
+
 			return c.Status(code).JSON(fiber.Map{
 				"success": false,
 				"error":   err.Error(),
@@ -69,62 +84,59 @@ func main() {
 		},
 	})
 
-	// Middleware
-	app.Use(logger.New())
+	app.Use(recover.New())
+	app.Use(logger.New(logger.Config{
+		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
+	}))
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3001,http://localhost:3000",
+		AllowOrigins:     "http://localhost:3001,http://localhost:3000,http://127.0.0.1:3000",
 		AllowCredentials: true,
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 	}))
 
-	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message": "AICademy API is running!",
 			"version": "1.0.0",
 			"status":  "OK",
+			"ai_service": func() string {
+				if geminiAPIKey != "" {
+					return "Gemini AI"
+				}
+				return "Disabled"
+			}(),
 		})
 	})
 
-	// API routes
 	api := app.Group("/api/v1")
 
-	// Auth routes
 	authRoutes := api.Group("/auth")
 	authRoutes.Post("/register/alumni", authHandler.RegisterAlumni)
 	authRoutes.Post("/login", authHandler.Login)
 	authRoutes.Post("/forgot-password", authHandler.ForgotPassword)
 	authRoutes.Post("/reset-password/:token", authHandler.ResetPassword)
 
-	// Protected auth routes
 	protectedAuth := authRoutes.Group("/", middleware.AuthRequired())
 	protectedAuth.Post("/change-password", authHandler.ChangePassword)
 	protectedAuth.Post("/logout", authHandler.Logout)
 
-	// Admin routes
 	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
 	adminRoutes.Post("/create-teacher", authHandler.CreateTeacher)
 	adminRoutes.Post("/create-student", authHandler.CreateStudent)
 	adminRoutes.Post("/create-company", authHandler.CreateCompany)
 	adminRoutes.Post("/upload-students-csv", authHandler.UploadStudentsCSV)
 
-	// Student/General questionnaire routes
 	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
 	questionnaireRoutes.Get("/active", questionnaireHandler.GetActiveQuestionnaire)
 	questionnaireRoutes.Post("/submit", questionnaireHandler.SubmitQuestionnaire)
 	questionnaireRoutes.Get("/result/:responseId", questionnaireHandler.GetQuestionnaireResult)
 	questionnaireRoutes.Get("/result/latest", questionnaireHandler.GetLatestResultByStudent)
 
-	// Admin questionnaire routes
 	adminQuestionnaireRoutes := questionnaireRoutes.Group("/admin", middleware.AdminRequired())
 	adminQuestionnaireRoutes.Post("/generate", questionnaireHandler.GenerateQuestionnaire)
 	adminQuestionnaireRoutes.Get("/generate/status/:questionnaireId", questionnaireHandler.GetGenerationStatus)
 	adminQuestionnaireRoutes.Get("/", questionnaireHandler.GetAllQuestionnaires)
-	adminQuestionnaireRoutes.Get("/search", questionnaireHandler.SearchQuestionnaires)
-	adminQuestionnaireRoutes.Get("/type", questionnaireHandler.GetQuestionnairesByType)
-	adminQuestionnaireRoutes.Get("/stats", questionnaireHandler.GetQuestionnaireStats)
-	adminQuestionnaireRoutes.Get("/analytics", questionnaireHandler.GetResponseAnalytics)
 	adminQuestionnaireRoutes.Get("/:questionnaireId", questionnaireHandler.GetQuestionnaireByID)
 	adminQuestionnaireRoutes.Put("/:questionnaireId/activate", questionnaireHandler.ActivateQuestionnaire)
 	adminQuestionnaireRoutes.Put("/deactivate", questionnaireHandler.DeactivateQuestionnaire)
@@ -132,24 +144,12 @@ func main() {
 	adminQuestionnaireRoutes.Post("/:questionnaireId/clone", questionnaireHandler.CloneQuestionnaire)
 	adminQuestionnaireRoutes.Get("/:questionnaireId/responses", questionnaireHandler.GetQuestionnaireResponses)
 
-	// Question management routes
-	questionRoutes := adminQuestionnaireRoutes.Group("/:questionnaireId/questions")
-	questionRoutes.Post("/", questionnaireHandler.AddQuestionToQuestionnaire)
-	questionRoutes.Put("/:questionId", questionnaireHandler.UpdateQuestion)
-	questionRoutes.Delete("/:questionId", questionnaireHandler.DeleteQuestion)
-	questionRoutes.Put("/order", questionnaireHandler.UpdateQuestionOrder)
-
-	// Template routes
-	templateRoutes := adminQuestionnaireRoutes.Group("/templates")
-	templateRoutes.Post("/", questionnaireHandler.CreateQuestionTemplate)
-	templateRoutes.Get("/", questionnaireHandler.GetQuestionTemplates)
-
-	// Start server
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8000"
 	}
 
 	log.Printf("Server starting on port %s", port)
+	log.Printf("API available at: http://localhost:%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
