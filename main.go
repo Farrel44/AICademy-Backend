@@ -10,11 +10,11 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
 
-	"aicademy-backend/internal/config"
-	"aicademy-backend/internal/domain/auth"
-	"aicademy-backend/internal/domain/questionnaire"
-	"aicademy-backend/internal/middleware"
-	"aicademy-backend/internal/services/ai"
+	"github.com/Farrel44/AICademy-Backend/internal/config"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/middleware"
+	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 )
 
 func main() {
