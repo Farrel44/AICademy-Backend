@@ -1,8 +1,8 @@
 package questionnaire
 
 import (
-	"aicademy-backend/internal/domain/user"
-	"aicademy-backend/internal/services/ai"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"context"
 	"encoding/json"
 	"fmt"

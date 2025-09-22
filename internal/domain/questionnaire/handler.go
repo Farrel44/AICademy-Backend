@@ -1,8 +1,8 @@
 package questionnaire
 
 import (
-	"aicademy-backend/internal/middleware"
-	"aicademy-backend/internal/utils"
+	"github.com/Farrel44/AICademy-Backend/internal/middleware"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"fmt"
 	"log"
 	"net/http"

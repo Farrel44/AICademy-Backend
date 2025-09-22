@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"aicademy-backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"bytes"
 	"crypto/tls"
 	"fmt"

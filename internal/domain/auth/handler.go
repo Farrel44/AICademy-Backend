@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"aicademy-backend/internal/utils"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"encoding/csv"
 	"fmt"
 	"net/http"
