@@ -1,7 +1,10 @@
 package questionnaire
 
 import (
+	"aicademy-backend/internal/middleware"
 	"aicademy-backend/internal/utils"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -32,32 +35,52 @@ func (h *QuestionnaireHandler) GetActiveQuestionnaire(c *fiber.Ctx) error {
 }
 
 func (h *QuestionnaireHandler) SubmitQuestionnaire(c *fiber.Ctx) error {
-	studentIDStr := c.Locals("user_id").(string)
-	studentID, err := uuid.Parse(studentIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID siswa tidak valid")
+	userClaims, ok := c.Locals("user").(*middleware.UserClaims)
+	if !ok {
+		return utils.ErrorResponse(c, http.StatusUnauthorized, "User tidak ditemukan")
 	}
 
 	var req SubmitQuestionnaireRequest
 	if err := c.BodyParser(&req); err != nil {
+		log.Printf("Error parsing request body: %v", err)
 		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
 	}
 
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
+	if err := utils.ValidateStruct(req); err != nil {
+		return utils.ValidationErrorResponse(c, err)
 	}
 
-	result, err := h.service.SubmitQuestionnaire(studentID, req)
+	log.Printf("Submit request - QuestionnaireID: %s, User: %s, Answers count: %d",
+		req.QuestionnaireID.String(), userClaims.UserID.String(), len(req.Answers))
+
+	questionnaire, err := h.service.GetActiveQuestionnaire()
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return utils.ErrorResponse(c, http.StatusNotFound, "Tidak ada kuesioner aktif")
 	}
 
-	return utils.SuccessResponse(c, result, "Kuesioner berhasil dikirim")
+	if questionnaire.ID != req.QuestionnaireID {
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Kuesioner yang dipilih tidak aktif")
+	}
+
+	if len(req.Answers) != len(questionnaire.Questions) {
+		return utils.ErrorResponse(c, http.StatusBadRequest,
+			fmt.Sprintf("Jumlah jawaban tidak sesuai. Expected: %d, Got: %d",
+				len(questionnaire.Questions), len(req.Answers)))
+	}
+
+	response, err := h.service.SubmitQuestionnaire(userClaims.UserID, req)
+	if err != nil {
+		log.Printf("Error submitting questionnaire: %v", err)
+		return utils.ErrorResponse(c, http.StatusInternalServerError,
+			"Gagal memproses jawaban: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, SubmitQuestionnaireResponse{
+		ResponseID:      response.ID,
+		QuestionnaireID: response.QuestionnaireID,
+		Message:         "Jawaban berhasil disimpan dan sedang diproses",
+		ProcessingTime:  "2-5 detik",
+	}, "Kuesioner berhasil disubmit")
 }
 
 func (h *QuestionnaireHandler) GetQuestionnaireResult(c *fiber.Ctx) error {
@@ -76,15 +99,25 @@ func (h *QuestionnaireHandler) GetQuestionnaireResult(c *fiber.Ctx) error {
 }
 
 func (h *QuestionnaireHandler) GetLatestResultByStudent(c *fiber.Ctx) error {
-	studentIDStr := c.Locals("user_id").(string)
-	studentID, err := uuid.Parse(studentIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID siswa tidak valid")
+	userClaims, ok := c.Locals("user").(*middleware.UserClaims)
+	if !ok {
+		return utils.ErrorResponse(c, http.StatusUnauthorized, "User tidak ditemukan")
 	}
 
-	result, err := h.service.GetLatestResultByStudent(studentID)
+	log.Printf("Getting latest result for user: %s", userClaims.UserID.String())
+
+	studentProfile, err := h.service.GetStudentProfileByUserID(userClaims.UserID)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusNotFound, "Tidak ada hasil ditemukan")
+		log.Printf("Error getting student profile: %v", err)
+		return utils.ErrorResponse(c, http.StatusNotFound, "Profil siswa tidak ditemukan")
+	}
+
+	log.Printf("Student profile found: %s", studentProfile.ID.String())
+
+	result, err := h.service.GetLatestResultByStudentProfile(studentProfile.ID)
+	if err != nil {
+		log.Printf("Error getting latest result: %v", err)
+		return utils.ErrorResponse(c, http.StatusNotFound, "Belum ada hasil kuesioner yang tersedia")
 	}
 
 	return utils.SuccessResponse(c, result, "Hasil terbaru berhasil diambil")
@@ -96,13 +129,8 @@ func (h *QuestionnaireHandler) GenerateQuestionnaire(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
 	}
 
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
+	if err := utils.ValidateStruct(req); err != nil {
+		return utils.ValidationErrorResponse(c, err)
 	}
 
 	result, err := h.service.GenerateQuestionnaire(req)
@@ -122,7 +150,7 @@ func (h *QuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
 
 	status, err := h.service.GetGenerationStatus(questionnaireID)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusNotFound, "Kuesioner tidak ditemukan. Mungkin generasi AI gagal dan kuesioner telah dihapus.")
+		return utils.ErrorResponse(c, http.StatusNotFound, "Kuesioner tidak ditemukan")
 	}
 
 	return utils.SuccessResponse(c, status, "Status generasi berhasil diambil")
@@ -211,38 +239,6 @@ func (h *QuestionnaireHandler) DeleteQuestionnaire(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, nil, "Kuesioner berhasil dihapus")
 }
 
-func (h *QuestionnaireHandler) CloneQuestionnaire(c *fiber.Ctx) error {
-	questionnaireIDStr := c.Params("questionnaireId")
-	questionnaireID, err := uuid.Parse(questionnaireIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID kuesioner tidak valid")
-	}
-
-	var req struct {
-		Name string `json:"name" validate:"required,min=2"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
-	}
-
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
-	}
-
-	clone, err := h.service.CloneQuestionnaire(questionnaireID, req.Name)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SuccessResponse(c, clone, "Kuesioner berhasil digandakan")
-}
-
 func (h *QuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) error {
 	questionnaireIDStr := c.Params("questionnaireId")
 	questionnaireID, err := uuid.Parse(questionnaireIDStr)
@@ -278,116 +274,11 @@ func (h *QuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, response, "Respons berhasil diambil")
 }
 
-func (h *QuestionnaireHandler) GetQuestionnaireStats(c *fiber.Ctx) error {
-	stats, err := h.service.GetQuestionnaireStats()
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengambil statistik")
-	}
-
-	return utils.SuccessResponse(c, stats, "Statistik berhasil diambil")
-}
-
-func (h *QuestionnaireHandler) GetResponseAnalytics(c *fiber.Ctx) error {
-	var questionnaireID *uuid.UUID
-	if id := c.Query("questionnaire_id"); id != "" {
-		parsed, err := uuid.Parse(id)
-		if err != nil {
-			return utils.ErrorResponse(c, http.StatusBadRequest, "ID kuesioner tidak valid")
-		}
-		questionnaireID = &parsed
-	}
-
-	analytics, err := h.service.GetResponseAnalytics(questionnaireID)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengambil analitik")
-	}
-
-	return utils.SuccessResponse(c, analytics, "Analitik berhasil diambil")
-}
-
-func (h *QuestionnaireHandler) SearchQuestionnaires(c *fiber.Ctx) error {
-	keyword := c.Query("q")
-	if keyword == "" {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Kata kunci pencarian diperlukan")
-	}
-
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-
-	questionnaires, total, err := h.service.SearchQuestionnaires(keyword, page, limit)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Pencarian gagal")
-	}
-
-	response := map[string]interface{}{
-		"questionnaires": questionnaires,
-		"pagination": map[string]interface{}{
-			"page":        page,
-			"limit":       limit,
-			"total":       total,
-			"total_pages": (total + int64(limit) - 1) / int64(limit),
-		},
-		"keyword": keyword,
-	}
-
-	return utils.SuccessResponse(c, response, "Hasil pencarian berhasil diambil")
-}
-
-func (h *QuestionnaireHandler) GetQuestionnairesByType(c *fiber.Ctx) error {
-	generatedBy := c.Query("generated_by", "ai")
-	if generatedBy != "ai" && generatedBy != "manual" {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Tipe generasi tidak valid. Harus 'ai' atau 'manual'")
-	}
-
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-
-	questionnaires, total, err := h.service.GetQuestionnairesByGeneratedBy(generatedBy, page, limit)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengambil kuesioner")
-	}
-
-	response := map[string]interface{}{
-		"questionnaires": questionnaires,
-		"pagination": map[string]interface{}{
-			"page":        page,
-			"limit":       limit,
-			"total":       total,
-			"total_pages": (total + int64(limit) - 1) / int64(limit),
-		},
-		"generated_by": generatedBy,
-	}
-
-	return utils.SuccessResponse(c, response, "Kuesioner berhasil diambil")
-}
-
-func (h *QuestionnaireHandler) AddQuestionToQuestionnaire(c *fiber.Ctx) error {
-	questionnaireIDStr := c.Params("questionnaireId")
-	questionnaireID, err := uuid.Parse(questionnaireIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID kuesioner tidak valid")
-	}
-
+func (h *QuestionnaireHandler) CreateRole(c *fiber.Ctx) error {
 	var req struct {
-		QuestionText  string           `json:"question_text" validate:"required,min=5"`
-		QuestionType  QuestionType     `json:"question_type" validate:"required,oneof=mcq likert case text"`
-		Options       []QuestionOption `json:"options,omitempty"`
-		Category      string           `json:"category" validate:"required"`
-		QuestionOrder int              `json:"question_order"`
+		RoleName    string `json:"role_name" validate:"required,min=2,max=100"`
+		Description string `json:"description" validate:"required,min=10"`
+		Category    string `json:"category" validate:"required,min=2,max=50"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -403,171 +294,95 @@ func (h *QuestionnaireHandler) AddQuestionToQuestionnaire(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.QuestionType == QuestionTypeMCQ && len(req.Options) == 0 {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Pertanyaan MCQ harus memiliki pilihan")
-	}
-
-	err = h.service.AddQuestionToQuestionnaire(questionnaireID, req.QuestionText, req.QuestionType, req.Options, req.Category, req.QuestionOrder)
+	role, err := h.service.CreateRole(req.RoleName, req.Description, req.Category)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "Pertanyaan berhasil ditambahkan")
+	return utils.SuccessResponse(c, role, "Role berhasil dibuat")
 }
 
-func (h *QuestionnaireHandler) UpdateQuestion(c *fiber.Ctx) error {
-	questionIDStr := c.Params("questionId")
-	questionID, err := uuid.Parse(questionIDStr)
+func (h *QuestionnaireHandler) GetAllRoles(c *fiber.Ctx) error {
+	roles, err := h.service.GetAllRoles()
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID pertanyaan tidak valid")
+		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengambil daftar role")
 	}
 
-	var req struct {
-		QuestionText  string           `json:"question_text" validate:"required,min=5"`
-		QuestionType  QuestionType     `json:"question_type" validate:"required,oneof=mcq likert case text"`
-		Options       []QuestionOption `json:"options,omitempty"`
-		Category      string           `json:"category" validate:"required"`
-		QuestionOrder int              `json:"question_order"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
-	}
-
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
-	}
-
-	err = h.service.UpdateQuestion(questionID, req.QuestionText, req.QuestionType, req.Options, req.Category, req.QuestionOrder)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SuccessResponse(c, nil, "Pertanyaan berhasil diperbarui")
+	return utils.SuccessResponse(c, roles, "Daftar role berhasil diambil")
 }
 
-func (h *QuestionnaireHandler) DeleteQuestion(c *fiber.Ctx) error {
-	questionIDStr := c.Params("questionId")
-	questionID, err := uuid.Parse(questionIDStr)
+func (h *QuestionnaireHandler) DeleteRole(c *fiber.Ctx) error {
+	roleIDStr := c.Params("roleId")
+	roleID, err := uuid.Parse(roleIDStr)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID pertanyaan tidak valid")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "ID role tidak valid")
 	}
 
-	err = h.service.DeleteQuestion(questionID)
+	err = h.service.DeleteRole(roleID)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal menghapus pertanyaan")
+		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "Pertanyaan berhasil dihapus")
-}
-
-func (h *QuestionnaireHandler) UpdateQuestionOrder(c *fiber.Ctx) error {
-	questionnaireIDStr := c.Params("questionnaireId")
-	questionnaireID, err := uuid.Parse(questionnaireIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "ID kuesioner tidak valid")
-	}
-
-	var req struct {
-		Questions []struct {
-			ID    uuid.UUID `json:"id" validate:"required"`
-			Order int       `json:"order" validate:"required,min=1"`
-		} `json:"questions" validate:"required,dive"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
-	}
-
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
-	}
-
-	err = h.service.UpdateQuestionOrder(questionnaireID, req.Questions)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SuccessResponse(c, nil, "Urutan pertanyaan berhasil diperbarui")
-}
-
-func (h *QuestionnaireHandler) CreateQuestionTemplate(c *fiber.Ctx) error {
-	var req struct {
-		Name        string `json:"name" validate:"required,min=2"`
-		Description string `json:"description"`
-		Prompt      string `json:"prompt" validate:"required,min=10"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
-	}
-
-	if err := h.validator.Struct(req); err != nil {
-		errors := h.formatValidationErrors(err)
-		return c.Status(http.StatusBadRequest).JSON(utils.Response{
-			Success: false,
-			Error:   "Validasi gagal",
-			Data:    errors,
-		})
-	}
-
-	template, err := h.service.CreateQuestionTemplate(req.Name, req.Description, req.Prompt)
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SuccessResponse(c, template, "Template berhasil dibuat")
-}
-
-func (h *QuestionnaireHandler) GetQuestionTemplates(c *fiber.Ctx) error {
-	templates, err := h.service.GetQuestionTemplates()
-	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengambil template")
-	}
-
-	return utils.SuccessResponse(c, templates, "Template berhasil diambil")
+	return utils.SuccessResponse(c, nil, "Role berhasil dihapus")
 }
 
 func (h *QuestionnaireHandler) formatValidationErrors(err error) []ValidationError {
 	var errors []ValidationError
-
-	if validationErrors, ok := err.(validator.ValidationErrors); ok {
-		for _, e := range validationErrors {
-			errors = append(errors, ValidationError{
-				Field:   e.Field(),
-				Message: h.getValidationMessage(e),
-			})
+	for _, err := range err.(validator.ValidationErrors) {
+		var errorMsg string
+		switch err.Tag() {
+		case "required":
+			errorMsg = fmt.Sprintf("%s wajib diisi", err.Field())
+		case "min":
+			errorMsg = fmt.Sprintf("%s minimal %s karakter", err.Field(), err.Param())
+		case "max":
+			errorMsg = fmt.Sprintf("%s maksimal %s karakter", err.Field(), err.Param())
+		case "email":
+			errorMsg = fmt.Sprintf("%s harus berupa email yang valid", err.Field())
+		case "oneof":
+			errorMsg = fmt.Sprintf("%s harus salah satu dari: %s", err.Field(), err.Param())
+		default:
+			errorMsg = fmt.Sprintf("%s tidak valid", err.Field())
 		}
-	}
 
+		errors = append(errors, ValidationError{
+			Field:   err.Field(),
+			Message: errorMsg,
+		})
+	}
 	return errors
 }
 
-func (h *QuestionnaireHandler) getValidationMessage(e validator.FieldError) string {
-	switch e.Tag() {
-	case "required":
-		return "Field ini wajib diisi"
-	case "min":
-		return "Field ini minimal " + e.Param() + " karakter"
-	case "max":
-		return "Field ini maksimal " + e.Param() + " karakter"
-	case "oneof":
-		return "Field ini harus salah satu dari: " + e.Param()
-	case "uuid":
-		return "Field ini harus berupa UUID yang valid"
-	case "dive":
-		return "Item array tidak valid"
-	default:
-		return "Nilai tidak valid"
+func (h *QuestionnaireHandler) UpdateRole(c *fiber.Ctx) error {
+	roleIDStr := c.Params("roleId")
+	roleID, err := uuid.Parse(roleIDStr)
+	if err != nil {
+		return utils.ErrorResponse(c, http.StatusBadRequest, "ID role tidak valid")
 	}
+
+	var req struct {
+		RoleName    string `json:"role_name" validate:"required,min=2,max=100"`
+		Description string `json:"description" validate:"required,min=10"`
+		Category    string `json:"category" validate:"required,min=2,max=50"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format request tidak valid")
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		errors := h.formatValidationErrors(err)
+		return c.Status(http.StatusBadRequest).JSON(utils.Response{
+			Success: false,
+			Error:   "Validasi gagal",
+			Data:    errors,
+		})
+	}
+
+	role, err := h.service.UpdateRole(roleID, req.RoleName, req.Description, req.Category)
+	if err != nil {
+		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+	}
+
+	return utils.SuccessResponse(c, role, "Role berhasil diupdate")
 }

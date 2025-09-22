@@ -1,3 +1,4 @@
+// internal/middleware/auth.go
 package middleware
 
 import (
@@ -7,7 +8,14 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
+
+type UserClaims struct {
+	UserID uuid.UUID     `json:"user_id"`
+	Email  string        `json:"email"`
+	Role   user.UserRole `json:"role"`
+}
 
 func AuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -40,7 +48,15 @@ func AuthRequired() fiber.Handler {
 			})
 		}
 
-		c.Locals("user_id", claims.UserID)
+		// Set user claims sebagai struct
+		userClaims := &UserClaims{
+			UserID: claims.UserID,
+			Email:  claims.Email,
+			Role:   user.UserRole(claims.Role),
+		}
+
+		c.Locals("user", userClaims)
+		c.Locals("user_id", claims.UserID.String())
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_role", claims.Role)
 

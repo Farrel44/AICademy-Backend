@@ -99,4 +99,8 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_responses_student_id ON questionnaire_responses(student_profile_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_responses_questionnaire_id ON questionnaire_responses(questionnaire_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_responses_submitted_at ON questionnaire_responses(submitted_at)")
+
+	// Role recommendation indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_active ON role_recommendations(active)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_category ON role_recommendations(category)")
 }

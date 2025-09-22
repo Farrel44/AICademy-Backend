@@ -1,13 +1,12 @@
 package questionnaire
 
 import (
+	"aicademy-backend/internal/domain/user"
 	"aicademy-backend/internal/services/ai"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,110 +30,100 @@ func (s *QuestionnaireService) GetActiveQuestionnaire() (*ActiveQuestionnaireRes
 		return nil, err
 	}
 
-	questions := make([]QuestionnaireQuestionResponse, len(questionnaire.Questions))
+	questions := make([]QuestionnaireQuestionDTO, len(questionnaire.Questions))
 	for i, q := range questionnaire.Questions {
-		questions[i] = QuestionnaireQuestionResponse{
-			ID:            q.ID,
-			QuestionText:  q.QuestionText,
-			QuestionType:  q.QuestionType,
-			MaxScore:      q.MaxScore,
-			QuestionOrder: q.QuestionOrder,
-			Category:      q.Category,
+		var options []string
+		if q.Options != nil {
+			var optionObjects []QuestionOption
+			if json.Unmarshal([]byte(*q.Options), &optionObjects) == nil {
+				for _, opt := range optionObjects {
+					options = append(options, opt.Text)
+				}
+			}
 		}
 
-		if q.QuestionType == QuestionTypeMCQ && q.Options != nil {
-			var options []QuestionOption
-			if err := json.Unmarshal([]byte(*q.Options), &options); err == nil {
-				questions[i].Options = options
-			}
+		questions[i] = QuestionnaireQuestionDTO{
+			ID:           q.ID,
+			QuestionText: q.QuestionText,
+			QuestionType: q.QuestionType,
+			Options:      options,
+			MaxScore:     q.MaxScore,
+			Category:     q.Category,
+			Order:        q.QuestionOrder,
 		}
 	}
 
 	return &ActiveQuestionnaireResponse{
 		ID:        questionnaire.ID,
 		Name:      questionnaire.Name,
+		Version:   questionnaire.Version,
 		Questions: questions,
 	}, nil
 }
 
-func (s *QuestionnaireService) SubmitQuestionnaire(studentID uuid.UUID, request SubmitQuestionnaireRequest) (*QuestionnaireResultResponse, error) {
-	questionnaire, err := s.repo.GetQuestionnaireByID(request.QuestionnaireID)
+func (s *QuestionnaireService) SubmitQuestionnaire(userID uuid.UUID, req SubmitQuestionnaireRequest) (*QuestionnaireResponse, error) {
+	log.Printf("Processing questionnaire submission for user: %s", userID.String())
+
+	studentProfile, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("student profile tidak ditemukan: %w", err)
 	}
 
-	if err := s.validateAnswers(questionnaire.Questions, request.Answers); err != nil {
-		return nil, err
-	}
-
-	hasSubmitted, err := s.repo.HasStudentSubmitted(studentID, request.QuestionnaireID)
+	questionnaire, err := s.repo.GetQuestionnaireByID(req.QuestionnaireID)
 	if err != nil {
-		return nil, err
-	}
-	if hasSubmitted {
-		return nil, errors.New("siswa sudah mengumpulkan kuesioner ini")
+		return nil, fmt.Errorf("kuesioner tidak ditemukan: %w", err)
 	}
 
-	answersJSON, _ := json.Marshal(request.Answers)
+	questionMap := make(map[uuid.UUID]*QuestionnaireQuestion)
+	for i := range questionnaire.Questions {
+		questionMap[questionnaire.Questions[i].ID] = &questionnaire.Questions[i]
+	}
+
+	for _, answer := range req.Answers {
+		if _, exists := questionMap[answer.QuestionID]; !exists {
+			return nil, fmt.Errorf("pertanyaan dengan ID %s tidak ditemukan", answer.QuestionID.String())
+		}
+	}
+
+	existingResponse, err := s.repo.GetResponseByStudentAndQuestionnaire(studentProfile.ID, req.QuestionnaireID)
+	if err == nil && existingResponse != nil {
+		return nil, fmt.Errorf("kuesioner sudah pernah dijawab")
+	}
+
+	totalScore := 0
+	for _, answer := range req.Answers {
+		if answer.Score != nil {
+			totalScore += *answer.Score
+		}
+	}
 
 	response := &QuestionnaireResponse{
-		StudentProfileID: studentID,
-		QuestionnaireID:  request.QuestionnaireID,
-		Answers:          string(answersJSON),
+		StudentProfileID: studentProfile.ID,
+		QuestionnaireID:  req.QuestionnaireID,
+		Answers:          convertAnswersToJSON(req.Answers),
+		TotalScore:       &totalScore,
 		SubmittedAt:      time.Now(),
 	}
 
-	err = s.repo.CreateResponse(response)
+	err = s.repo.CreateQuestionnaireResponse(response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gagal menyimpan respons: %w", err)
 	}
 
-	go func() {
-		if err := s.processWithAI(response, questionnaire.Questions, request.Answers); err != nil {
-			fmt.Printf("Error dalam pemrosesan AI: %v\n", err)
-		}
-	}()
+	log.Printf("Response saved with ID: %s", response.ID.String())
 
-	return &QuestionnaireResultResponse{
-		ID:              response.ID,
-		QuestionnaireID: response.QuestionnaireID,
-		SubmittedAt:     response.SubmittedAt.Format(time.RFC3339),
-	}, nil
+	go s.processWithAI(response, questionnaire.Questions, req.Answers)
+
+	return response, nil
 }
 
-func (s *QuestionnaireService) validateAnswers(questions []QuestionnaireQuestion, answers []AnswerItem) error {
-	answerMap := make(map[uuid.UUID]AnswerItem)
-	for _, answer := range answers {
-		answerMap[answer.QuestionID] = answer
+func convertAnswersToJSON(answers []AnswerItem) string {
+	answersJSON, err := json.Marshal(answers)
+	if err != nil {
+		log.Printf("Error marshaling answers: %v", err)
+		return "[]"
 	}
-
-	for _, question := range questions {
-		answer, exists := answerMap[question.ID]
-		if !exists {
-			return fmt.Errorf("jawaban tidak ditemukan untuk pertanyaan: %s", question.QuestionText)
-		}
-
-		switch question.QuestionType {
-		case QuestionTypeMCQ:
-			if answer.SelectedOption == nil || *answer.SelectedOption == "" {
-				return fmt.Errorf("pilihan harus dipilih untuk pertanyaan pilihan ganda: %s", question.QuestionText)
-			}
-		case QuestionTypeLikert:
-			if answer.Score == nil || *answer.Score < 1 || *answer.Score > 5 {
-				return fmt.Errorf("skor likert harus antara 1-5 untuk pertanyaan: %s", question.QuestionText)
-			}
-		case QuestionTypeText:
-			if answer.TextAnswer == nil || strings.TrimSpace(*answer.TextAnswer) == "" {
-				return fmt.Errorf("jawaban teks diperlukan untuk pertanyaan: %s", question.QuestionText)
-			}
-		case QuestionTypeCase:
-			if answer.TextAnswer == nil || strings.TrimSpace(*answer.TextAnswer) == "" {
-				return fmt.Errorf("jawaban kasus diperlukan untuk pertanyaan: %s", question.QuestionText)
-			}
-		}
-	}
-
-	return nil
+	return string(answersJSON)
 }
 
 func (s *QuestionnaireService) processWithAI(response *QuestionnaireResponse, questions []QuestionnaireQuestion, answers []AnswerItem) error {
@@ -143,126 +132,172 @@ func (s *QuestionnaireService) processWithAI(response *QuestionnaireResponse, qu
 	ctx := context.Background()
 	aiResult, err := s.aiService.GenerateCareerRecommendations(ctx, prompt)
 	if err != nil {
-		log.Printf("AI service failed for career recommendations: %v", err)
-		return fmt.Errorf("gagal memproses rekomendasi karir: %w", err)
+		log.Printf("Error generating AI recommendations: %v", err)
+		return err
 	}
 
 	return s.processAIResponse(response, aiResult, questions, answers)
 }
 
 func (s *QuestionnaireService) processAIResponse(response *QuestionnaireResponse, aiResult *ai.CareerAnalysisResponse, questions []QuestionnaireQuestion, answers []AnswerItem) error {
-	recommendations := make([]AIRecommendation, len(aiResult.Recommendations))
+	log.Printf("Processing AI response with %d recommendations", len(aiResult.Recommendations))
+
+	now := time.Now()
+	response.ProcessedAt = &now
+
+	analysisJSON, _ := json.Marshal(aiResult.Analysis)
+	analysisStr := string(analysisJSON)
+	response.AIAnalysis = &analysisStr
+
+	aiRecommendations := make([]AIRecommendation, 0)
+
 	for i, rec := range aiResult.Recommendations {
-		recommendations[i] = AIRecommendation{
-			RoleID:        rec.RoleID,
+		var roleID string
+		if _, err := uuid.Parse(rec.RoleID); err != nil {
+			roleID = generateRoleUUID(rec.RoleName).String()
+			log.Printf("Generated UUID %s for role: %s (original: %s)", roleID, rec.RoleName, rec.RoleID)
+		} else {
+			roleID = rec.RoleID
+		}
+
+		aiRec := AIRecommendation{
+			RoleID:        roleID,
 			RoleName:      rec.RoleName,
 			Score:         rec.Score,
 			Justification: rec.Justification,
 		}
+		aiRecommendations = append(aiRecommendations, aiRec)
+
+		log.Printf("Recommendation %d: %s (Score: %.1f)", i+1, rec.RoleName, rec.Score)
 	}
 
-	totalScore := s.calculateTotalScore(questions, answers)
+	if len(aiRecommendations) > 0 {
+		topRecommendation := aiRecommendations[0]
 
-	aiAnalysisJSON, _ := json.Marshal(aiResult.Analysis)
-	aiRecommendationsJSON, _ := json.Marshal(recommendations)
-	now := time.Now()
+		if roleUUID, err := uuid.Parse(topRecommendation.RoleID); err == nil {
+			response.RecommendedProfilingRoleID = &roleUUID
+		} else {
+			log.Printf("Warning: Failed to parse role ID as UUID: %s", topRecommendation.RoleID)
+			response.RecommendedProfilingRoleID = nil
+		}
 
-	response.AIAnalysis = stringPtr(string(aiAnalysisJSON))
-	response.AIRecommendations = stringPtr(string(aiRecommendationsJSON))
-	response.AIModelVersion = stringPtr("gemini-pro-v1.0")
-	response.ProcessedAt = &now
-	response.TotalScore = &totalScore
-
-	if len(recommendations) > 0 {
-		roleID := uuid.MustParse(recommendations[0].RoleID)
-		response.RecommendedProfilingRoleID = &roleID
+		log.Printf("Top recommendation: %s", topRecommendation.RoleName)
 	}
 
-	err := s.repo.UpdateResponse(response)
+	recommendationsJSON, err := json.Marshal(aiRecommendations)
 	if err != nil {
-		return err
+		log.Printf("Error marshaling AI recommendations: %v", err)
+		return fmt.Errorf("gagal convert rekomendasi AI: %w", err)
+	}
+	recommendationsStr := string(recommendationsJSON)
+	response.AIRecommendations = &recommendationsStr
+
+	response.AIModelVersion = stringPtr("gemini-1.5-flash-v1")
+
+	err = s.repo.UpdateResponse(response)
+	if err != nil {
+		log.Printf("Error updating response: %v", err)
+		return fmt.Errorf("gagal update response: %w", err)
 	}
 
-	var roleRecommendations []RoleRecommendation
-	for i, rec := range recommendations {
-		roleRecommendations = append(roleRecommendations, RoleRecommendation{
-			ResponseID:      response.ID,
-			ProfilingRoleID: uuid.MustParse(rec.RoleID),
-			Rank:            i + 1,
-			Score:           rec.Score,
-			Justification:   &rec.Justification,
-			CreatedAt:       time.Now(),
-		})
-	}
-
-	return s.repo.CreateRoleRecommendations(roleRecommendations)
+	log.Printf("AI processing completed successfully for response %s", response.ID.String())
+	return nil
 }
 
-func (s *QuestionnaireService) calculateTotalScore(questions []QuestionnaireQuestion, answers []AnswerItem) int {
-	total := 0
-	for _, answer := range answers {
-		if answer.Score != nil {
-			total += *answer.Score
-		} else if answer.SelectedOption != nil {
-			total += 3
-		} else {
-			total += 1
-		}
+func generateRoleUUID(roleName string) uuid.UUID {
+	roleMap := map[string]string{
+		"Backend Developer":      "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+		"Frontend Developer":     "b2c3d4e5-f6a7-8901-2345-678901bcdef0",
+		"Full Stack Developer":   "c3d4e5f6-a7b8-9012-3456-789012cdef01",
+		"Database Administrator": "d4e5f6a7-b8c9-0123-4567-890123def012",
+		"API Developer":          "e5f6a7b8-c9d0-1234-5678-901234ef0123",
+		"Mobile Developer":       "f6a7b8c9-d0e1-2345-6789-012345f01234",
+		"DevOps Engineer":        "a7b8c9d0-e1f2-3456-7890-123456012345",
+		"Data Scientist":         "b8c9d0e1-f2a3-4567-8901-234567123456",
+		"UI/UX Designer":         "c9d0e1f2-a3b4-5678-9012-345678234567",
+		"System Administrator":   "d0e1f2a3-b4c5-6789-0123-456789345678",
 	}
-	return total
+
+	if existingUUID, exists := roleMap[roleName]; exists {
+		parsed, _ := uuid.Parse(existingUUID)
+		return parsed
+	}
+
+	return uuid.New()
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
 
 func (s *QuestionnaireService) buildAIPrompt(questions []QuestionnaireQuestion, answers []AnswerItem) string {
-	var prompt strings.Builder
-	prompt.WriteString("Analisis jawaban kuesioner profiling karir siswa SMK berikut:\n\n")
+	prompt := `
+Analisis jawaban kuesioner profiling karir berikut:
 
-	answerMap := make(map[uuid.UUID]AnswerItem)
-	for _, answer := range answers {
-		answerMap[answer.QuestionID] = answer
-	}
+JAWABAN KUESIONER:
+`
 
-	for _, question := range questions {
-		if answer, exists := answerMap[question.ID]; exists {
-			prompt.WriteString(fmt.Sprintf("Pertanyaan: %s\n", question.QuestionText))
-
-			switch question.QuestionType {
-			case QuestionTypeMCQ:
-				if answer.SelectedOption != nil {
-					prompt.WriteString(fmt.Sprintf("Jawaban: %s\n", *answer.SelectedOption))
-				}
-			case QuestionTypeLikert:
-				if answer.Score != nil {
-					prompt.WriteString(fmt.Sprintf("Skor: %d/5\n", *answer.Score))
-				}
-			case QuestionTypeText, QuestionTypeCase:
-				if answer.TextAnswer != nil {
-					prompt.WriteString(fmt.Sprintf("Jawaban: %s\n", *answer.TextAnswer))
-				}
+	for i, answer := range answers {
+		var question *QuestionnaireQuestion
+		for j := range questions {
+			if questions[j].ID == answer.QuestionID {
+				question = &questions[j]
+				break
 			}
-			prompt.WriteString("\n")
+		}
+
+		if question != nil {
+			prompt += fmt.Sprintf("\n%d. %s", i+1, question.QuestionText)
+			if answer.SelectedOption != nil {
+				prompt += fmt.Sprintf("\n   Jawaban: %s", *answer.SelectedOption)
+			}
+			if answer.Score != nil {
+				prompt += fmt.Sprintf("\n   Skor: %d/%d", *answer.Score, question.MaxScore)
+			}
+			if answer.TextAnswer != nil {
+				prompt += fmt.Sprintf("\n   Jawaban teks: %s", *answer.TextAnswer)
+			}
 		}
 	}
 
-	prompt.WriteString(`
-Berdasarkan jawaban di atas, berikan analisis dalam format JSON:
+	prompt += `
+
+INSTRUKSI ANALISIS:
+Berdasarkan jawaban di atas, berikan rekomendasi karir dalam format JSON berikut:
+
 {
   "analysis": {
-    "personality_traits": ["trait1", "trait2"],
-    "interests": ["interest1", "interest2"],
-    "strengths": ["strength1", "strength2"],
-    "work_style": "deskripsi gaya kerja"
+    "personality_traits": ["analitis", "detail-oriented", "problem-solver"],
+    "interests": ["backend development", "database management"],
+    "strengths": ["logical thinking", "technical skills"],
+    "work_style": "Lebih suka bekerja dengan data dan logika"
   },
   "recommendations": [
     {
-      "role_id": "uuid",
-      "role_name": "nama role",
-      "score": float,
-      "justification": "alasan rekomendasi"
+      "role_id": "backend-dev",
+      "role_name": "Backend Developer",
+      "score": 87.5,
+      "justification": "Berdasarkan preferensi backend dan kemampuan problem solving"
+    },
+    {
+      "role_id": "api-dev", 
+      "role_name": "API Developer",
+      "score": 82.0,
+      "justification": "Pengalaman dengan API dan minat pada backend"
     }
   ]
-}`)
+}
 
-	return prompt.String()
+PENTING:
+- role_id harus berupa string pendek (bukan UUID)
+- Berikan maksimal 3 rekomendasi
+- Urutkan berdasarkan score tertinggi
+- Score dalam range 0-100
+- Justification harus spesifik berdasarkan jawaban
+
+Berikan HANYA JSON, tanpa text tambahan.`
+
+	return prompt
 }
 
 func (s *QuestionnaireService) GetQuestionnaireResult(responseID uuid.UUID) (*QuestionnaireResultResponse, error) {
@@ -274,19 +309,19 @@ func (s *QuestionnaireService) GetQuestionnaireResult(responseID uuid.UUID) (*Qu
 	result := &QuestionnaireResultResponse{
 		ID:              response.ID,
 		QuestionnaireID: response.QuestionnaireID,
-		SubmittedAt:     response.SubmittedAt.Format(time.RFC3339),
+		SubmittedAt:     response.SubmittedAt,
 		TotalScore:      response.TotalScore,
 	}
 
 	if response.ProcessedAt != nil {
-		processedTime := response.ProcessedAt.Format(time.RFC3339)
-		result.ProcessedAt = &processedTime
+		result.ProcessedAt = response.ProcessedAt
 	}
 
 	if response.AIRecommendations != nil {
 		var recommendations []AIRecommendation
 		if err := json.Unmarshal([]byte(*response.AIRecommendations), &recommendations); err == nil {
 			result.AIRecommendations = recommendations
+
 			if len(recommendations) > 0 {
 				result.RecommendedRole = &recommendations[0].RoleName
 			}
@@ -296,20 +331,24 @@ func (s *QuestionnaireService) GetQuestionnaireResult(responseID uuid.UUID) (*Qu
 	return result, nil
 }
 
-func (s *QuestionnaireService) GetLatestResultByStudent(studentID uuid.UUID) (*QuestionnaireResultResponse, error) {
-	response, err := s.repo.GetLatestResponseByStudent(studentID)
+func (s *QuestionnaireService) GetLatestResultByStudentProfile(studentProfileID uuid.UUID) (*QuestionnaireResultResponse, error) {
+	log.Printf("Getting latest response for student profile: %s", studentProfileID.String())
+
+	response, err := s.repo.GetLatestResponseByStudentProfile(studentProfileID)
 	if err != nil {
+		log.Printf("Error in GetLatestResponseByStudentProfile: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Found response: %s", response.ID.String())
 	return s.GetQuestionnaireResult(response.ID)
 }
 
-func (s *QuestionnaireService) GenerateQuestionnaire(request GenerateQuestionnaireRequest) (*GenerationStatusResponse, error) {
-	if err := s.validateGenerationRequest(request); err != nil {
-		return nil, err
-	}
+func (s *QuestionnaireService) GetStudentProfileByUserID(userID uuid.UUID) (*user.StudentProfile, error) {
+	return s.repo.GetStudentProfileByUserID(userID)
+}
 
+func (s *QuestionnaireService) GenerateQuestionnaire(request GenerateQuestionnaireRequest) (*GenerationStatusResponse, error) {
 	questionnaire := &ProfilingQuestionnaire{
 		Name:        request.Name,
 		GeneratedBy: "ai",
@@ -317,8 +356,9 @@ func (s *QuestionnaireService) GenerateQuestionnaire(request GenerateQuestionnai
 		Active:      false,
 	}
 
-	if err := s.repo.CreateQuestionnaire(questionnaire); err != nil {
-		return nil, err
+	err := s.repo.CreateQuestionnaire(questionnaire)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membuat kuesioner: %w", err)
 	}
 
 	prompt := s.buildQuestionGenerationPrompt(request)
@@ -333,17 +373,12 @@ func (s *QuestionnaireService) GenerateQuestionnaire(request GenerateQuestionnai
 	}, nil
 }
 
-func (s *QuestionnaireService) validateGenerationRequest(request GenerateQuestionnaireRequest) error {
-	if request.QuestionCount < 5 || request.QuestionCount > 50 {
-		return errors.New("jumlah pertanyaan harus antara 5-50")
-	}
-	if len(request.TargetRoles) == 0 {
-		return errors.New("minimal satu target role harus dipilih")
-	}
-	return nil
-}
-
 func (s *QuestionnaireService) buildQuestionGenerationPrompt(req GenerateQuestionnaireRequest) string {
+	customInstructions := ""
+	if req.CustomInstructions != nil {
+		customInstructions = *req.CustomInstructions
+	}
+
 	prompt := fmt.Sprintf(`Anda adalah seorang ahli psikologi karir dan teknologi yang akan membuat kuesioner profiling karir untuk siswa SMK.
 
 TUJUAN: Buat %d pertanyaan yang dapat mengidentifikasi kecenderungan siswa terhadap peran teknologi tertentu.
@@ -380,7 +415,7 @@ FORMAT OUTPUT JSON:
 		req.TargetRoles,
 		req.DifficultyLevel,
 		req.FocusAreas,
-		req.CustomInstructions,
+		customInstructions,
 		req.QuestionCount,
 	)
 
@@ -396,61 +431,57 @@ func (s *QuestionnaireService) processQuestionGeneration(questionnaireID uuid.UU
 	var err error
 
 	if s.aiService != nil {
-		log.Println("Generating questions using AI service...")
 		ctx := context.Background()
 		aiResponse, err = s.aiService.GenerateQuestions(ctx, promptUsed)
 		if err != nil {
-			log.Printf("AI service failed: %v", err)
-			s.repo.DeleteQuestionnaire(questionnaireID)
+			log.Printf("Error generating questions with AI: %v", err)
 			return
 		}
 	} else {
-		log.Println("No AI service available")
-		s.repo.DeleteQuestionnaire(questionnaireID)
+		log.Printf("AI service not available, using default questions")
 		return
 	}
 
 	questionnaire, err := s.repo.GetQuestionnaireByID(questionnaireID)
 	if err != nil {
-		log.Printf("Error getting questionnaire: %v", err)
+		log.Printf("Error fetching questionnaire: %v", err)
 		return
 	}
 
 	questions := make([]QuestionnaireQuestion, len(aiResponse.Questions))
 	for i, aiQ := range aiResponse.Questions {
-		question := QuestionnaireQuestion{
+		var optionsJSON *string
+		if len(aiQ.Options) > 0 {
+			optionsBytes, _ := json.Marshal(aiQ.Options)
+			optionsStr := string(optionsBytes)
+			optionsJSON = &optionsStr
+		}
+
+		questionType := QuestionType(aiQ.QuestionType)
+		maxScore := s.getMaxScoreForType(questionType)
+
+		questions[i] = QuestionnaireQuestion{
 			QuestionnaireID: questionnaireID,
 			QuestionText:    aiQ.QuestionText,
-			QuestionType:    QuestionType(aiQ.QuestionType),
-			Category:        aiQ.Category,
+			QuestionType:    questionType,
+			Options:         optionsJSON,
+			MaxScore:        maxScore,
 			QuestionOrder:   i + 1,
-			MaxScore:        s.getMaxScoreForType(QuestionType(aiQ.QuestionType)),
+			Category:        aiQ.Category,
 		}
-
-		if aiQ.QuestionType == "mcq" && len(aiQ.Options) > 0 {
-			options := make([]QuestionOption, len(aiQ.Options))
-			for j, opt := range aiQ.Options {
-				options[j] = QuestionOption{
-					Label: opt.Label,
-					Value: opt.Value,
-				}
-			}
-			optionsJSON, _ := json.Marshal(options)
-			question.Options = stringPtr(string(optionsJSON))
-		}
-
-		questions[i] = question
 	}
 
 	err = s.repo.AddQuestionsToQuestionnaire(questionnaireID, questions)
 	if err != nil {
 		log.Printf("Error saving questions: %v", err)
+		return
 	}
 
 	questionnaire.AIPromptUsed = &promptUsed
 	err = s.repo.UpdateQuestionnaire(questionnaire)
 	if err != nil {
-		log.Printf("Error updating questionnaire with prompt: %v", err)
+		log.Printf("Error updating questionnaire: %v", err)
+		return
 	}
 
 	log.Printf("Successfully generated %d questions for questionnaire %s", len(questions), questionnaireID)
@@ -458,14 +489,14 @@ func (s *QuestionnaireService) processQuestionGeneration(questionnaireID uuid.UU
 
 func (s *QuestionnaireService) getMaxScoreForType(questionType QuestionType) int {
 	switch questionType {
-	case QuestionTypeMCQ:
-		return 4
 	case QuestionTypeLikert:
 		return 5
-	case QuestionTypeText:
-		return 3
+	case QuestionTypeMCQ:
+		return 1
 	case QuestionTypeCase:
-		return 3
+		return 5
+	case QuestionTypeText:
+		return 0
 	default:
 		return 1
 	}
@@ -486,7 +517,7 @@ func (s *QuestionnaireService) GetGenerationStatus(questionnaireID uuid.UUID) (*
 	if len(questions) == 0 {
 		status = "memproses"
 		progress = 50
-		message = "Sedang membuat pertanyaan..."
+		message = "Sedang menghasilkan pertanyaan"
 	}
 
 	return &GenerationStatusResponse{
@@ -507,20 +538,19 @@ func (s *QuestionnaireService) GetAllQuestionnaires(page, limit int) ([]Question
 	for i, q := range questionnaires {
 		questions := make([]QuestionnaireQuestionResponse, len(q.Questions))
 		for j, question := range q.Questions {
+			var options []QuestionOption
+			if question.Options != nil {
+				json.Unmarshal([]byte(*question.Options), &options)
+			}
+
 			questions[j] = QuestionnaireQuestionResponse{
 				ID:            question.ID,
 				QuestionText:  question.QuestionText,
-				QuestionType:  question.QuestionType,
+				QuestionType:  string(question.QuestionType),
 				MaxScore:      question.MaxScore,
 				QuestionOrder: question.QuestionOrder,
 				Category:      question.Category,
-			}
-
-			if question.QuestionType == QuestionTypeMCQ && question.Options != nil {
-				var options []QuestionOption
-				if err := json.Unmarshal([]byte(*question.Options), &options); err == nil {
-					questions[j].Options = options
-				}
+				Options:       options,
 			}
 		}
 
@@ -529,6 +559,7 @@ func (s *QuestionnaireService) GetAllQuestionnaires(page, limit int) ([]Question
 			Name:        q.Name,
 			Version:     q.Version,
 			GeneratedBy: q.GeneratedBy,
+			Active:      q.Active,
 			Questions:   questions,
 		}
 	}
@@ -544,20 +575,19 @@ func (s *QuestionnaireService) GetQuestionnaireByID(id uuid.UUID) (*Questionnair
 
 	questions := make([]QuestionnaireQuestionResponse, len(questionnaire.Questions))
 	for i, q := range questionnaire.Questions {
+		var options []QuestionOption
+		if q.Options != nil {
+			json.Unmarshal([]byte(*q.Options), &options)
+		}
+
 		questions[i] = QuestionnaireQuestionResponse{
 			ID:            q.ID,
 			QuestionText:  q.QuestionText,
-			QuestionType:  q.QuestionType,
+			QuestionType:  string(q.QuestionType),
 			MaxScore:      q.MaxScore,
 			QuestionOrder: q.QuestionOrder,
 			Category:      q.Category,
-		}
-
-		if q.QuestionType == QuestionTypeMCQ && q.Options != nil {
-			var options []QuestionOption
-			if err := json.Unmarshal([]byte(*q.Options), &options); err == nil {
-				questions[i].Options = options
-			}
+			Options:       options,
 		}
 	}
 
@@ -566,6 +596,7 @@ func (s *QuestionnaireService) GetQuestionnaireByID(id uuid.UUID) (*Questionnair
 		Name:        questionnaire.Name,
 		Version:     questionnaire.Version,
 		GeneratedBy: questionnaire.GeneratedBy,
+		Active:      questionnaire.Active,
 		Questions:   questions,
 	}
 
@@ -584,15 +615,6 @@ func (s *QuestionnaireService) DeleteQuestionnaire(id uuid.UUID) error {
 	return s.repo.DeleteQuestionnaire(id)
 }
 
-func (s *QuestionnaireService) CloneQuestionnaire(originalID uuid.UUID, newName string) (*QuestionnaireDetailResponse, error) {
-	clone, err := s.repo.CloneQuestionnaire(originalID, newName)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.GetQuestionnaireByID(clone.ID)
-}
-
 func (s *QuestionnaireService) GetQuestionnaireResponses(questionnaireID uuid.UUID, page, limit int) ([]QuestionnaireResultResponse, int64, error) {
 	responses, total, err := s.repo.GetResponsesByQuestionnaireID(questionnaireID, page, limit)
 	if err != nil {
@@ -604,19 +626,19 @@ func (s *QuestionnaireService) GetQuestionnaireResponses(questionnaireID uuid.UU
 		result := QuestionnaireResultResponse{
 			ID:              response.ID,
 			QuestionnaireID: response.QuestionnaireID,
-			SubmittedAt:     response.SubmittedAt.Format(time.RFC3339),
+			SubmittedAt:     response.SubmittedAt,
 			TotalScore:      response.TotalScore,
 		}
 
 		if response.ProcessedAt != nil {
-			processedTime := response.ProcessedAt.Format(time.RFC3339)
-			result.ProcessedAt = &processedTime
+			result.ProcessedAt = response.ProcessedAt
 		}
 
 		if response.AIRecommendations != nil {
 			var recommendations []AIRecommendation
 			if err := json.Unmarshal([]byte(*response.AIRecommendations), &recommendations); err == nil {
 				result.AIRecommendations = recommendations
+
 				if len(recommendations) > 0 {
 					result.RecommendedRole = &recommendations[0].RoleName
 				}
@@ -629,183 +651,53 @@ func (s *QuestionnaireService) GetQuestionnaireResponses(questionnaireID uuid.UU
 	return results, total, nil
 }
 
-func (s *QuestionnaireService) GetQuestionnaireStats() (map[string]interface{}, error) {
-	return s.repo.GetQuestionnaireStats()
-}
-
-func (s *QuestionnaireService) GetResponseAnalytics(questionnaireID *uuid.UUID) (map[string]interface{}, error) {
-	return s.repo.GetResponseAnalytics(questionnaireID)
-}
-
-func (s *QuestionnaireService) SearchQuestionnaires(keyword string, page, limit int) ([]QuestionnaireDetailResponse, int64, error) {
-	questionnaires, total, err := s.repo.SearchQuestionnaires(keyword, page, limit)
-	if err != nil {
-		return nil, 0, err
+func (s *QuestionnaireService) CreateRole(roleName, description, category string) (*RoleRecommendation, error) {
+	role := &RoleRecommendation{
+		RoleName:    roleName,
+		Description: description,
+		Category:    category,
+		Active:      true,
 	}
 
-	responses := make([]QuestionnaireDetailResponse, len(questionnaires))
-	for i, q := range questionnaires {
-		questions := make([]QuestionnaireQuestionResponse, len(q.Questions))
-		for j, question := range q.Questions {
-			questions[j] = QuestionnaireQuestionResponse{
-				ID:            question.ID,
-				QuestionText:  question.QuestionText,
-				QuestionType:  question.QuestionType,
-				MaxScore:      question.MaxScore,
-				QuestionOrder: question.QuestionOrder,
-				Category:      question.Category,
-			}
-
-			if question.QuestionType == QuestionTypeMCQ && question.Options != nil {
-				var options []QuestionOption
-				if err := json.Unmarshal([]byte(*question.Options), &options); err == nil {
-					questions[j].Options = options
-				}
-			}
-		}
-
-		responses[i] = QuestionnaireDetailResponse{
-			ID:          q.ID,
-			Name:        q.Name,
-			Version:     q.Version,
-			GeneratedBy: q.GeneratedBy,
-			Questions:   questions,
-		}
-	}
-
-	return responses, total, nil
-}
-
-func (s *QuestionnaireService) GetQuestionnairesByGeneratedBy(generatedBy string, page, limit int) ([]QuestionnaireDetailResponse, int64, error) {
-	questionnaires, total, err := s.repo.GetQuestionnairesByGeneratedBy(generatedBy, page, limit)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	responses := make([]QuestionnaireDetailResponse, len(questionnaires))
-	for i, q := range questionnaires {
-		questions := make([]QuestionnaireQuestionResponse, len(q.Questions))
-		for j, question := range q.Questions {
-			questions[j] = QuestionnaireQuestionResponse{
-				ID:            question.ID,
-				QuestionText:  question.QuestionText,
-				QuestionType:  question.QuestionType,
-				MaxScore:      question.MaxScore,
-				QuestionOrder: question.QuestionOrder,
-				Category:      question.Category,
-			}
-
-			if question.QuestionType == QuestionTypeMCQ && question.Options != nil {
-				var options []QuestionOption
-				if err := json.Unmarshal([]byte(*question.Options), &options); err == nil {
-					questions[j].Options = options
-				}
-			}
-		}
-
-		responses[i] = QuestionnaireDetailResponse{
-			ID:          q.ID,
-			Name:        q.Name,
-			Version:     q.Version,
-			GeneratedBy: q.GeneratedBy,
-			Questions:   questions,
-		}
-	}
-
-	return responses, total, nil
-}
-
-func (s *QuestionnaireService) AddQuestionToQuestionnaire(questionnaireID uuid.UUID, questionText string, questionType QuestionType, options []QuestionOption, category string, questionOrder int) error {
-	question := QuestionnaireQuestion{
-		QuestionnaireID: questionnaireID,
-		QuestionText:    questionText,
-		QuestionType:    questionType,
-		Category:        category,
-		QuestionOrder:   questionOrder,
-		MaxScore:        s.getMaxScoreForType(questionType),
-	}
-
-	if questionType == QuestionTypeMCQ && len(options) > 0 {
-		optionsJSON, err := json.Marshal(options)
-		if err != nil {
-			return err
-		}
-		question.Options = stringPtr(string(optionsJSON))
-	}
-
-	return s.repo.AddQuestionsToQuestionnaire(questionnaireID, []QuestionnaireQuestion{question})
-}
-
-func (s *QuestionnaireService) UpdateQuestion(questionID uuid.UUID, questionText string, questionType QuestionType, options []QuestionOption, category string, questionOrder int) error {
-	question := QuestionnaireQuestion{
-		ID:            questionID,
-		QuestionText:  questionText,
-		QuestionType:  questionType,
-		Category:      category,
-		QuestionOrder: questionOrder,
-		MaxScore:      s.getMaxScoreForType(questionType),
-	}
-
-	if questionType == QuestionTypeMCQ && len(options) > 0 {
-		optionsJSON, err := json.Marshal(options)
-		if err != nil {
-			return err
-		}
-		question.Options = stringPtr(string(optionsJSON))
-	}
-
-	return s.repo.UpdateQuestion(&question)
-}
-
-func (s *QuestionnaireService) DeleteQuestion(questionID uuid.UUID) error {
-	return s.repo.DeleteQuestion(questionID)
-}
-
-func (s *QuestionnaireService) UpdateQuestionOrder(questionnaireID uuid.UUID, questions []struct {
-	ID    uuid.UUID `json:"id" validate:"required"`
-	Order int       `json:"order" validate:"required,min=1"`
-}) error {
-	updates := make([]struct {
-		ID    uuid.UUID
-		Order int
-	}, len(questions))
-
-	for i, q := range questions {
-		updates[i] = struct {
-			ID    uuid.UUID
-			Order int
-		}{
-			ID:    q.ID,
-			Order: q.Order,
-		}
-	}
-
-	return s.repo.BulkUpdateQuestionOrder(updates)
-}
-
-func (s *QuestionnaireService) CreateQuestionTemplate(name, description, prompt string) (*QuestionGenerationTemplate, error) {
-	template := &QuestionGenerationTemplate{
-		Name:   name,
-		Prompt: prompt,
-		Active: true,
-	}
-
-	if description != "" {
-		template.Description = &description
-	}
-
-	err := s.repo.CreateQuestionGenerationTemplate(template)
+	err := s.repo.CreateRole(role)
 	if err != nil {
 		return nil, err
 	}
 
-	return template, nil
+	return role, nil
 }
 
-func (s *QuestionnaireService) GetQuestionTemplates() ([]QuestionGenerationTemplate, error) {
-	return s.repo.GetQuestionGenerationTemplates()
+func (s *QuestionnaireService) GetAllRoles() ([]RoleRecommendation, error) {
+	return s.repo.GetAllRoles()
 }
 
-func stringPtr(s string) *string {
-	return &s
+func (s *QuestionnaireService) DeleteRole(id uuid.UUID) error {
+	role, err := s.repo.GetRoleByID(id)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.DeleteRole(role.ID)
+}
+
+func (s *QuestionnaireService) GetRoleByName(roleName string) (*RoleRecommendation, error) {
+	return s.repo.GetRoleByName(roleName)
+}
+
+func (s *QuestionnaireService) UpdateRole(id uuid.UUID, roleName, description, category string) (*RoleRecommendation, error) {
+	role, err := s.repo.GetRoleByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	role.RoleName = roleName
+	role.Description = description
+	role.Category = category
+
+	err = s.repo.UpdateRole(role)
+	if err != nil {
+		return nil, err
+	}
+
+	return role, nil
 }

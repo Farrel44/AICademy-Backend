@@ -39,7 +39,6 @@ func NewGeminiService(apiKey string) (*GeminiService, error) {
 	model.SetTopP(0.95)
 	model.SetMaxOutputTokens(8192)
 
-	log.Println("Testing Gemini connection...")
 	testResp, err := model.GenerateContent(ctx, genai.Text("Hello"))
 	if err != nil {
 		log.Printf("Connection test failed: %v", err)
@@ -50,7 +49,6 @@ func NewGeminiService(apiKey string) (*GeminiService, error) {
 		log.Println("Gemini connection test successful")
 	}
 
-	log.Println("Gemini AI service berhasil diinisialisasi")
 	return &GeminiService{
 		client: client,
 		model:  model,

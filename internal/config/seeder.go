@@ -5,6 +5,7 @@ import (
 	"aicademy-backend/internal/domain/user"
 	"aicademy-backend/internal/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -37,6 +38,10 @@ func SeedData(db *gorm.DB) error {
 
 	if err := SeedDefaultQuestionnaires(db); err != nil {
 		return fmt.Errorf("gagal melakukan seeding kuesioner: %v", err)
+	}
+
+	if err := SeedRoleRecommendations(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding role recommendations: %v", err)
 	}
 
 	log.Println("Proses seeding database selesai dengan sukses")
@@ -487,6 +492,83 @@ func SeedDefaultQuestionnaires(db *gorm.DB) error {
 		}
 
 		log.Printf("Kuesioner '%s' berhasil dibuat dengan %d pertanyaan", qData.Name, len(qData.Questions))
+	}
+
+	return nil
+}
+func SeedRoleRecommendations(db *gorm.DB) error {
+	roles := []questionnaire.RoleRecommendation{
+		{
+			RoleName:    "Backend Developer",
+			Description: "Mengembangkan aplikasi server-side, API, dan sistem database",
+			Category:    "software_development",
+		},
+		{
+			RoleName:    "Frontend Developer",
+			Description: "Mengembangkan antarmuka pengguna dan pengalaman pengguna aplikasi web",
+			Category:    "software_development",
+		},
+		{
+			RoleName:    "Full Stack Developer",
+			Description: "Mengembangkan aplikasi end-to-end dari frontend hingga backend",
+			Category:    "software_development",
+		},
+		{
+			RoleName:    "Mobile Developer",
+			Description: "Mengembangkan aplikasi mobile untuk Android dan iOS",
+			Category:    "mobile_development",
+		},
+		{
+			RoleName:    "DevOps Engineer",
+			Description: "Mengelola infrastruktur, deployment, dan operasi sistem",
+			Category:    "infrastructure",
+		},
+		{
+			RoleName:    "Data Scientist",
+			Description: "Menganalisis data dan membangun model machine learning",
+			Category:    "data_science",
+		},
+		{
+			RoleName:    "UI/UX Designer",
+			Description: "Merancang antarmuka dan pengalaman pengguna aplikasi",
+			Category:    "design",
+		},
+		{
+			RoleName:    "QA Engineer",
+			Description: "Menguji kualitas software dan memastikan aplikasi bebas bug",
+			Category:    "quality_assurance",
+		},
+		{
+			RoleName:    "System Administrator",
+			Description: "Mengelola infrastruktur IT dan sistem operasi",
+			Category:    "infrastructure",
+		},
+		{
+			RoleName:    "Cloud Engineer",
+			Description: "Merancang dan mengelola infrastruktur cloud",
+			Category:    "cloud_computing",
+		},
+		{
+			RoleName:    "Cyber Security Specialist",
+			Description: "Melindungi sistem dan data dari ancaman keamanan",
+			Category:    "security",
+		},
+		{
+			RoleName:    "Database Administrator",
+			Description: "Mengelola dan mengoptimalkan sistem database enterprise",
+			Category:    "database",
+		},
+	}
+
+	for _, role := range roles {
+		var existingRole questionnaire.RoleRecommendation
+		err := db.Where("role_name = ?", role.RoleName).First(&existingRole).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := db.Create(&role).Error; err != nil {
+				return fmt.Errorf("failed to create role %s: %w", role.RoleName, err)
+			}
+			log.Printf("Created role: %s", role.RoleName)
+		}
 	}
 
 	return nil

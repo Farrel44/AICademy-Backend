@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type QuestionType string
@@ -29,31 +30,45 @@ type ProfilingQuestionnaire struct {
 	Questions []QuestionnaireQuestion `gorm:"foreignKey:QuestionnaireID"`
 }
 
+func (p *ProfilingQuestionnaire) BeforeCreate(tx *gorm.DB) error {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	return nil
+}
+
 type QuestionnaireQuestion struct {
 	ID              uuid.UUID    `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	QuestionnaireID uuid.UUID    `gorm:"not null"`
 	QuestionText    string       `gorm:"not null"`
 	QuestionType    QuestionType `gorm:"not null"`
-	Options         *string
-	MaxScore        int       `gorm:"default:1"`
-	QuestionOrder   int       `gorm:"not null"`
-	Category        string    `gorm:"not null"`
-	CreatedAt       time.Time `gorm:"autoCreateTime"`
-	UpdatedAt       time.Time `gorm:"autoUpdateTime"`
+	Options         *string      `gorm:"type:text"`
+	MaxScore        int          `gorm:"default:1"`
+	QuestionOrder   int          `gorm:"not null"`
+	Category        string       `gorm:"not null"`
+	CreatedAt       time.Time    `gorm:"autoCreateTime"`
+	UpdatedAt       time.Time    `gorm:"autoUpdateTime"`
 
 	Questionnaire ProfilingQuestionnaire `gorm:"foreignKey:QuestionnaireID"`
+}
+
+func (q *QuestionnaireQuestion) BeforeCreate(tx *gorm.DB) error {
+	if q.ID == uuid.Nil {
+		q.ID = uuid.New()
+	}
+	return nil
 }
 
 type QuestionnaireResponse struct {
 	ID                         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	StudentProfileID           uuid.UUID `gorm:"not null"`
 	QuestionnaireID            uuid.UUID `gorm:"not null"`
-	Answers                    string    `gorm:"type:jsonb;not null"`
-	SubmittedAt                time.Time `gorm:"autoCreateTime"`
+	Answers                    string    `gorm:"type:text;not null"`
+	SubmittedAt                time.Time `gorm:"not null"`
 	ProcessedAt                *time.Time
 	TotalScore                 *int
-	AIAnalysis                 *string `gorm:"type:jsonb"`
-	AIRecommendations          *string `gorm:"type:jsonb"`
+	AIAnalysis                 *string `gorm:"type:text"`
+	AIRecommendations          *string `gorm:"type:text"`
 	AIModelVersion             *string
 	RecommendedProfilingRoleID *uuid.UUID
 	CreatedAt                  time.Time `gorm:"autoCreateTime"`
@@ -62,16 +77,11 @@ type QuestionnaireResponse struct {
 	Questionnaire ProfilingQuestionnaire `gorm:"foreignKey:QuestionnaireID"`
 }
 
-type RoleRecommendation struct {
-	ID              uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	ResponseID      uuid.UUID `gorm:"not null"`
-	ProfilingRoleID uuid.UUID `gorm:"not null"`
-	Rank            int       `gorm:"not null"`
-	Score           float64   `gorm:"not null"`
-	Justification   *string
-	CreatedAt       time.Time `gorm:"autoCreateTime"`
-
-	Response QuestionnaireResponse `gorm:"foreignKey:ResponseID"`
+func (q *QuestionnaireResponse) BeforeCreate(tx *gorm.DB) error {
+	if q.ID == uuid.Nil {
+		q.ID = uuid.New()
+	}
+	return nil
 }
 
 type QuestionGenerationTemplate struct {
@@ -82,4 +92,28 @@ type QuestionGenerationTemplate struct {
 	Active      bool      `gorm:"default:true"`
 	CreatedAt   time.Time `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+}
+
+func (q *QuestionGenerationTemplate) BeforeCreate(tx *gorm.DB) error {
+	if q.ID == uuid.Nil {
+		q.ID = uuid.New()
+	}
+	return nil
+}
+
+type RoleRecommendation struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	RoleName    string    `gorm:"not null;unique"`
+	Description string    `gorm:"not null"`
+	Category    string    `gorm:"not null"`
+	Active      bool      `gorm:"default:true"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+}
+
+func (r *RoleRecommendation) BeforeCreate(tx *gorm.DB) error {
+	if r.ID == uuid.Nil {
+		r.ID = uuid.New()
+	}
+	return nil
 }

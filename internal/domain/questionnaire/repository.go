@@ -1,6 +1,11 @@
 package questionnaire
 
 import (
+	"aicademy-backend/internal/domain/user"
+	"encoding/json"
+	"errors"
+	"fmt"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -15,29 +20,33 @@ func NewQuestionnaireRepository(db *gorm.DB) *QuestionnaireRepository {
 
 func (r *QuestionnaireRepository) GetActiveQuestionnaire() (*ProfilingQuestionnaire, error) {
 	var questionnaire ProfilingQuestionnaire
-	err := r.db.Where("active = ?", true).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
-		First(&questionnaire).Error
+	err := r.db.Preload("Questions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("question_order ASC")
+	}).Where("active = ?", true).First(&questionnaire).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("tidak ada kuesioner aktif")
+		}
 		return nil, err
 	}
+
 	return &questionnaire, nil
 }
 
 func (r *QuestionnaireRepository) GetQuestionnaireByID(id uuid.UUID) (*ProfilingQuestionnaire, error) {
 	var questionnaire ProfilingQuestionnaire
-	err := r.db.Where("id = ?", id).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
-		First(&questionnaire).Error
+	err := r.db.Preload("Questions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("question_order ASC")
+	}).Where("id = ?", id).First(&questionnaire).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("kuesioner tidak ditemukan")
+		}
 		return nil, err
 	}
+
 	return &questionnaire, nil
 }
 
@@ -45,15 +54,17 @@ func (r *QuestionnaireRepository) GetAllQuestionnaires(page, limit int) ([]Profi
 	var questionnaires []ProfilingQuestionnaire
 	var total int64
 
-	r.db.Model(&ProfilingQuestionnaire{}).Count(&total)
+	err := r.db.Model(&ProfilingQuestionnaire{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
 
 	offset := (page - 1) * limit
-	err := r.db.Order("created_at DESC").
-		Limit(limit).
+	err = r.db.Preload("Questions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("question_order ASC")
+	}).Order("created_at DESC").
 		Offset(offset).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
+		Limit(limit).
 		Find(&questionnaires).Error
 
 	return questionnaires, total, err
@@ -68,59 +79,28 @@ func (r *QuestionnaireRepository) UpdateQuestionnaire(questionnaire *ProfilingQu
 }
 
 func (r *QuestionnaireRepository) DeleteQuestionnaire(id uuid.UUID) error {
-	return r.db.Delete(&ProfilingQuestionnaire{}, "id = ?", id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("questionnaire_id = ?", id).Delete(&QuestionnaireQuestion{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&ProfilingQuestionnaire{}, id).Error
+	})
 }
 
 func (r *QuestionnaireRepository) ActivateQuestionnaire(id uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&ProfilingQuestionnaire{}).
-			Where("active = ?", true).
-			Update("active", false).Error; err != nil {
+		if err := tx.Model(&ProfilingQuestionnaire{}).Where("active = ?", true).Update("active", false).Error; err != nil {
 			return err
 		}
-
-		return tx.Model(&ProfilingQuestionnaire{}).
-			Where("id = ?", id).
-			Update("active", true).Error
+		return tx.Model(&ProfilingQuestionnaire{}).Where("id = ?", id).Update("active", true).Error
 	})
 }
 
 func (r *QuestionnaireRepository) DeactivateAllQuestionnaires() error {
-	return r.db.Model(&ProfilingQuestionnaire{}).
-		Where("active = ?", true).
-		Update("active", false).Error
+	return r.db.Model(&ProfilingQuestionnaire{}).Where("active = ?", true).Update("active", false).Error
 }
 
-func (r *QuestionnaireRepository) AddQuestionsToQuestionnaire(questionnaireID uuid.UUID, questions []QuestionnaireQuestion) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		for i := range questions {
-			questions[i].QuestionnaireID = questionnaireID
-			if err := tx.Create(&questions[i]).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func (r *QuestionnaireRepository) UpdateQuestion(question *QuestionnaireQuestion) error {
-	return r.db.Save(question).Error
-}
-
-func (r *QuestionnaireRepository) DeleteQuestion(questionID uuid.UUID) error {
-	return r.db.Delete(&QuestionnaireQuestion{}, "id = ?", questionID).Error
-}
-
-func (r *QuestionnaireRepository) GetQuestionsByQuestionnaireID(questionnaireID uuid.UUID) ([]QuestionnaireQuestion, error) {
-	var questions []QuestionnaireQuestion
-	err := r.db.Where("questionnaire_id = ?", questionnaireID).
-		Order("question_order ASC").
-		Find(&questions).Error
-
-	return questions, err
-}
-
-func (r *QuestionnaireRepository) CreateResponse(response *QuestionnaireResponse) error {
+func (r *QuestionnaireRepository) CreateQuestionnaireResponse(response *QuestionnaireResponse) error {
 	return r.db.Create(response).Error
 }
 
@@ -130,322 +110,208 @@ func (r *QuestionnaireRepository) UpdateResponse(response *QuestionnaireResponse
 
 func (r *QuestionnaireRepository) GetResponseByID(id uuid.UUID) (*QuestionnaireResponse, error) {
 	var response QuestionnaireResponse
-	err := r.db.First(&response, "id = ?", id).Error
+	err := r.db.Preload("Questionnaire").Where("id = ?", id).First(&response).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("respons tidak ditemukan")
+		}
 		return nil, err
 	}
 	return &response, nil
 }
 
-func (r *QuestionnaireRepository) GetResponsesByStudentID(studentID uuid.UUID, page, limit int) ([]QuestionnaireResponse, int64, error) {
-	var responses []QuestionnaireResponse
-	var total int64
-
-	r.db.Model(&QuestionnaireResponse{}).
-		Where("student_profile_id = ?", studentID).
-		Count(&total)
-
-	offset := (page - 1) * limit
-	err := r.db.Where("student_profile_id = ?", studentID).
-		Order("submitted_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&responses).Error
-
-	return responses, total, err
+func (r *QuestionnaireRepository) GetStudentProfileByUserID(userID uuid.UUID) (*user.StudentProfile, error) {
+	var profile user.StudentProfile
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("profil siswa tidak ditemukan")
+		}
+		return nil, err
+	}
+	return &profile, nil
 }
 
-func (r *QuestionnaireRepository) GetLatestResponseByStudent(studentID uuid.UUID) (*QuestionnaireResponse, error) {
+func (r *QuestionnaireRepository) GetLatestResponseByStudentProfile(studentProfileID uuid.UUID) (*QuestionnaireResponse, error) {
 	var response QuestionnaireResponse
-	err := r.db.Where("student_profile_id = ?", studentID).
+	err := r.db.Preload("Questionnaire").
+		Where("student_profile_id = ?", studentProfileID).
 		Order("submitted_at DESC").
 		First(&response).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("belum ada respons")
+		}
 		return nil, err
 	}
+
 	return &response, nil
 }
 
-func (r *QuestionnaireRepository) HasStudentSubmitted(studentID uuid.UUID, questionnaireID uuid.UUID) (bool, error) {
-	var count int64
-	err := r.db.Model(&QuestionnaireResponse{}).
-		Where("student_profile_id = ? AND questionnaire_id = ?", studentID, questionnaireID).
-		Count(&count).Error
+func (r *QuestionnaireRepository) GetResponseByStudentAndQuestionnaire(studentProfileID, questionnaireID uuid.UUID) (*QuestionnaireResponse, error) {
+	var response QuestionnaireResponse
+	err := r.db.Where("student_profile_id = ? AND questionnaire_id = ?", studentProfileID, questionnaireID).
+		First(&response).Error
 
-	return count > 0, err
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func (r *QuestionnaireRepository) AddQuestionsToQuestionnaire(questionnaireID uuid.UUID, questions []QuestionnaireQuestion) error {
+	for i := range questions {
+		questions[i].QuestionnaireID = questionnaireID
+	}
+	return r.db.Create(&questions).Error
+}
+
+func (r *QuestionnaireRepository) GetQuestionsByQuestionnaireID(questionnaireID uuid.UUID) ([]QuestionnaireQuestion, error) {
+	var questions []QuestionnaireQuestion
+	err := r.db.Where("questionnaire_id = ?", questionnaireID).Order("question_order ASC").Find(&questions).Error
+	return questions, err
 }
 
 func (r *QuestionnaireRepository) GetResponsesByQuestionnaireID(questionnaireID uuid.UUID, page, limit int) ([]QuestionnaireResponse, int64, error) {
 	var responses []QuestionnaireResponse
 	var total int64
 
-	r.db.Model(&QuestionnaireResponse{}).
-		Where("questionnaire_id = ?", questionnaireID).
-		Count(&total)
+	err := r.db.Model(&QuestionnaireResponse{}).Where("questionnaire_id = ?", questionnaireID).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
 
 	offset := (page - 1) * limit
-	err := r.db.Where("questionnaire_id = ?", questionnaireID).
+	err = r.db.Preload("Questionnaire").
+		Where("questionnaire_id = ?", questionnaireID).
 		Order("submitted_at DESC").
-		Limit(limit).
 		Offset(offset).
+		Limit(limit).
 		Find(&responses).Error
 
 	return responses, total, err
 }
 
-func (r *QuestionnaireRepository) CreateRoleRecommendations(recommendations []RoleRecommendation) error {
-	if len(recommendations) == 0 {
-		return nil
-	}
-	return r.db.Create(&recommendations).Error
-}
-
-func (r *QuestionnaireRepository) GetRoleRecommendationsByResponseID(responseID uuid.UUID) ([]RoleRecommendation, error) {
-	var recommendations []RoleRecommendation
-	err := r.db.Where("response_id = ?", responseID).
-		Order("rank ASC").
-		Find(&recommendations).Error
-
-	return recommendations, err
-}
-
-func (r *QuestionnaireRepository) UpdateRoleRecommendation(recommendation *RoleRecommendation) error {
-	return r.db.Save(recommendation).Error
-}
-
-func (r *QuestionnaireRepository) DeleteRoleRecommendationsByResponseID(responseID uuid.UUID) error {
-	return r.db.Delete(&RoleRecommendation{}, "response_id = ?", responseID).Error
-}
-
-func (r *QuestionnaireRepository) CreateQuestionGenerationTemplate(template *QuestionGenerationTemplate) error {
-	return r.db.Create(template).Error
-}
-
-func (r *QuestionnaireRepository) GetQuestionGenerationTemplates() ([]QuestionGenerationTemplate, error) {
-	var templates []QuestionGenerationTemplate
-	err := r.db.Where("active = ?", true).
-		Order("created_at DESC").
-		Find(&templates).Error
-
-	return templates, err
-}
-
-func (r *QuestionnaireRepository) GetQuestionGenerationTemplateByID(id uuid.UUID) (*QuestionGenerationTemplate, error) {
-	var template QuestionGenerationTemplate
-	err := r.db.First(&template, "id = ?", id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &template, nil
-}
-
-func (r *QuestionnaireRepository) UpdateQuestionGenerationTemplate(template *QuestionGenerationTemplate) error {
-	return r.db.Save(template).Error
-}
-
-func (r *QuestionnaireRepository) DeleteQuestionGenerationTemplate(id uuid.UUID) error {
-	return r.db.Delete(&QuestionGenerationTemplate{}, "id = ?", id).Error
-}
-
-func (r *QuestionnaireRepository) GetQuestionnaireStats() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	var totalQuestionnaires int64
-	r.db.Model(&ProfilingQuestionnaire{}).Count(&totalQuestionnaires)
-	stats["total_kuesioner"] = totalQuestionnaires
-
-	var totalResponses int64
-	r.db.Model(&QuestionnaireResponse{}).Count(&totalResponses)
-	stats["total_respons"] = totalResponses
-
-	var activeQuestionnaires int64
-	r.db.Model(&ProfilingQuestionnaire{}).Where("active = ?", true).Count(&activeQuestionnaires)
-	stats["kuesioner_aktif"] = activeQuestionnaires
-
-	var responsesThisMonth int64
-	r.db.Model(&QuestionnaireResponse{}).
-		Where("submitted_at >= DATE_TRUNC('month', CURRENT_DATE)").
-		Count(&responsesThisMonth)
-	stats["respons_bulan_ini"] = responsesThisMonth
-
-	type QuestionnairePopularity struct {
-		QuestionnaireID uuid.UUID
-		Name            string
-		ResponseCount   int64
-	}
-
-	var popularQuestionnaire QuestionnairePopularity
-	err := r.db.Table("questionnaire_responses").
-		Select("questionnaire_id, COUNT(*) as response_count").
-		Group("questionnaire_id").
-		Order("response_count DESC").
-		Limit(1).
-		Scan(&popularQuestionnaire).Error
-
-	if err == nil && popularQuestionnaire.QuestionnaireID != uuid.Nil {
-		var questionnaire ProfilingQuestionnaire
-		if err := r.db.First(&questionnaire, "id = ?", popularQuestionnaire.QuestionnaireID).Error; err == nil {
-			popularQuestionnaire.Name = questionnaire.Name
-		}
-		stats["kuesioner_terpopuler"] = popularQuestionnaire
-	}
-
-	return stats, nil
-}
-
-func (r *QuestionnaireRepository) GetResponseAnalytics(questionnaireID *uuid.UUID) (map[string]interface{}, error) {
-	analytics := make(map[string]interface{})
-
-	query := r.db.Model(&QuestionnaireResponse{})
-	if questionnaireID != nil {
-		query = query.Where("questionnaire_id = ?", *questionnaireID)
-	}
-
-	analytics["rata_rata_waktu_pengerjaan"] = "8.5 menit"
-
-	type RoleDistribution struct {
-		RoleName string
-		Count    int64
-	}
-
-	var roleDistribution []RoleDistribution
-	err := r.db.Table("role_recommendations").
-		Select("profiling_role_id, COUNT(*) as count").
-		Where("rank = 1").
-		Group("profiling_role_id").
-		Order("count DESC").
-		Scan(&roleDistribution).Error
-
-	if err == nil {
-		analytics["distribusi_peran"] = roleDistribution
-	}
-
-	type DailyResponse struct {
-		Date  string
-		Count int64
-	}
-
-	var dailyResponses []DailyResponse
-	err = r.db.Table("questionnaire_responses").
-		Select("DATE(submitted_at) as date, COUNT(*) as count").
-		Where("submitted_at >= CURRENT_DATE - INTERVAL '7 days'").
-		Group("DATE(submitted_at)").
-		Order("date ASC").
-		Scan(&dailyResponses).Error
-
-	if err == nil {
-		analytics["respons_harian"] = dailyResponses
-	}
-
-	return analytics, nil
-}
-
-func (r *QuestionnaireRepository) SearchQuestionnaires(keyword string, page, limit int) ([]ProfilingQuestionnaire, int64, error) {
-	var questionnaires []ProfilingQuestionnaire
+func (r *QuestionnaireRepository) GetQuestionnaireResponses(questionnaireID uuid.UUID, page, limit int) ([]QuestionnaireResponseSummary, int64, error) {
+	var responses []QuestionnaireResponseSummary
 	var total int64
 
-	searchQuery := "%" + keyword + "%"
+	query := `
+        SELECT 
+            qr.id,
+            COALESCE(u.name, 'Unknown') as student_name,
+            COALESCE(u.email, 'unknown@email.com') as student_email,
+            qr.submitted_at,
+            qr.processed_at,
+            qr.total_score,
+            CASE 
+                WHEN qr.processed_at IS NOT NULL THEN 'completed'
+                ELSE 'processing'
+            END as status
+        FROM questionnaire_responses qr
+        LEFT JOIN student_profiles sp ON qr.student_profile_id = sp.id
+        LEFT JOIN users u ON sp.user_id = u.id
+        WHERE qr.questionnaire_id = ?
+    `
 
-	r.db.Model(&ProfilingQuestionnaire{}).
-		Where("name ILIKE ? OR ai_prompt_used ILIKE ?", searchQuery, searchQuery).
-		Count(&total)
+	countQuery := `
+        SELECT COUNT(*)
+        FROM questionnaire_responses qr
+        WHERE qr.questionnaire_id = ?
+    `
 
-	offset := (page - 1) * limit
-	err := r.db.Where("name ILIKE ? OR ai_prompt_used ILIKE ?", searchQuery, searchQuery).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
-		Find(&questionnaires).Error
-
-	return questionnaires, total, err
-}
-
-func (r *QuestionnaireRepository) GetQuestionnairesByGeneratedBy(generatedBy string, page, limit int) ([]ProfilingQuestionnaire, int64, error) {
-	var questionnaires []ProfilingQuestionnaire
-	var total int64
-
-	r.db.Model(&ProfilingQuestionnaire{}).
-		Where("generated_by = ?", generatedBy).
-		Count(&total)
-
-	offset := (page - 1) * limit
-	err := r.db.Where("generated_by = ?", generatedBy).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
-		Find(&questionnaires).Error
-
-	return questionnaires, total, err
-}
-
-func (r *QuestionnaireRepository) BulkUpdateQuestionOrder(updates []struct {
-	ID    uuid.UUID
-	Order int
-}) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		for _, update := range updates {
-			if err := tx.Model(&QuestionnaireQuestion{}).
-				Where("id = ?", update.ID).
-				Update("question_order", update.Order).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func (r *QuestionnaireRepository) CloneQuestionnaire(originalID uuid.UUID, newName string) (*ProfilingQuestionnaire, error) {
-	var original ProfilingQuestionnaire
-	err := r.db.Preload("Questions").First(&original, "id = ?", originalID).Error
+	err := r.db.Raw(countQuery, questionnaireID).Scan(&total).Error
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	var clone ProfilingQuestionnaire
+	offset := (page - 1) * limit
+	finalQuery := query + ` ORDER BY qr.submitted_at DESC LIMIT ? OFFSET ?`
 
-	err = r.db.Transaction(func(tx *gorm.DB) error {
-		clone = ProfilingQuestionnaire{
-			Name:            newName,
-			ProfilingRoleID: original.ProfilingRoleID,
-			Version:         1,
-			Active:          false,
-			GeneratedBy:     original.GeneratedBy,
-			AIPromptUsed:    original.AIPromptUsed,
-		}
-
-		if err := tx.Create(&clone).Error; err != nil {
-			return err
-		}
-
-		for _, question := range original.Questions {
-			clonedQuestion := QuestionnaireQuestion{
-				QuestionnaireID: clone.ID,
-				QuestionText:    question.QuestionText,
-				QuestionType:    question.QuestionType,
-				Options:         question.Options,
-				MaxScore:        question.MaxScore,
-				QuestionOrder:   question.QuestionOrder,
-				Category:        question.Category,
-			}
-
-			if err := tx.Create(&clonedQuestion).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
+	err = r.db.Raw(finalQuery, questionnaireID, limit, offset).Scan(&responses).Error
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return &clone, nil
+	for i := range responses {
+		if responses[i].ProcessedAt != nil {
+			var recommendedRole string
+			err := r.db.Raw(`
+                SELECT ai_recommendations 
+                FROM questionnaire_responses 
+                WHERE id = ?
+            `, responses[i].ID).Scan(&recommendedRole).Error
+
+			if err == nil && recommendedRole != "" {
+				var recommendations []AIRecommendation
+				if json.Unmarshal([]byte(recommendedRole), &recommendations) == nil && len(recommendations) > 0 {
+					responses[i].RecommendedRole = &recommendations[0].RoleName
+				}
+			}
+		}
+	}
+
+	return responses, total, nil
+}
+
+func (r *QuestionnaireRepository) GetAllRoles() ([]RoleRecommendation, error) {
+	var roles []RoleRecommendation
+	err := r.db.Where("active = ?", true).Order("role_name ASC").Find(&roles).Error
+	return roles, err
+}
+
+func (r *QuestionnaireRepository) GetRoleByName(roleName string) (*RoleRecommendation, error) {
+	var role RoleRecommendation
+	err := r.db.Where("role_name = ? AND active = ?", roleName, true).First(&role).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("role tidak ditemukan: %s", roleName)
+		}
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *QuestionnaireRepository) GetRoleByID(id uuid.UUID) (*RoleRecommendation, error) {
+	var role RoleRecommendation
+	err := r.db.Where("id = ? AND active = ?", id, true).First(&role).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("role tidak ditemukan")
+		}
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *QuestionnaireRepository) CreateRole(role *RoleRecommendation) error {
+	var existingRole RoleRecommendation
+	err := r.db.Where("role_name = ?", role.RoleName).First(&existingRole).Error
+	if err == nil {
+		return fmt.Errorf("role dengan nama '%s' sudah ada", role.RoleName)
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	return r.db.Create(role).Error
+}
+
+func (r *QuestionnaireRepository) UpdateRole(role *RoleRecommendation) error {
+	return r.db.Save(role).Error
+}
+
+func (r *QuestionnaireRepository) DeleteRole(id uuid.UUID) error {
+	return r.db.Model(&RoleRecommendation{}).Where("id = ?", id).Update("active", false).Error
+}
+
+func (r *QuestionnaireRepository) GetRolesByNames(roleNames []string) ([]RoleRecommendation, error) {
+	var roles []RoleRecommendation
+	err := r.db.Where("role_name IN ? AND active = ?", roleNames, true).Find(&roles).Error
+	return roles, err
 }

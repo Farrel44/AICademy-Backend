@@ -18,28 +18,22 @@ import (
 )
 
 func main() {
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
 
-	log.Println("Starting AICademy Backend Server...")
-
-	log.Println("Connecting to database...")
 	db, err := config.InitDatabase()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
-	log.Println("Database connected successfully")
 
 	log.Println("Seeding database...")
 	if err := config.SeedData(db); err != nil {
 		log.Printf("Warning: Failed to seed data: %v", err)
-	} else {
-		log.Println("Database seeded successfully")
 	}
 
-	log.Println("Initializing AI service...")
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 	var aiService ai.AIService
 
 	if geminiAPIKey != "" {
@@ -48,16 +42,12 @@ func main() {
 			log.Printf("Failed to initialize Gemini AI service: %v", err)
 			log.Println("Falling back to NoAI service")
 			aiService = ai.NewNoAIService()
-		} else {
-			log.Println("Gemini AI service initialized successfully")
 		}
 	} else {
 		log.Println("GEMINI_API_KEY not found in environment")
 		log.Println("Using NoAI service - AI features will be disabled")
 		aiService = ai.NewNoAIService()
 	}
-
-	log.Println("Initializing services...")
 	authRepo := auth.NewAuthRepository(db)
 	authService := auth.NewAuthService(authRepo)
 	authHandler := auth.NewAuthHandler(authService)
@@ -121,35 +111,32 @@ func main() {
 	protectedAuth.Post("/change-password", authHandler.ChangePassword)
 	protectedAuth.Post("/logout", authHandler.Logout)
 
-	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
-	adminRoutes.Post("/create-teacher", authHandler.CreateTeacher)
-	adminRoutes.Post("/create-student", authHandler.CreateStudent)
-	adminRoutes.Post("/create-company", authHandler.CreateCompany)
-	adminRoutes.Post("/upload-students-csv", authHandler.UploadStudentsCSV)
-
 	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
 	questionnaireRoutes.Get("/active", questionnaireHandler.GetActiveQuestionnaire)
 	questionnaireRoutes.Post("/submit", questionnaireHandler.SubmitQuestionnaire)
 	questionnaireRoutes.Get("/result/:responseId", questionnaireHandler.GetQuestionnaireResult)
 	questionnaireRoutes.Get("/result/latest", questionnaireHandler.GetLatestResultByStudent)
 
-	adminQuestionnaireRoutes := questionnaireRoutes.Group("/admin", middleware.AdminRequired())
-	adminQuestionnaireRoutes.Post("/generate", questionnaireHandler.GenerateQuestionnaire)
-	adminQuestionnaireRoutes.Get("/generate/status/:questionnaireId", questionnaireHandler.GetGenerationStatus)
-	adminQuestionnaireRoutes.Get("/", questionnaireHandler.GetAllQuestionnaires)
-	adminQuestionnaireRoutes.Get("/:questionnaireId", questionnaireHandler.GetQuestionnaireByID)
-	adminQuestionnaireRoutes.Put("/:questionnaireId/activate", questionnaireHandler.ActivateQuestionnaire)
-	adminQuestionnaireRoutes.Put("/deactivate", questionnaireHandler.DeactivateQuestionnaire)
-	adminQuestionnaireRoutes.Delete("/:questionnaireId", questionnaireHandler.DeleteQuestionnaire)
-	adminQuestionnaireRoutes.Post("/:questionnaireId/clone", questionnaireHandler.CloneQuestionnaire)
-	adminQuestionnaireRoutes.Get("/:questionnaireId/responses", questionnaireHandler.GetQuestionnaireResponses)
+	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
+
+	adminRoutes.Post("/teachers", authHandler.CreateTeacher)
+	adminRoutes.Post("/students", authHandler.CreateStudent)
+	adminRoutes.Post("/companies", authHandler.CreateCompany)
+	adminRoutes.Post("/students/upload-csv", authHandler.UploadStudentsCSV)
+
+	adminRoutes.Post("/questionnaires/generate", questionnaireHandler.GenerateQuestionnaire)
+	adminRoutes.Get("/questionnaires/generate/status/:questionnaireId", questionnaireHandler.GetGenerationStatus)
+	adminRoutes.Get("/questionnaires", questionnaireHandler.GetAllQuestionnaires)
+	adminRoutes.Get("/questionnaires/:questionnaireId", questionnaireHandler.GetQuestionnaireByID)
+	adminRoutes.Put("/questionnaires/:questionnaireId/activate", questionnaireHandler.ActivateQuestionnaire)
+	adminRoutes.Put("/questionnaires/deactivate", questionnaireHandler.DeactivateQuestionnaire)
+	adminRoutes.Delete("/questionnaires/:questionnaireId", questionnaireHandler.DeleteQuestionnaire)
+	adminRoutes.Get("/questionnaires/:questionnaireId/responses", questionnaireHandler.GetQuestionnaireResponses)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8000"
 	}
-
-	log.Printf("Server starting on port %s", port)
-	log.Printf("API available at: http://localhost:%s", port)
+	log.Printf("API at: http://localhost:%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
