@@ -158,7 +158,7 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role string) {
 		Name:     "token",
 		Value:    token,
 		Expires:  time.Now().Add(24 * time.Hour),
-		HTTPOnly: true,
+		HTTPOnly: false,
 		Secure:   false,
 		SameSite: "Lax",
 	})
