@@ -12,6 +12,9 @@ import (
 
 	"aicademy-backend/internal/config"
 	"aicademy-backend/internal/domain/auth"
+	authAlumni "aicademy-backend/internal/domain/auth/alumni"
+	authStudent "aicademy-backend/internal/domain/auth/student"
+	commonAuth "aicademy-backend/internal/domain/common/auth"
 	"aicademy-backend/internal/domain/questionnaire"
 	"aicademy-backend/internal/middleware"
 	"aicademy-backend/internal/services/ai"
@@ -48,9 +51,16 @@ func main() {
 		log.Println("Using NoAI service - AI features will be disabled")
 		aiService = ai.NewNoAIService()
 	}
+
 	authRepo := auth.NewAuthRepository(db)
-	authService := auth.NewAuthService(authRepo)
-	authHandler := auth.NewAuthHandler(authService)
+
+	commonAuthService := commonAuth.NewCommonAuthService(authRepo)
+	alumniAuthService := authAlumni.NewAlumniAuthService(authRepo)
+	studentAuthService := authStudent.NewStudentAuthService(authRepo)
+
+	commonAuthHandler := commonAuth.NewCommonAuthHandler(commonAuthService)
+	alumniAuthHandler := authAlumni.NewAlumniAuthHandler(alumniAuthService)
+	studentAuthHandler := authStudent.NewStudentAuthHandler(studentAuthService)
 
 	questionnaireRepo := questionnaire.NewQuestionnaireRepository(db)
 	questionnaireService := questionnaire.NewQuestionnaireService(questionnaireRepo, aiService)
@@ -101,15 +111,29 @@ func main() {
 
 	api := app.Group("/api/v1")
 
+	// Common Auth
 	authRoutes := api.Group("/auth")
-	authRoutes.Post("/register/alumni", authHandler.RegisterAlumni)
-	authRoutes.Post("/login", authHandler.Login)
-	authRoutes.Post("/forgot-password", authHandler.ForgotPassword)
-	authRoutes.Post("/reset-password/:token", authHandler.ResetPassword)
+	authRoutes.Post("/login", commonAuthHandler.Login)
+	authRoutes.Post("/forgot-password", commonAuthHandler.ForgotPassword)
+	authRoutes.Post("/reset-password/:token", commonAuthHandler.ResetPassword)
+	authRoutes.Post("/refresh", commonAuthHandler.RefreshToken)
 
-	protectedAuth := authRoutes.Group("/", middleware.AuthRequired())
-	protectedAuth.Post("/change-password", authHandler.ChangePassword)
-	protectedAuth.Post("/logout", authHandler.Logout)
+	// Alumni Auth
+	authRoutes.Post("/register/alumni", alumniAuthHandler.RegisterAlumni)
+
+	// Protected common auth
+	protectedAuth := authRoutes.Group("/protected", middleware.AuthRequired())
+	protectedAuth.Post("/change-password", commonAuthHandler.ChangePassword)
+	protectedAuth.Post("/logout", commonAuthHandler.Logout)
+
+	// Student auth
+	studentAuth := authRoutes.Group("/student", middleware.AuthRequired())
+	studentAuth.Post("/change-default-password", studentAuthHandler.ChangeDefaultPassword)
+
+	// Admin Auth
+	adminAuth := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
+	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
+	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
 	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
 	questionnaireRoutes.Get("/active", questionnaireHandler.GetActiveQuestionnaire)
@@ -118,11 +142,6 @@ func main() {
 	questionnaireRoutes.Get("/result/latest", questionnaireHandler.GetLatestResultByStudent)
 
 	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
-
-	adminRoutes.Post("/teachers", authHandler.CreateTeacher)
-	adminRoutes.Post("/students", authHandler.CreateStudent)
-	adminRoutes.Post("/companies", authHandler.CreateCompany)
-	adminRoutes.Post("/students/upload-csv", authHandler.UploadStudentsCSV)
 
 	adminRoutes.Post("/questionnaires/generate", questionnaireHandler.GenerateQuestionnaire)
 	adminRoutes.Get("/questionnaires/generate/status/:questionnaireId", questionnaireHandler.GetGenerationStatus)

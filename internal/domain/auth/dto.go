@@ -5,7 +5,7 @@ import "github.com/google/uuid"
 type RegisterAlumniRequest struct {
 	Fullname string `json:"fullname" validate:"required,min=2"`
 	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	Password string `json:"password" validate:"required,min=8"`
 }
 
 type CreateTeacherRequest struct {
@@ -44,7 +44,7 @@ type LoginRequest struct {
 
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" validate:"required"`
-	NewPassword     string `json:"new_password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	NewPassword     string `json:"new_password" validate:"required,min=8"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }
 
@@ -53,7 +53,7 @@ type ForgotPasswordRequest struct {
 }
 
 type ResetPasswordRequest struct {
-	Password        string `json:"password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	Password        string `json:"password" validate:"required,min=8"`
 	PasswordConfirm string `json:"passwordConfirm" validate:"required"`
 }
 

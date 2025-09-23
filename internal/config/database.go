@@ -62,6 +62,7 @@ func InitDatabase() (*gorm.DB, error) {
 		&user.TeacherProfile{},
 		&user.CompanyProfile{},
 		&user.ResetPasswordToken{},
+		&user.RefreshToken{},
 
 		// Questionnaire models
 		&questionnaire.ProfilingQuestionnaire{},
@@ -90,6 +91,11 @@ func addIndexes(db *gorm.DB) {
 	// Student indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_nis ON student_profiles(nis)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_user_id ON student_profiles(user_id)")
+
+	// Refresh token indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
 
 	// Questionnaire indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_active ON profiling_questionnaires(active)")

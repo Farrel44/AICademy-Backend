@@ -97,3 +97,48 @@ func (r *AuthRepository) CheckNISExists(nis string) (bool, error) {
 	err := r.db.Model(&user.StudentProfile{}).Where("nis = ?", nis).Count(&count).Error
 	return count > 0, err
 }
+
+// Additional methods for getting profiles by user ID
+func (r *AuthRepository) GetStudentProfileByUserID(userID uuid.UUID) (*user.StudentProfile, error) {
+	var profile user.StudentProfile
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	return &profile, err
+}
+
+func (r *AuthRepository) GetAlumniProfileByUserID(userID uuid.UUID) (*user.AlumniProfile, error) {
+	var profile user.AlumniProfile
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	return &profile, err
+}
+
+func (r *AuthRepository) GetTeacherProfileByUserID(userID uuid.UUID) (*user.TeacherProfile, error) {
+	var profile user.TeacherProfile
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	return &profile, err
+}
+
+// Refresh Token Management
+func (r *AuthRepository) CreateRefreshToken(refreshToken *user.RefreshToken) error {
+	return r.db.Create(refreshToken).Error
+}
+
+func (r *AuthRepository) GetRefreshTokenByToken(token string) (*user.RefreshToken, error) {
+	var refreshToken user.RefreshToken
+	err := r.db.Where("token = ? AND expires_at > ?", token, time.Now()).First(&refreshToken).Error
+	if err != nil {
+		return nil, err
+	}
+	return &refreshToken, nil
+}
+
+func (r *AuthRepository) DeleteRefreshToken(token string) error {
+	return r.db.Where("token = ?", token).Delete(&user.RefreshToken{}).Error
+}
+
+func (r *AuthRepository) DeleteAllRefreshTokensByUserID(userID uuid.UUID) error {
+	return r.db.Where("user_id = ?", userID).Delete(&user.RefreshToken{}).Error
+}
+
+func (r *AuthRepository) CleanupExpiredRefreshTokens() error {
+	return r.db.Where("expires_at <= ?", time.Now()).Delete(&user.RefreshToken{}).Error
+}
