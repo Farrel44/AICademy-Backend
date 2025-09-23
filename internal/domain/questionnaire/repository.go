@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -324,6 +325,8 @@ func (r *QuestionnaireRepository) CreateTargetRole(role *TargetRole) error {
 }
 
 func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRole, int64, error) {
+	log.Printf("*** REPOSITORY: GetTargetRoles called with offset=%d, limit=%d ***", offset, limit)
+
 	var roles []TargetRole
 	var total int64
 
@@ -332,7 +335,12 @@ func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRol
 		return nil, 0, err
 	}
 
+	log.Printf("DEBUG: TargetRoles count: %d", total)
+
 	err = r.db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&roles).Error
+
+	log.Printf("DEBUG: Found %d target roles", len(roles))
+
 	return roles, total, err
 }
 
@@ -380,23 +388,23 @@ func (r *QuestionnaireRepository) LinkQuestionnaireTargetRole(questionnaireID, t
 		QuestionnaireID uuid.UUID `gorm:"primaryKey"`
 		TargetRoleID    uuid.UUID `gorm:"primaryKey"`
 	}
-	
+
 	link := QuestionnaireTargetRole{
 		QuestionnaireID: questionnaireID,
 		TargetRoleID:    targetRoleID,
 	}
-	
+
 	return r.db.Create(&link).Error
 }
 
 func (r *QuestionnaireRepository) GetTargetRolesByQuestionnaireID(questionnaireID uuid.UUID) ([]TargetRole, error) {
 	var roles []TargetRole
-	
+
 	err := r.db.Table("target_roles").
 		Joins("JOIN questionnaire_target_roles ON target_roles.id = questionnaire_target_roles.target_role_id").
 		Where("questionnaire_target_roles.questionnaire_id = ?", questionnaireID).
 		Find(&roles).Error
-	
+
 	return roles, err
 }
 
@@ -519,10 +527,10 @@ func (r *QuestionnaireRepository) GetRecommendationsByResponseIDNew(responseID u
 	return recommendations, err
 }
 
-// Student profile methods for new structure  
+// Student profile methods for new structure
 func (r *QuestionnaireRepository) GetStudentByProfileIDNew(profileID uuid.UUID) (*user.StudentProfile, error) {
 	var student user.StudentProfile
-	err := r.db.Where("id = ?", profileID).First(&student).Error
+	err := r.db.Preload("User").Where("id = ?", profileID).First(&student).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("student tidak ditemukan")

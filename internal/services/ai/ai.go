@@ -157,8 +157,9 @@ Berikan respons dalam format JSON berikut (tanpa markdown atau text tambahan):
       "question_text": "Text pertanyaan",
       "question_type": "mcq|likert|text|case",
       "options": [
-        {"label": "Option A", "value": "a"},
-        {"label": "Option B", "value": "b"}
+        {"text": "Option A", "value": "a", "score": 1},
+        {"text": "Option B", "value": "b", "score": 2},
+		{"text": "Option C", "value": "c", "score": 3},
       ],
       "category": "category_name",
       "reasoning": "Alasan pertanyaan ini penting"
@@ -174,10 +175,13 @@ Berikan respons dalam format JSON berikut (tanpa markdown atau text tambahan):
 Guidelines:
 - question_type: "mcq" (multiple choice), "likert" (1-5 scale), "text" (open text), "case" (scenario)
 - category: "interests", "personality", "skills", "experience", "preferences"
-- options: hanya untuk "mcq" type
+- options: hanya untuk "mcq" dan "likert" type
+- Untuk mcq: buat 3-4 options dengan text yang jelas dan value yang singkat
+- Untuk likert: buat 5 options dengan text "Sangat Tidak Setuju", "Tidak Setuju", "Netral", "Setuju", "Sangat Setuju" dan value "1", "2", "3", "4", "5"
+- score: berikan score 0-5 untuk setiap option berdasarkan relevansi dengan role tertentu
 - Buat pertanyaan yang relevan untuk profiling karir di bidang teknologi
 
-IMPORTANT: Berikan HANYA JSON yang valid, tanpa text lain.
+IMPORTANT: Berikan HANYA JSON yang valid, tanpa text lain. Field "text" pada options WAJIB diisi.
 `, prompt)
 
 	resp, err := g.model.GenerateContent(ctx, genai.Text(formattedPrompt))

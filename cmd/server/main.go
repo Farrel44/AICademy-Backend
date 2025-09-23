@@ -144,19 +144,25 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
-	// Common Questionnaire Routes (role-agnostic)
+	// Admin Questionnaire Routes
+	adminAuth.Post("/questionnaires/target-roles", adminQuestionnaireHandler.CreateTargetRole)
+	adminAuth.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
+	adminAuth.Get("/questionnaires/target-roles/:id", adminQuestionnaireHandler.GetTargetRole)
+	adminAuth.Put("/questionnaires/target-roles/:id", adminQuestionnaireHandler.UpdateTargetRole)
+	adminAuth.Delete("/questionnaires/target-roles/:id", adminQuestionnaireHandler.DeleteTargetRole)
+	adminAuth.Post("/questionnaires/generate", adminQuestionnaireHandler.GenerateQuestionnaire)
+	adminAuth.Get("/questionnaires", adminQuestionnaireHandler.GetQuestionnaires)
+	adminAuth.Get("/responses", adminQuestionnaireHandler.GetQuestionnaireResponses)
+	adminAuth.Get("/responses/:id", adminQuestionnaireHandler.GetResponseDetail)
+	// Parameterized routes must be last
+	adminAuth.Put("/questionnaires/:id/activate", adminQuestionnaireHandler.ActivateQuestionnaire)
+	adminAuth.Get("/questionnaires/:id", adminQuestionnaireHandler.GetQuestionnaireDetail)
+
+	// Common Questionnaire
 	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
 	questionnaireRoutes.Get("/active", commonQuestionnaireHandler.GetActiveQuestionnaire)
 	questionnaireRoutes.Post("/submit", commonQuestionnaireHandler.SubmitQuestionnaire)
 	questionnaireRoutes.Get("/result/:responseId", commonQuestionnaireHandler.GetQuestionnaireResult)
-
-	// Admin Questionnaire Routes
-	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
-	adminRoutes.Post("/questionnaires/target-roles", adminQuestionnaireHandler.CreateTargetRole)
-	adminRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
-	adminRoutes.Put("/questionnaires/target-roles/:roleId", adminQuestionnaireHandler.UpdateTargetRole)
-	adminRoutes.Delete("/questionnaires/target-roles/:roleId", adminQuestionnaireHandler.DeleteTargetRole)
-	adminRoutes.Post("/questionnaires/generate", adminQuestionnaireHandler.GenerateQuestionnaire)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {

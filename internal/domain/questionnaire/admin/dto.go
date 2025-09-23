@@ -1,10 +1,122 @@
 package admin
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// Predefined Focus Areas
+var (
+	// Technical Focus Areas
+	TechnicalFocusAreas = []string{
+		"programming", "software_development", "web_development", "mobile_development",
+		"data_science", "machine_learning", "artificial_intelligence", "cybersecurity",
+		"cloud_computing", "devops", "database_management", "ui_ux_design",
+	}
+
+	// Business Focus Areas
+	BusinessFocusAreas = []string{
+		"project_management", "business_analysis", "marketing", "sales",
+		"finance", "operations", "human_resources", "strategy",
+		"entrepreneurship", "consulting", "product_management",
+	}
+
+	// Industry Focus Areas
+	IndustryFocusAreas = []string{
+		"fintech", "healthcare", "education", "e_commerce", "gaming",
+		"media", "manufacturing", "logistics", "agriculture", "energy",
+		"telecommunications", "government", "non_profit",
+	}
+
+	// Soft Skills Focus Areas
+	SoftSkillsFocusAreas = []string{
+		"leadership", "communication", "teamwork", "problem_solving",
+		"creativity", "adaptability", "time_management", "analytical_thinking",
+		"customer_service", "negotiation", "presentation", "mentoring",
+	}
+)
+
+// Helper functions for Focus Areas
+func GetAllFocusAreas() map[string][]string {
+	return map[string][]string{
+		"technical":   TechnicalFocusAreas,
+		"business":    BusinessFocusAreas,
+		"industry":    IndustryFocusAreas,
+		"soft_skills": SoftSkillsFocusAreas,
+	}
+}
+
+func GetAvailableFocusAreas() []string {
+	var all []string
+	all = append(all, TechnicalFocusAreas...)
+	all = append(all, BusinessFocusAreas...)
+	all = append(all, IndustryFocusAreas...)
+	all = append(all, SoftSkillsFocusAreas...)
+	return all
+}
+
+// GetDefaultFocusAreas returns predefined focus areas based on role categories
+func GetDefaultFocusAreas(roleNames []string) []string {
+	focusAreas := make(map[string]bool)
+
+	// Always include general assessment areas
+	generalAreas := []string{"problem_solving", "analytical_thinking", "communication", "teamwork"}
+	for _, area := range generalAreas {
+		focusAreas[area] = true
+	}
+
+	// Add specific focus areas based on role patterns
+	for _, roleName := range roleNames {
+		switch {
+		case contains(roleName, []string{"developer", "programmer", "engineer", "tech"}):
+			techAreas := []string{"programming", "software_development", "technical_skills"}
+			for _, area := range techAreas {
+				focusAreas[area] = true
+			}
+		case contains(roleName, []string{"data", "analyst", "scientist"}):
+			dataAreas := []string{"data_science", "analytical_thinking", "statistics"}
+			for _, area := range dataAreas {
+				focusAreas[area] = true
+			}
+		case contains(roleName, []string{"manager", "lead", "supervisor"}):
+			mgmtAreas := []string{"leadership", "project_management", "team_management"}
+			for _, area := range mgmtAreas {
+				focusAreas[area] = true
+			}
+		case contains(roleName, []string{"design", "ui", "ux", "creative"}):
+			designAreas := []string{"creativity", "ui_ux_design", "visual_thinking"}
+			for _, area := range designAreas {
+				focusAreas[area] = true
+			}
+		case contains(roleName, []string{"business", "marketing", "sales"}):
+			bizAreas := []string{"business_analysis", "marketing", "customer_service"}
+			for _, area := range bizAreas {
+				focusAreas[area] = true
+			}
+		}
+	}
+
+	// Convert map to slice
+	result := make([]string, 0, len(focusAreas))
+	for area := range focusAreas {
+		result = append(result, area)
+	}
+
+	return result
+}
+
+// Helper function to check if role name contains any of the keywords
+func contains(roleName string, keywords []string) bool {
+	roleNameLower := strings.ToLower(roleName)
+	for _, keyword := range keywords {
+		if strings.Contains(roleNameLower, keyword) {
+			return true
+		}
+	}
+	return false
+}
 
 // Target Role Management DTOs
 type CreateTargetRoleRequest struct {
@@ -30,14 +142,20 @@ type TargetRoleResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// Focus Areas Response DTO
+type FocusAreasResponse struct {
+	Categories map[string][]string `json:"categories"`
+	All        []string            `json:"all"`
+}
+
 // Questionnaire Generation DTOs
 type GenerateQuestionnaireRequest struct {
 	Name               string   `json:"name" validate:"required,min=2,max=100"`
 	QuestionCount      int      `json:"question_count" validate:"required,min=3,max=20"`
-	TargetRoles        []string `json:"target_roles" validate:"required,min=1"`
+	TargetRoleIDs      []string `json:"target_role_ids" validate:"required,min=1"`
 	DifficultyLevel    string   `json:"difficulty_level" validate:"required,oneof=basic intermediate advanced"`
-	FocusAreas         []string `json:"focus_areas" validate:"required,min=1"`
-	CustomInstructions *string  `json:"custom_instructions,omitempty"`
+	CustomInstructions *string  `json:"custom_instructions,omitempty" validate:"omitempty,max=1000"`
+	AIPersonality      string   `json:"ai_personality" validate:"omitempty,oneof=formal friendly professional academic creative"`
 }
 
 type QuestionnaireGenerationResponse struct {

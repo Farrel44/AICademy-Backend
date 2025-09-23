@@ -2,6 +2,7 @@ package admin
 
 import (
 	"aicademy-backend/internal/utils"
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -46,10 +47,15 @@ func (h *AdminQuestionnaireHandler) GetTargetRoles(c *fiber.Ctx) error {
 		limit = 10
 	}
 
+	log.Printf("DEBUG: Handler calling service with page=%d, limit=%d", page, limit)
+
 	result, err := h.service.GetTargetRoles(page, limit)
 	if err != nil {
+		log.Printf("DEBUG: Handler service error: %v", err)
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
+
+	log.Printf("DEBUG: Handler got result: %+v", result)
 
 	return utils.SendSuccess(c, "Target roles retrieved successfully", result)
 }
@@ -228,29 +234,4 @@ func (h *AdminQuestionnaireHandler) GetResponseDetail(c *fiber.Ctx) error {
 	}
 
 	return utils.SendSuccess(c, "Response detail retrieved successfully", result)
-}
-
-// SetupAdminQuestionnaireRoutes - Setup admin questionnaire routes
-func SetupAdminQuestionnaireRoutes(router fiber.Router, handler *AdminQuestionnaireHandler) {
-	admin := router.Group("/admin/questionnaire")
-
-	// Target Role Management
-	targetRoles := admin.Group("/target-roles")
-	targetRoles.Post("/", handler.CreateTargetRole)
-	targetRoles.Get("/", handler.GetTargetRoles)
-	targetRoles.Get("/:id", handler.GetTargetRole)
-	targetRoles.Put("/:id", handler.UpdateTargetRole)
-	targetRoles.Delete("/:id", handler.DeleteTargetRole)
-
-	// Questionnaire Management
-	questionnaires := admin.Group("/questionnaires")
-	questionnaires.Post("/generate", handler.GenerateQuestionnaire)
-	questionnaires.Get("/", handler.GetQuestionnaires)
-	questionnaires.Get("/:id", handler.GetQuestionnaireDetail)
-	questionnaires.Put("/:id/activate", handler.ActivateQuestionnaire)
-
-	// Response Management
-	responses := admin.Group("/responses")
-	responses.Get("/", handler.GetQuestionnaireResponses)
-	responses.Get("/:id", handler.GetResponseDetail)
 }

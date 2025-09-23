@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,11 +46,40 @@ func (s *CommonQuestionnaireService) GetActiveQuestionnaire() (*ActiveQuestionna
 			Order:        q.QuestionOrder,
 		}
 
-		// Parse options if available
+		// parse options
 		if q.Options != nil && *q.Options != "" {
-			var options []OptionDTO
-			if err := json.Unmarshal([]byte(*q.Options), &options); err == nil {
+			var dbOptions []struct {
+				Text  string `json:"text"`
+				Label string `json:"label"`
+				Value string `json:"value"`
+				Score int    `json:"score,omitempty"`
+			}
+
+			if err := json.Unmarshal([]byte(*q.Options), &dbOptions); err == nil {
+				var options []OptionDTO
+				for _, dbOpt := range dbOptions {
+					option := OptionDTO{
+						Value: dbOpt.Value,
+						Score: dbOpt.Score,
+					}
+
+					// parse label - harus ada text atau label
+					if dbOpt.Text != "" {
+						option.Label = dbOpt.Text
+					} else if dbOpt.Label != "" {
+						option.Label = dbOpt.Label
+					} else {
+						// Data tidak valid, gagalkan operasi
+						log.Printf("ERROR: Option tidak memiliki text atau label yang valid: %+v", dbOpt)
+						return nil, errors.New("invalid questionnaire data: options missing labels")
+					}
+
+					options = append(options, option)
+				}
 				questionDTO.Options = options
+			} else {
+				log.Printf("DEBUG: JSON unmarshal error: %v", err)
+				return nil, errors.New("invalid questionnaire data: failed to parse options")
 			}
 		}
 

@@ -1,0 +1,963 @@
+{
+    "info": {
+        "_postman_id": "aicademy-backend-v1-2025",
+        "name": "AICademy Backend API v1",
+        "description": "Complete API collection for AICademy Backend - Career Profiling System with AI-powered questionnaire generation",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "version": "1.0.0"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{access_token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000/api/v1",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "refresh_token", 
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "questionnaire_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "target_role_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "response_id",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "🔐 Authentication",
+            "item": [
+                {
+                    "name": "Common Login (All Roles)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data) {",
+                                    "        pm.collectionVariables.set('access_token', response.data.access_token);",
+                                    "        pm.collectionVariables.set('refresh_token', response.data.refresh_token);",
+                                    "        console.log('✅ Login successful - Token saved');",
+                                    "        console.log('User Role:', response.data.user.role);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Login successful', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"admin@aicademy.com\",\n  \"password\": \"Telkom123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "login"]
+                        },
+                        "description": "Login untuk semua role (admin, student, alumni, teacher, company)"
+                    }
+                },
+                {
+                    "name": "Student Login Example",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data) {",
+                                    "        pm.collectionVariables.set('access_token', response.data.access_token);",
+                                    "        pm.collectionVariables.set('refresh_token', response.data.refresh_token);",
+                                    "        console.log('✅ Student login successful');",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"student1@aicademy.com\",\n  \"password\": \"telkom@2025\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "login"]
+                        },
+                        "description": "Login sebagai student dengan default password"
+                    }
+                },
+                {
+                    "name": "Change Password",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"current_password\": \"Telkom123!\",\n  \"new_password\": \"NewPassword123!\",\n  \"confirm_password\": \"NewPassword123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/protected/change-password",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "protected", "change-password"]
+                        },
+                        "description": "Ganti password untuk user yang sudah login"
+                    }
+                },
+                {
+                    "name": "Student Change Default Password",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data) {",
+                                    "        pm.collectionVariables.set('access_token', response.data.access_token);",
+                                    "        pm.collectionVariables.set('refresh_token', response.data.refresh_token);",
+                                    "        console.log('✅ Default password changed successfully');",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"current_password\": \"telkom@2025\",\n  \"new_password\": \"StudentPassword123!\",\n  \"confirm_password\": \"StudentPassword123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/student/change-default-password",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "student", "change-default-password"]
+                        },
+                        "description": "Ganti default password untuk student baru"
+                    }
+                },
+                {
+                    "name": "Alumni Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data) {",
+                                    "        pm.collectionVariables.set('access_token', response.data.access_token);",
+                                    "        pm.collectionVariables.set('refresh_token', response.data.refresh_token);",
+                                    "        console.log('✅ Alumni registration successful');",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"fullname\": \"Alumni Baru\",\n  \"email\": \"alumni.baru@example.com\",\n  \"password\": \"AlumniPassword123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register/alumni",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "register", "alumni"]
+                        },
+                        "description": "Registrasi alumni baru"
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/protected/logout",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "protected", "logout"]
+                        },
+                        "description": "Logout user dan blacklist token"
+                    }
+                }
+            ],
+            "description": "Authentication endpoints untuk semua role"
+        },
+        {
+            "name": "📝 Questionnaire (Public & Student)",
+            "item": [
+                {
+                    "name": "Get Active Questionnaire",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.id) {",
+                                    "        pm.collectionVariables.set('questionnaire_id', response.data.id);",
+                                    "        console.log('✅ Active questionnaire found');",
+                                    "        console.log('Questionnaire ID:', response.data.id);",
+                                    "        console.log('Questions count:', response.data.questions ? response.data.questions.length : 0);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Get active questionnaire', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/questionnaire/active",
+                            "host": ["{{base_url}}"],
+                            "path": ["questionnaire", "active"]
+                        },
+                        "description": "Mendapatkan kuesioner yang sedang aktif (public endpoint)"
+                    }
+                },
+                {
+                    "name": "Submit Questionnaire Response",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.response_id) {",
+                                    "        pm.collectionVariables.set('response_id', response.data.response_id);",
+                                    "        console.log('✅ Questionnaire submitted successfully');",
+                                    "        console.log('Response ID:', response.data.response_id);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Submit questionnaire response', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"questionnaire_id\": \"{{questionnaire_id}}\",\n  \"answers\": [\n    {\n      \"question_id\": \"e0e013cd-d34b-4639-83aa-c8f78bb42054\",\n      \"selected_option\": \"Sangat Tertarik\",\n      \"score\": 5\n    },\n    {\n      \"question_id\": \"dcc7e61a-25a6-4c5e-bcde-e280d14d088f\",\n      \"selected_option\": \"Menulis kode yang mengatur logika dan fungsi aplikasi di belakang layar (backend).\",\n      \"score\": 5\n    },\n    {\n      \"question_id\": \"2612fe0a-20c8-470c-8e87-8611ed335078\",\n      \"selected_option\": \"Terstruktur rapi dalam tabel dan database.\",\n      \"score\": 5\n    },\n    {\n      \"question_id\": \"a8081c25-8905-40a3-822c-a93616b89159\",\n      \"selected_option\": \"Sangat Nyaman\",\n      \"score\": 5\n    },\n    {\n      \"question_id\": \"967d8134-7ffd-4e57-be63-afbe96bdcfe0\",\n      \"text_answer\": \"Langkah-langkah debugging: 1) Reproduksi error, 2) Analisis log error, 3) Identifikasi root cause, 4) Fix code, 5) Testing ulang\",\n      \"score\": 1\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/questionnaire/submit",
+                            "host": ["{{base_url}}"],
+                            "path": ["questionnaire", "submit"]
+                        },
+                        "description": "Submit jawaban kuesioner (harus login sebagai student)"
+                    }
+                },
+                {
+                    "name": "Get Questionnaire Result",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/questionnaire/result/{{response_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["questionnaire", "result", "{{response_id}}"]
+                        },
+                        "description": "Mendapatkan hasil dan rekomendasi dari response tertentu"
+                    }
+                },
+                {
+                    "name": "Get Latest Student Result",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/questionnaire/my-latest-result",
+                            "host": ["{{base_url}}"],
+                            "path": ["questionnaire", "my-latest-result"]
+                        },
+                        "description": "Mendapatkan hasil terbaru student yang sedang login"
+                    }
+                }
+            ],
+            "description": "Endpoint untuk akses kuesioner (public dan student)"
+        },
+        {
+            "name": "👑 Admin - Target Roles Management",
+            "item": [
+                {
+                    "name": "Get All Target Roles",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.data && response.data.data.length > 0) {",
+                                    "        pm.collectionVariables.set('target_role_id', response.data.data[0].id);",
+                                    "        console.log('✅ Target roles retrieved');",
+                                    "        console.log('Total roles:', response.data.total);",
+                                    "        console.log('First role ID:', response.data.data[0].id);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Get target roles', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/target-roles?page=1&limit=10",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "target-roles"],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Mendapatkan daftar semua target roles dengan pagination"
+                    }
+                },
+                {
+                    "name": "Create Target Role",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.id) {",
+                                    "        pm.collectionVariables.set('target_role_id', response.data.id);",
+                                    "        console.log('✅ Target role created');",
+                                    "        console.log('Role ID:', response.data.id);",
+                                    "        console.log('Role name:', response.data.name);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Create target role', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Machine Learning Engineer\",\n  \"description\": \"Merancang dan mengimplementasikan model machine learning untuk solve business problems\",\n  \"category\": \"Data Science\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/target-roles",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "target-roles"]
+                        },
+                        "description": "Membuat target role baru"
+                    }
+                },
+                {
+                    "name": "Get Target Role by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/target-roles/{{target_role_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "target-roles", "{{target_role_id}}"]
+                        },
+                        "description": "Mendapatkan detail target role berdasarkan ID"
+                    }
+                },
+                {
+                    "name": "Update Target Role",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Senior Machine Learning Engineer\",\n  \"description\": \"Lead dalam pengembangan advanced ML models dan mentoring junior engineers\",\n  \"category\": \"Data Science\",\n  \"active\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/target-roles/{{target_role_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "target-roles", "{{target_role_id}}"]
+                        },
+                        "description": "Update target role yang sudah ada"
+                    }
+                },
+                {
+                    "name": "Delete Target Role",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/target-roles/{{target_role_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "target-roles", "{{target_role_id}}"]
+                        },
+                        "description": "Hapus target role"
+                    }
+                }
+            ],
+            "description": "Management target roles untuk questionnaire generation"
+        },
+        {
+            "name": "👑 Admin - Questionnaire Management",
+            "item": [
+                {
+                    "name": "Get All Questionnaires",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.data && response.data.data.length > 0) {",
+                                    "        pm.collectionVariables.set('questionnaire_id', response.data.data[0].id);",
+                                    "        console.log('✅ Questionnaires retrieved');",
+                                    "        console.log('Total questionnaires:', response.data.total);",
+                                    "        console.log('First questionnaire ID:', response.data.data[0].id);",
+                                    "        console.log('Active questionnaires:', response.data.data.filter(q => q.active).length);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Get questionnaires', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/questionnaires?page=1&limit=10",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "questionnaires"],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Mendapatkan daftar semua questionnaires dengan pagination"
+                    }
+                },
+                {
+                    "name": "Get Questionnaire Detail",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/questionnaires/{{questionnaire_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "questionnaires", "{{questionnaire_id}}"]
+                        },
+                        "description": "Mendapatkan detail lengkap questionnaire dengan semua questions dan options"
+                    }
+                },
+                {
+                    "name": "Generate New Questionnaire",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.questionnaire_id) {",
+                                    "        pm.collectionVariables.set('questionnaire_id', response.data.questionnaire_id);",
+                                    "        console.log('✅ Questionnaire generation started');",
+                                    "        console.log('Questionnaire ID:', response.data.questionnaire_id);",
+                                    "        console.log('Status:', response.data.status);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Generate questionnaire', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Career Assessment 2025\",\n  \"question_count\": 10,\n  \"target_role_ids\": [\"{{target_role_id}}\"],\n  \"difficulty_level\": \"intermediate\",\n  \"custom_instructions\": \"Fokus pada kemampuan teknis dan soft skills untuk fresh graduate\",\n  \"ai_personality\": \"professional\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/questionnaires/generate",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "questionnaires", "generate"]
+                        },
+                        "description": "Generate questionnaire baru menggunakan AI (Gemini)"
+                    }
+                },
+                {
+                    "name": "Activate Questionnaire",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"active\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/questionnaires/{{questionnaire_id}}/activate",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "questionnaires", "{{questionnaire_id}}", "activate"]
+                        },
+                        "description": "Aktifkan questionnaire (akan menonaktifkan yang lain)"
+                    }
+                },
+                {
+                    "name": "Deactivate Questionnaire",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"active\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/questionnaires/{{questionnaire_id}}/activate",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "questionnaires", "{{questionnaire_id}}", "activate"]
+                        },
+                        "description": "Nonaktifkan questionnaire"
+                    }
+                }
+            ],
+            "description": "Management questionnaires oleh admin"
+        },
+        {
+            "name": "👑 Admin - Response Management",
+            "item": [
+                {
+                    "name": "Get All Responses",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.success && response.data && response.data.data && response.data.data.length > 0) {",
+                                    "        pm.collectionVariables.set('response_id', response.data.data[0].id);",
+                                    "        console.log('✅ Responses retrieved');",
+                                    "        console.log('Total responses:', response.data.total);",
+                                    "        console.log('First response ID:', response.data.data[0].id);",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Get responses', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    pm.expect(pm.response.json().success).to.be.true;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/responses?page=1&limit=10",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "responses"],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Mendapatkan semua responses dari semua questionnaires"
+                    }
+                },
+                {
+                    "name": "Get Responses by Questionnaire",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/responses?questionnaire_id={{questionnaire_id}}&page=1&limit=10",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "responses"],
+                            "query": [
+                                {
+                                    "key": "questionnaire_id",
+                                    "value": "{{questionnaire_id}}"
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Mendapatkan responses untuk questionnaire tertentu"
+                    }
+                },
+                {
+                    "name": "Get Response Detail",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/admin/responses/{{response_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "responses", "{{response_id}}"]
+                        },
+                        "description": "Mendapatkan detail lengkap response tertentu (belum diimplementasi)"
+                    }
+                }
+            ],
+            "description": "Management dan monitoring student responses"
+        },
+        {
+            "name": "👑 Admin - User Management",
+            "item": [
+                {
+                    "name": "Create Student",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"nis\": \"12345678\",\n  \"class\": \"XII-RPL-1\",\n  \"email\": \"student.new@aicademy.com\",\n  \"fullname\": \"Student Baru\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/students",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "students"]
+                        },
+                        "description": "Membuat student baru (password default: telkom@2025)"
+                    }
+                },
+                {
+                    "name": "Upload Students CSV",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "csv_file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "CSV file dengan kolom: nis,class,email,fullname"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/students/upload-csv",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "students", "upload-csv"]
+                        },
+                        "description": "Upload bulk students via CSV file"
+                    }
+                },
+                {
+                    "name": "Create Teacher",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"teacher.new@aicademy.com\",\n  \"password\": \"TeacherPassword123!\",\n  \"fullname\": \"Guru Baru\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/teachers",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "teachers"]
+                        },
+                        "description": "Membuat teacher/guru baru"
+                    }
+                },
+                {
+                    "name": "Create Company",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"hr@newcompany.com\",\n  \"password\": \"CompanyPassword123!\",\n  \"company_name\": \"PT Teknologi Maju\",\n  \"company_logo\": \"https://example.com/logo.png\",\n  \"company_location\": \"Jakarta\",\n  \"description\": \"Perusahaan teknologi inovatif\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admin/companies",
+                            "host": ["{{base_url}}"],
+                            "path": ["admin", "companies"]
+                        },
+                        "description": "Membuat company account baru"
+                    }
+                }
+            ],
+            "description": "User management untuk admin"
+        },
+        {
+            "name": "🔧 System Information",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health",
+                            "host": ["{{base_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Check API health status"
+                    }
+                },
+                {
+                    "name": "API Version Info",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/version",
+                            "host": ["{{base_url}}"],
+                            "path": ["version"]
+                        },
+                        "description": "Get API version information"
+                    }
+                }
+            ],
+            "description": "System monitoring endpoints"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Auto-attach bearer token if available",
+                    "if (pm.collectionVariables.get('access_token')) {",
+                    "    pm.request.headers.add({",
+                    "        key: 'Authorization',",
+                    "        value: 'Bearer ' + pm.collectionVariables.get('access_token')",
+                    "    });",
+                    "}"
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Global response logging",
+                    "console.log('📊 Response Status:', pm.response.code);",
+                    "console.log('📊 Response Time:', pm.response.responseTime + 'ms');",
+                    "",
+                    "// Check for auth errors",
+                    "if (pm.response.code === 401) {",
+                    "    console.log('🔐 Authentication required or token expired');",
+                    "}",
+                    "",
+                    "if (pm.response.code === 403) {",
+                    "    console.log('🚫 Access forbidden - insufficient permissions');",
+                    "}"
+                ]
+            }
+        }
+    ]
+}
