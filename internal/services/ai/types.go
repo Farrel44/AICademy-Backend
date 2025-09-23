@@ -31,10 +31,12 @@ type GeneratedQuestion struct {
 	QuestionType string        `json:"question_type"`
 	Options      []QuestionOpt `json:"options,omitempty"`
 	Category     string        `json:"category"`
+	MaxScore     int           `json:"max_score"`
 	Reasoning    string        `json:"reasoning"`
 }
 
 type QuestionOpt struct {
-	Label string `json:"label"`
+	Text  string `json:"text"`
 	Value string `json:"value"`
+	Score int    `json:"score"`
 }

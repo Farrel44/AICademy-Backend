@@ -14,6 +14,7 @@ import (
 type AIService interface {
 	GenerateCareerRecommendations(ctx context.Context, prompt string) (*CareerAnalysisResponse, error)
 	GenerateQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error)
+	GenerateQuestionnaireQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error)
 }
 
 type GeminiService struct {
@@ -226,6 +227,56 @@ IMPORTANT: Berikan HANYA JSON yang valid, tanpa text lain.
 	return &result, nil
 }
 
+func (g *GeminiService) GenerateQuestionnaireQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error) {
+	log.Printf("Generate questionnaire questions dengan prompt length: %d", len(prompt))
+
+	response, err := g.model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		log.Printf("Error calling Gemini API: %v", err)
+		return nil, fmt.Errorf("gagal menghubungi AI service: %w", err)
+	}
+
+	if len(response.Candidates) == 0 {
+		return nil, fmt.Errorf("tidak ada candidate dalam respons AI")
+	}
+
+	candidate := response.Candidates[0]
+	if candidate.Content == nil {
+		return nil, fmt.Errorf("konten candidate kosong")
+	}
+
+	var responseText string
+	for _, part := range candidate.Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			responseText += string(txt)
+		}
+	}
+
+	log.Printf("Raw response length: %d", len(responseText))
+	log.Printf("Finish reason: %v", candidate.FinishReason)
+
+	responseText = cleanJSONResponse(responseText)
+
+	if len(responseText) == 0 {
+		return nil, fmt.Errorf("respons kosong setelah cleanup")
+	}
+
+	var result QuestionGenerationResponse
+	err = json.Unmarshal([]byte(responseText), &result)
+	if err != nil {
+		log.Printf("JSON Parse Error: %v", err)
+		log.Printf("Raw response (first 500 chars): %s", truncateString(responseText, 500))
+		return nil, fmt.Errorf("gagal parse respons AI sebagai JSON: %w", err)
+	}
+
+	if len(result.Questions) == 0 {
+		return nil, fmt.Errorf("tidak ada pertanyaan dalam respons AI")
+	}
+
+	log.Printf("Berhasil generate %d pertanyaan untuk questionnaire", len(result.Questions))
+	return &result, nil
+}
+
 func (g *GeminiService) Close() error {
 	if g.client != nil {
 		return g.client.Close()
@@ -279,5 +330,9 @@ func (n *NoAIService) GenerateCareerRecommendations(ctx context.Context, prompt 
 }
 
 func (n *NoAIService) GenerateQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error) {
+	return nil, fmt.Errorf("layanan AI tidak tersedia - GEMINI_API_KEY tidak dikonfigurasi")
+}
+
+func (n *NoAIService) GenerateQuestionnaireQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error) {
 	return nil, fmt.Errorf("layanan AI tidak tersedia - GEMINI_API_KEY tidak dikonfigurasi")
 }

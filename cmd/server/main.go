@@ -15,7 +15,9 @@ import (
 	authAlumni "aicademy-backend/internal/domain/auth/alumni"
 	authStudent "aicademy-backend/internal/domain/auth/student"
 	commonAuth "aicademy-backend/internal/domain/common/auth"
+	commonQuestionnaire "aicademy-backend/internal/domain/common/questionnaire"
 	"aicademy-backend/internal/domain/questionnaire"
+	adminQuestionnaire "aicademy-backend/internal/domain/questionnaire/admin"
 	"aicademy-backend/internal/middleware"
 	"aicademy-backend/internal/services/ai"
 )
@@ -62,9 +64,16 @@ func main() {
 	alumniAuthHandler := authAlumni.NewAlumniAuthHandler(alumniAuthService)
 	studentAuthHandler := authStudent.NewStudentAuthHandler(studentAuthService)
 
+	// Questionnaire services and handlers
 	questionnaireRepo := questionnaire.NewQuestionnaireRepository(db)
-	questionnaireService := questionnaire.NewQuestionnaireService(questionnaireRepo, aiService)
-	questionnaireHandler := questionnaire.NewQuestionnaireHandler(questionnaireService)
+
+	// Common questionnaire service and handler
+	commonQuestionnaireService := commonQuestionnaire.NewCommonQuestionnaireService(questionnaireRepo, aiService)
+	commonQuestionnaireHandler := commonQuestionnaire.NewCommonQuestionnaireHandler(commonQuestionnaireService)
+
+	// Admin questionnaire service and handler
+	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService)
+	adminQuestionnaireHandler := adminQuestionnaire.NewAdminQuestionnaireHandler(adminQuestionnaireService)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
@@ -135,22 +144,19 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
+	// Common Questionnaire Routes (role-agnostic)
 	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
-	questionnaireRoutes.Get("/active", questionnaireHandler.GetActiveQuestionnaire)
-	questionnaireRoutes.Post("/submit", questionnaireHandler.SubmitQuestionnaire)
-	questionnaireRoutes.Get("/result/:responseId", questionnaireHandler.GetQuestionnaireResult)
-	questionnaireRoutes.Get("/result/latest", questionnaireHandler.GetLatestResultByStudent)
+	questionnaireRoutes.Get("/active", commonQuestionnaireHandler.GetActiveQuestionnaire)
+	questionnaireRoutes.Post("/submit", commonQuestionnaireHandler.SubmitQuestionnaire)
+	questionnaireRoutes.Get("/result/:responseId", commonQuestionnaireHandler.GetQuestionnaireResult)
 
+	// Admin Questionnaire Routes
 	adminRoutes := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
-
-	adminRoutes.Post("/questionnaires/generate", questionnaireHandler.GenerateQuestionnaire)
-	adminRoutes.Get("/questionnaires/generate/status/:questionnaireId", questionnaireHandler.GetGenerationStatus)
-	adminRoutes.Get("/questionnaires", questionnaireHandler.GetAllQuestionnaires)
-	adminRoutes.Get("/questionnaires/:questionnaireId", questionnaireHandler.GetQuestionnaireByID)
-	adminRoutes.Put("/questionnaires/:questionnaireId/activate", questionnaireHandler.ActivateQuestionnaire)
-	adminRoutes.Put("/questionnaires/deactivate", questionnaireHandler.DeactivateQuestionnaire)
-	adminRoutes.Delete("/questionnaires/:questionnaireId", questionnaireHandler.DeleteQuestionnaire)
-	adminRoutes.Get("/questionnaires/:questionnaireId/responses", questionnaireHandler.GetQuestionnaireResponses)
+	adminRoutes.Post("/questionnaires/target-roles", adminQuestionnaireHandler.CreateTargetRole)
+	adminRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
+	adminRoutes.Put("/questionnaires/target-roles/:roleId", adminQuestionnaireHandler.UpdateTargetRole)
+	adminRoutes.Delete("/questionnaires/target-roles/:roleId", adminQuestionnaireHandler.DeleteTargetRole)
+	adminRoutes.Post("/questionnaires/generate", adminQuestionnaireHandler.GenerateQuestionnaire)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {

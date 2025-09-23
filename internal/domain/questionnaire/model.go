@@ -117,3 +117,21 @@ func (r *RoleRecommendation) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// TargetRole represents available target roles for questionnaire generation
+type TargetRole struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	Name        string    `gorm:"not null;uniqueIndex"`
+	Description string    `gorm:"not null"`
+	Category    string    `gorm:"not null"` // e.g., "Technology", "Business", "Creative"
+	Active      bool      `gorm:"default:true"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+}
+
+func (t *TargetRole) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
+	}
+	return nil
+}
