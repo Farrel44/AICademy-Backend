@@ -1,11 +1,12 @@
 package student
 
 import (
-	commonAuth "aicademy-backend/internal/domain/common/auth"
-	"aicademy-backend/internal/middleware"
-	"aicademy-backend/internal/utils"
 	"encoding/csv"
 	"fmt"
+
+	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/middleware"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 )

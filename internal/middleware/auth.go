@@ -2,10 +2,11 @@
 package middleware
 
 import (
-	"aicademy-backend/internal/domain/user"
-	"aicademy-backend/internal/utils"
 	"net/http"
 	"strings"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

@@ -1,12 +1,13 @@
 package auth
 
 import (
-	authRepo "aicademy-backend/internal/domain/auth"
-	"aicademy-backend/internal/domain/user"
-	"aicademy-backend/internal/utils"
 	"errors"
 	"strings"
 	"time"
+
+	authRepo "github.com/Farrel44/AICademy-Backend/internal/domain/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/google/uuid"
 )

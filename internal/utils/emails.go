@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"aicademy-backend/internal/domain/user"
 	"bytes"
 	"crypto/tls"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"gopkg.in/gomail.v2"
 )

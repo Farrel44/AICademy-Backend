@@ -1,4 +1,4 @@
-module aicademy-backend
+module github.com/Farrel44/AICademy-Backend
 
 go 1.24.0
 

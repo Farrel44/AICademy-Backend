@@ -1,9 +1,10 @@
 package admin
 
 import (
-	"aicademy-backend/internal/utils"
 	"log"
 	"strconv"
+
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

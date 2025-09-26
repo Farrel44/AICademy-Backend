@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"aicademy-backend/internal/domain/auth"
-	commonAuth "aicademy-backend/internal/domain/common/auth"
-	"aicademy-backend/internal/domain/user"
-	"aicademy-backend/internal/utils"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/auth"
+	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 )
 
 type AlumniAuthService struct {

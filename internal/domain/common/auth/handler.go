@@ -1,9 +1,10 @@
 package auth
 
 import (
-	"aicademy-backend/internal/middleware"
-	"aicademy-backend/internal/utils"
 	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/middleware"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 )

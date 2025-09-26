@@ -150,12 +150,11 @@ type FocusAreasResponse struct {
 
 // Questionnaire Generation DTOs
 type GenerateQuestionnaireRequest struct {
-	Name               string   `json:"name" validate:"required,min=2,max=100"`
-	QuestionCount      int      `json:"question_count" validate:"required,min=3,max=20"`
-	TargetRoleIDs      []string `json:"target_role_ids" validate:"required,min=1"`
-	DifficultyLevel    string   `json:"difficulty_level" validate:"required,oneof=basic intermediate advanced"`
-	CustomInstructions *string  `json:"custom_instructions,omitempty" validate:"omitempty,max=1000"`
-	AIPersonality      string   `json:"ai_personality" validate:"omitempty,oneof=formal friendly professional academic creative"`
+	Name               string  `json:"name" validate:"required,min=2,max=100"`
+	QuestionCount      int     `json:"question_count" validate:"required,min=3,max=20"`
+	DifficultyLevel    string  `json:"difficulty_level" validate:"required,oneof=basic intermediate advanced"`
+	CustomInstructions *string `json:"custom_instructions,omitempty" validate:"omitempty,max=1000"`
+	AIPersonality      string  `json:"ai_personality" validate:"omitempty,oneof=formal friendly professional academic creative"`
 }
 
 type QuestionnaireGenerationResponse struct {

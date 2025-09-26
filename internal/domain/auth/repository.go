@@ -1,13 +1,16 @@
 package auth
 
 import (
-	"aicademy-backend/internal/domain/user"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -100,7 +103,7 @@ func (r *AuthRepository) getStudentData(ctx context.Context, page, pageSize int,
 	}
 
 	var total int64
-	if err := dbq.Count(&total).Error; err !=  nil {
+	if err := dbq.Count(&total).Error; err != nil {
 		return StudentData{}, nil
 	}
 

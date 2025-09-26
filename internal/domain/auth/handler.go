@@ -1,12 +1,13 @@
 package auth
 
 import (
-	"aicademy-backend/internal/utils"
 	"encoding/csv"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"

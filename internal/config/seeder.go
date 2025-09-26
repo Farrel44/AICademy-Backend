@@ -1,14 +1,15 @@
 package config
 
 import (
-	"aicademy-backend/internal/domain/questionnaire"
-	"aicademy-backend/internal/domain/user"
-	"aicademy-backend/internal/utils"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"gorm.io/gorm"
 )

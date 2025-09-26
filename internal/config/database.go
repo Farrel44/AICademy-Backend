@@ -1,12 +1,13 @@
 package config
 
 import (
-	"aicademy-backend/internal/domain/questionnaire"
-	"aicademy-backend/internal/domain/user"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

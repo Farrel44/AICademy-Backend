@@ -1,14 +1,15 @@
 package questionnaire
 
 import (
-	questionnaireRepo "aicademy-backend/internal/domain/questionnaire"
-	"aicademy-backend/internal/services/ai"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"time"
+
+	questionnaireRepo "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 
 	"github.com/google/uuid"
 )

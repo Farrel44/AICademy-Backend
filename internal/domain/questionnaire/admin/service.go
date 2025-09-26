@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"aicademy-backend/internal/domain/questionnaire"
-	"aicademy-backend/internal/services/ai"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +8,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
+
+	. "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/google/uuid"
 )
 
@@ -116,10 +118,20 @@ func (s *AdminQuestionnaireService) DeleteTargetRole(id uuid.UUID) error {
 
 // AI-powered questionnaire generation
 func (s *AdminQuestionnaireService) GenerateQuestionnaire(req GenerateQuestionnaireRequest) (*QuestionnaireGenerationResponse, error) {
-	// First, get target role names from IDs
-	targetRoleNames, err := s.getTargetRoleNames(req.TargetRoleIDs)
+	// Automatically get ALL active target roles from database
+	targetRoles, err := s.getAllActiveTargetRoles()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get target role names: %w", err)
+		return nil, fmt.Errorf("failed to get active target roles: %w", err)
+	}
+
+	if len(targetRoles) == 0 {
+		return nil, errors.New("no active target roles found in database")
+	}
+
+	// Extract role names for AI prompt
+	targetRoleNames := make([]string, len(targetRoles))
+	for i, role := range targetRoles {
+		targetRoleNames[i] = role.Name
 	}
 
 	questionnaire := &questionnaire.ProfilingQuestionnaire{
@@ -365,9 +377,152 @@ func (s *AdminQuestionnaireService) calculateMaxScore(questions []questionnaire.
 	}
 	return maxScore
 }
-
 func (s *AdminQuestionnaireService) GetResponseDetail(id uuid.UUID) (*ResponseDetailResponse, error) {
-	return nil, errors.New("not implemented yet")
+	// Get the response from repository
+	response, err := s.repo.GetQuestionnaireResponseByIDNew(id)
+	if err != nil {
+		return nil, fmt.Errorf("response not found: %w", err)
+	}
+
+	// Get questionnaire info
+	questionnaire, err := s.repo.GetQuestionnaireByID(response.QuestionnaireID)
+	if err != nil {
+		return nil, fmt.Errorf("questionnaire not found: %w", err)
+	}
+
+	// Get student profile and user info
+	studentProfile, err := s.repo.GetStudentByProfileIDNew(response.StudentProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("student profile not found: %w", err)
+	}
+
+	// Get questions for detailed answers
+	questions, err := s.repo.GetQuestionsByQuestionnaireID(response.QuestionnaireID)
+	if err != nil {
+		return nil, fmt.Errorf("questions not found: %w", err)
+	}
+
+	// Parse answers from JSON
+	var answers []struct {
+		QuestionID string `json:"question_id"`
+		Answer     string `json:"answer"`
+		Score      int    `json:"score"`
+	}
+	if err := json.Unmarshal([]byte(response.Answers), &answers); err != nil {
+		return nil, fmt.Errorf("failed to parse answers: %w", err)
+	}
+
+	// Create question map for easier lookup
+	questionMap := make(map[uuid.UUID]QuestionnaireQuestion)
+	for _, q := range questions {
+		questionMap[q.ID] = q
+	}
+
+	// Map answers to detailed format
+	var detailedAnswers []DetailedAnswerDTO
+	totalScore := 0
+	maxScore := 0
+
+	for _, answer := range answers {
+		questionID, err := uuid.Parse(answer.QuestionID)
+		if err != nil {
+			continue
+		}
+
+		if question, exists := questionMap[questionID]; exists {
+			detailedAnswers = append(detailedAnswers, DetailedAnswerDTO{
+				QuestionID:   questionID,
+				QuestionText: question.QuestionText,
+				Answer:       answer.Answer,
+				Score:        answer.Score,
+				MaxScore:     question.MaxScore,
+				Category:     question.Category,
+			})
+			totalScore += answer.Score
+			maxScore += question.MaxScore
+		}
+	}
+
+	// Calculate score percentage
+	scorePercentage := 0.0
+	if maxScore > 0 {
+		scorePercentage = (float64(totalScore) / float64(maxScore)) * 100
+	}
+
+	// Parse AI recommendations if available
+	var recommendations []DetailedRecommendationDTO
+	if response.AIRecommendations != nil && *response.AIRecommendations != "" {
+		var aiRecs []struct {
+			RoleID        string  `json:"role_id"`
+			RoleName      string  `json:"role_name"`
+			Score         float64 `json:"score"`
+			Justification string  `json:"justification"`
+			Category      string  `json:"category"`
+		}
+		if err := json.Unmarshal([]byte(*response.AIRecommendations), &aiRecs); err == nil {
+			for _, rec := range aiRecs {
+				roleID, _ := uuid.Parse(rec.RoleID)
+				recommendations = append(recommendations, DetailedRecommendationDTO{
+					ID:            roleID,
+					RoleName:      rec.RoleName,
+					Score:         rec.Score,
+					Justification: rec.Justification,
+					Category:      rec.Category,
+					Active:        true,
+				})
+			}
+		}
+	}
+
+	// Parse AI analysis if available
+	var analysis *AnalysisResultDTO
+	if response.AIAnalysis != nil && *response.AIAnalysis != "" {
+		var aiAnalysis struct {
+			PersonalityTraits []string `json:"personality_traits"`
+			Interests         []string `json:"interests"`
+			Strengths         []string `json:"strengths"`
+			WorkStyle         string   `json:"work_style"`
+		}
+		if err := json.Unmarshal([]byte(*response.AIAnalysis), &aiAnalysis); err == nil {
+			analysis = &AnalysisResultDTO{
+				PersonalityTraits: aiAnalysis.PersonalityTraits,
+				Interests:         aiAnalysis.Interests,
+				Strengths:         aiAnalysis.Strengths,
+				WorkStyle:         aiAnalysis.WorkStyle,
+			}
+		}
+	}
+
+	// Determine processing status
+	processingStatus := "completed"
+	if response.ProcessedAt == nil {
+		processingStatus = "pending"
+	} else if response.AIAnalysis == nil {
+		processingStatus = "processing"
+	}
+
+	// Get student basic info
+	studentInfo := StudentBasicInfo{
+		ID:    studentProfile.ID,
+		Name:  studentProfile.Fullname,
+		Email: studentProfile.User.Email,
+		NIM:   studentProfile.NIS, // Using NIS as NIM
+	}
+
+	return &ResponseDetailResponse{
+		ID:                response.ID,
+		QuestionnaireID:   response.QuestionnaireID,
+		QuestionnaireName: questionnaire.Name,
+		Student:           studentInfo,
+		Answers:           detailedAnswers,
+		TotalScore:        totalScore,
+		MaxScore:          maxScore,
+		ScorePercentage:   scorePercentage,
+		Recommendations:   recommendations,
+		Analysis:          analysis,
+		ProcessingStatus:  processingStatus,
+		SubmittedAt:       response.SubmittedAt,
+	}, nil
 }
 
 // Helper methods
@@ -429,6 +584,7 @@ RULES:
 5. Hindari pertanyaan yang bias gender atau latar belakang sosial
 6. Untuk mcq, berikan 4-5 opsi yang masuk akal
 7. Untuk likert, gunakan skala 1-5 (sangat tidak setuju - sangat setuju)
+8. Urutkan output JSON dengan urutan tipe pertanyaan: **mcq → likert → case → text**
 
 Mulai generasi sekarang:`,
 		req.QuestionCount, targetRoleNames, req.DifficultyLevel, focusAreas, customInstructions)
@@ -514,21 +670,64 @@ func (s *AdminQuestionnaireService) getMaxScoreForType(questionType questionnair
 	}
 }
 
+// getAllActiveTargetRoles gets all active target roles from database
+func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.TargetRole, error) {
+	log.Printf("Getting all active target roles from database")
+
+	// Use GetTargetRoles with large limit to get all roles
+	roles, _, err := s.repo.GetTargetRoles(0, 1000) // Get up to 1000 roles (should be enough)
+	if err != nil {
+		log.Printf("Failed to get all target roles: %v", err)
+		return nil, fmt.Errorf("failed to get all target roles: %w", err)
+	}
+
+	// Filter only active roles
+	var activeRoles []questionnaire.TargetRole
+	for _, role := range roles {
+		if role.Active {
+			activeRoles = append(activeRoles, role)
+		}
+	}
+
+	log.Printf("Found %d active target roles out of %d total roles", len(activeRoles), len(roles))
+	return activeRoles, nil
+}
+
 func (s *AdminQuestionnaireService) getTargetRoleNames(roleIDs []string) ([]string, error) {
 	var names []string
 
+	log.Printf("Getting target role names for IDs: %+v", roleIDs)
+
 	for _, idStr := range roleIDs {
+		// Skip empty strings
+		if idStr == "" {
+			log.Printf("Skipping empty role ID")
+			continue
+		}
+
 		id, err := uuid.Parse(idStr)
 		if err != nil {
+			log.Printf("Failed to parse UUID: %s, error: %v", idStr, err)
 			return nil, fmt.Errorf("invalid role ID: %s", idStr)
 		}
 
-		// For now, we'll use placeholder logic since the repository methods aren't fully implemented
-		// In real implementation, this would call s.repo.GetTargetRoleByID(id)
-		// For testing purposes, let's use some default role names based on common patterns
-		names = append(names, s.getDefaultRoleName(id))
+		// Get target role from database
+		role, err := s.repo.GetTargetRoleByID(id)
+		if err != nil {
+			log.Printf("Failed to get target role by ID %s: %v", id, err)
+			return nil, fmt.Errorf("failed to get target role: %s", err.Error())
+		}
+
+		names = append(names, role.Name)
+		log.Printf("Found role: %s for ID: %s", role.Name, id)
 	}
 
+	if len(names) == 0 {
+		log.Printf("No valid role IDs provided")
+		return nil, fmt.Errorf("no valid role IDs provided")
+	}
+
+	log.Printf("Successfully retrieved role names: %+v", names)
 	return names, nil
 }
 

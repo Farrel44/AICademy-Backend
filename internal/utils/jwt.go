@@ -1,12 +1,13 @@
 package utils
 
 import (
-	"aicademy-backend/internal/domain/user"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"os"
 	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

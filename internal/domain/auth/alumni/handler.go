@@ -1,7 +1,7 @@
 package alumni
 
 import (
-	"aicademy-backend/internal/utils"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 )

@@ -1,11 +1,12 @@
 package questionnaire
 
 import (
-	"aicademy-backend/internal/domain/user"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
