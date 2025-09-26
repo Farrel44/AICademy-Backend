@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"aicademy-backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/google/uuid"
 )

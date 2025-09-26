@@ -15,21 +15,12 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
-
-	"github.com/Farrel44/AICademy-Backend/internal/config"
-	"github.com/Farrel44/AICademy-Backend/internal/domain/auth"
-	authAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/auth/alumni"
-	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
-	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
-	commonQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/common/questionnaire"
-	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
-	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
-	"github.com/Farrel44/AICademy-Backend/internal/middleware"
-	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -69,7 +60,7 @@ func main() {
 		aiService = ai.NewNoAIService()
 	}
 
-	authRepo := auth.NewAuthRepository(db)
+	authRepo := auth.NewRepository(db, rdb)
 
 	commonAuthService := commonAuth.NewCommonAuthService(authRepo)
 	alumniAuthService := authAlumni.NewAlumniAuthService(authRepo)

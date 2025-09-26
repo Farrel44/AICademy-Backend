@@ -10,8 +10,6 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
-	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -79,37 +77,37 @@ func (r *AuthRepository) GetUserByID(id uuid.UUID) (*user.User, error) {
 	return &u, nil
 }
 
-func (r *AuthRepository) getStudentData(ctx context.Context, page, pageSize int, q string) (StudentData, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize <= 0 || pageSize > 200 {
-		pageSize = 20
-	}
+// func (r *AuthRepository) getStudentData(ctx context.Context, page, pageSize int, q string) (StudentData, error) {
+// 	if page < 1 {
+// 		page = 1
+// 	}
+// 	if pageSize <= 0 || pageSize > 200 {
+// 		pageSize = 20
+// 	}
 
-	cacheKey := r.studentsCacheKey(page, pageSize, q)
-	var cached StudentData
-	if ok, _ := r.cacheGet(ctx, cacheKey, &cached); ok {
-		return cached, nil
-	}
+// 	cacheKey := r.studentsCacheKey(page, pageSize, q)
+// 	var cached StudentData
+// 	if ok, _ := r.cacheGet(ctx, cacheKey, &cached); ok {
+// 		return cached, nil
+// 	}
 
-	dbq := r.db.WithContext(ctx).Model(&user.StudentProfile{})
+// 	dbq := r.db.WithContext(ctx).Model(&user.StudentProfile{})
 
-	if q = strings.TrimSpace(q); q != "" {
-		like := "%" + strings.ToLower(q) + "%"
-		dbq = dbq.Where(`
-			LOWER(fullname) LIKE ? OR LOWER(email) LIKE ? OR nis LIKE ? OR LOWER(class) LIKE ?`,
-			like, like, like, like)
-	}
+// 	if q = strings.TrimSpace(q); q != "" {
+// 		like := "%" + strings.ToLower(q) + "%"
+// 		dbq = dbq.Where(`
+// 			LOWER(fullname) LIKE ? OR LOWER(email) LIKE ? OR nis LIKE ? OR LOWER(class) LIKE ?`,
+// 			like, like, like, like)
+// 	}
 
-	var total int64
-	if err := dbq.Count(&total).Error; err != nil {
-		return StudentData{}, nil
-	}
+// 	var total int64
+// 	if err := dbq.Count(&total).Error; err != nil {
+// 		return StudentData{}, nil
+// 	}
 
-	var profiles []user.StudentProfile
+// 	var profiles []user.StudentProfile
 
-}
+// }
 
 func (r *AuthRepository) UpdatePassword(userID uuid.UUID, hashedPassword string) error {
 	return r.db.Model(&user.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error
