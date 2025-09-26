@@ -4,12 +4,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/joho/godotenv"
-
 	"aicademy-backend/internal/config"
 	"aicademy-backend/internal/domain/auth"
 	authAlumni "aicademy-backend/internal/domain/auth/alumni"
@@ -20,10 +14,22 @@ import (
 	adminQuestionnaire "aicademy-backend/internal/domain/questionnaire/admin"
 	"aicademy-backend/internal/middleware"
 	"aicademy-backend/internal/services/ai"
+	"aicademy-backend/internal/utils"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+
+	rdb := utils.NewRedisClient()
+	defer func() {
+		_ = rdb.Close()
+	}()
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")

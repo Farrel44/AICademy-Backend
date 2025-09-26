@@ -1,6 +1,10 @@
 package auth
 
-import "github.com/google/uuid"
+import (
+	"aicademy-backend/internal/domain/user"
+
+	"github.com/google/uuid"
+)
 
 type RegisterAlumniRequest struct {
 	Fullname string `json:"fullname" validate:"required,min=2"`
@@ -82,4 +86,11 @@ type ErrorResponse struct {
 	Success bool              `json:"success"`
 	Error   string            `json:"error"`
 	Details []ValidationError `json:"details,omitempty"`
+}
+
+type StudentData struct {
+	TotalStudent    int                   `json:"total_student"`
+	TotalStudentIt  int                   `json:"total_student_it"`
+	TotalStudentNet int                   `json:"total_student_network"`
+	Students        []user.StudentProfile `json:"students"`
 }

@@ -69,9 +69,6 @@ func (s *StudentAuthService) CreateStudent(req CreateStudentRequest) error {
 }
 
 func (s *StudentAuthService) ChangeDefaultPassword(userID uuid.UUID, req ChangeDefaultPasswordRequest) (*commonAuth.AuthResponse, error) {
-	if req.NewPassword != req.ConfirmPassword {
-		return nil, errors.New("password confirmation does not match")
-	}
 
 	foundUser, err := s.repo.GetUserByID(userID)
 	if err != nil {
@@ -80,10 +77,6 @@ func (s *StudentAuthService) ChangeDefaultPassword(userID uuid.UUID, req ChangeD
 
 	if foundUser.Role != user.RoleStudent {
 		return nil, errors.New("user is not a student")
-	}
-
-	if !utils.CheckPassword(req.CurrentPassword, foundUser.PasswordHash) {
-		return nil, errors.New("current password is incorrect")
 	}
 
 	if !utils.CheckPassword(DefaultStudentPassword, foundUser.PasswordHash) {
