@@ -368,6 +368,18 @@ func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*TargetRole, 
 	return &role, nil
 }
 
+func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*TargetRole, error) {
+	var role TargetRole
+	err := r.db.Where("name = ?", name).First(&role).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("target role tidak ditemukan")
+		}
+		return nil, err
+	}
+	return &role, nil
+}
+
 func (r *QuestionnaireRepository) UpdateTargetRole(role *TargetRole) error {
 	return r.db.Save(role).Error
 }
@@ -550,4 +562,46 @@ func (r *QuestionnaireRepository) GetStudentByProfileIDNew(profileID uuid.UUID) 
 		return nil, err
 	}
 	return &student, nil
+}
+
+func (r *QuestionnaireRepository) GetStudentProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error) {
+	var profile user.StudentProfile
+	err := r.db.Select("id").Where("user_id = ?", userID).First(&profile).Error
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return profile.ID, nil
+}
+
+func (r *QuestionnaireRepository) GetResponseByIDAndStudent(responseID, studentProfileID uuid.UUID) (*QuestionnaireResponse, error) {
+	var response QuestionnaireResponse
+	err := r.db.Where("id = ? AND student_profile_id = ?", responseID, studentProfileID).First(&response).Error
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (r *QuestionnaireRepository) UpdateResponseProcessingStatus(responseID uuid.UUID, status string, recommendations, analysis *string) error {
+	updateData := map[string]interface{}{
+		"processed_at": time.Now(),
+	}
+
+	if recommendations != nil {
+		updateData["ai_recommendations"] = *recommendations
+	}
+
+	if analysis != nil {
+		updateData["ai_analysis"] = *analysis
+	}
+
+	return r.db.Model(&QuestionnaireResponse{}).Where("id = ?", responseID).Updates(updateData).Error
+}
+
+func (r *QuestionnaireRepository) UpdateResponseProcessedAt(responseID uuid.UUID, processedAt *time.Time) error {
+	return r.db.Model(&QuestionnaireResponse{}).Where("id = ?", responseID).Update("processed_at", processedAt).Error
+}
+
+func (r *QuestionnaireRepository) UpdateResponseRecommendedRole(responseID uuid.UUID, roleID *uuid.UUID) error {
+	return r.db.Model(&QuestionnaireResponse{}).Where("id = ?", responseID).Update("recommended_profiling_role_id", roleID).Error
 }

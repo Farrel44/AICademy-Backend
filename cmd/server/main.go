@@ -9,9 +9,9 @@ import (
 	authAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/auth/alumni"
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
-	commonQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/common/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
+	studentQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/student"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -73,9 +73,9 @@ func main() {
 	// Questionnaire services and handlers
 	questionnaireRepo := questionnaire.NewQuestionnaireRepository(db)
 
-	// Common questionnaire service and handler
-	commonQuestionnaireService := commonQuestionnaire.NewCommonQuestionnaireService(questionnaireRepo, aiService)
-	commonQuestionnaireHandler := commonQuestionnaire.NewCommonQuestionnaireHandler(commonQuestionnaireService)
+	// Student questionnaire service and handler
+	studentQuestionnaireService := studentQuestionnaire.NewStudentQuestionnaireService(questionnaireRepo, aiService)
+	studentQuestionnaireHandler := studentQuestionnaire.NewStudentQuestionnaireHandler(studentQuestionnaireService)
 
 	// Admin questionnaire service and handler
 	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb)
@@ -165,11 +165,12 @@ func main() {
 	adminAuth.Put("/questionnaires/:id/activate", adminQuestionnaireHandler.ActivateQuestionnaire)
 	adminAuth.Get("/questionnaires/:id", adminQuestionnaireHandler.GetQuestionnaireDetail)
 
-	// Common Questionnaire
-	questionnaireRoutes := api.Group("/questionnaire", middleware.AuthRequired())
-	questionnaireRoutes.Get("/active", commonQuestionnaireHandler.GetActiveQuestionnaire)
-	questionnaireRoutes.Post("/submit", commonQuestionnaireHandler.SubmitQuestionnaire)
-	questionnaireRoutes.Get("/result/:responseId", commonQuestionnaireHandler.GetQuestionnaireResult)
+	// Student Questionnaire Routes
+	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
+	studentRoutes.Get("/questionnaire/active", studentQuestionnaireHandler.GetActiveQuestionnaire)
+	studentRoutes.Post("/questionnaire/submit", studentQuestionnaireHandler.SubmitQuestionnaire)
+	studentRoutes.Get("/questionnaire/result/:id", studentQuestionnaireHandler.GetQuestionnaireResult)
+	studentRoutes.Get("/role", studentQuestionnaireHandler.GetStudentRole)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
@@ -178,4 +179,3 @@ func main() {
 	log.Printf("API at: http://localhost:%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
-

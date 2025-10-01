@@ -90,3 +90,16 @@ func TeacherOrAdminRequired() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func StudentRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleStudent {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Student access required",
+			})
+		}
+		return c.Next()
+	}
+}
