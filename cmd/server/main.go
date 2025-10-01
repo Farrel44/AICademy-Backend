@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/Farrel44/AICademy-Backend/internal/config"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/admin"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/auth"
 	authAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/auth/alumni"
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
@@ -69,6 +70,10 @@ func main() {
 	commonAuthHandler := commonAuth.NewCommonAuthHandler(commonAuthService)
 	alumniAuthHandler := authAlumni.NewAlumniAuthHandler(alumniAuthService)
 	studentAuthHandler := authStudent.NewStudentAuthHandler(studentAuthService)
+
+	// Admin service and handler
+	adminUserService := admin.NewAdminUserService(authRepo)
+	adminUserHandler := admin.NewAdminUserHandler(adminUserService)
 
 	// Questionnaire services and handlers
 	questionnaireRepo := questionnaire.NewQuestionnaireRepository(db)
@@ -149,6 +154,31 @@ func main() {
 	adminAuth := api.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
+
+	// Admin User Management CRUD
+	adminAuth.Get("/users/statistics", adminUserHandler.GetStatistics)
+	// Students
+	adminAuth.Get("/users/students", adminUserHandler.GetStudents)
+	adminAuth.Get("/users/students/:id", adminUserHandler.GetStudentByID)
+	adminAuth.Put("/users/students/:id", adminUserHandler.UpdateStudent)
+	adminAuth.Delete("/users/students/:id", adminUserHandler.DeleteStudent)
+	// Teachers
+	adminAuth.Get("/users/teachers", adminUserHandler.GetTeachers)
+	adminAuth.Get("/users/teachers/:id", adminUserHandler.GetTeacherByID)
+	adminAuth.Post("/users/teachers", adminUserHandler.CreateTeacher)
+	adminAuth.Put("/users/teachers/:id", adminUserHandler.UpdateTeacher)
+	adminAuth.Delete("/users/teachers/:id", adminUserHandler.DeleteTeacher)
+	// Companies
+	adminAuth.Get("/users/companies", adminUserHandler.GetCompanies)
+	adminAuth.Get("/users/companies/:id", adminUserHandler.GetCompanyByID)
+	adminAuth.Post("/users/companies", adminUserHandler.CreateCompany)
+	adminAuth.Put("/users/companies/:id", adminUserHandler.UpdateCompany)
+	adminAuth.Delete("/users/companies/:id", adminUserHandler.DeleteCompany)
+	// Alumni
+	adminAuth.Get("/users/alumni", adminUserHandler.GetAlumni)
+	adminAuth.Get("/users/alumni/:id", adminUserHandler.GetAlumniByID)
+	adminAuth.Put("/users/alumni/:id", adminUserHandler.UpdateAlumni)
+	adminAuth.Delete("/users/alumni/:id", adminUserHandler.DeleteAlumni)
 
 	// Admin Questionnaire Routes
 	adminAuth.Post("/questionnaires/target-roles", adminQuestionnaireHandler.CreateTargetRole)
