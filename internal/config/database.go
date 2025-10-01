@@ -103,6 +103,8 @@ func addIndexes(db *gorm.DB) {
 	// Questionnaire indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_active ON profiling_questionnaires(active)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_generated_by ON profiling_questionnaires(generated_by)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_generation_status ON profiling_questionnaires(generation_status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_generation_updated ON profiling_questionnaires(generation_updated_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questions_questionnaire_id ON questionnaire_questions(questionnaire_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questions_order ON questionnaire_questions(question_order)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_responses_student_id ON questionnaire_responses(student_profile_id)")

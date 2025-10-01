@@ -46,6 +46,35 @@ func (h *CommonAuthHandler) Login(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, result, "Login successful")
 }
 
+func (h *CommonAuthHandler) GetMe(c *fiber.Ctx) error {
+	user := c.Locals("user").(*middleware.UserClaims)
+	if user == nil {
+		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	profile, err := h.service.GetMe(user.UserID)
+	if err != nil {
+		switch err.Error() {
+		case "user not found":
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "User not found")
+		case "student profile not found":
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Student profile not found")
+		case "alumni profile not found":
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Alumni profile not found")
+		case "teacher profile not found":
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Teacher profile not found")
+		case "company profile not found":
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Company profile not found")
+		case "invalid user role":
+			return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid user role")
+		default:
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Internal server error")
+		}
+	}
+
+	return utils.SuccessResponse(c, profile, "Profile retrieved successfully")
+}
+
 func (h *CommonAuthHandler) Logout(c *fiber.Ctx) error {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
@@ -78,6 +79,16 @@ func (r *QuestionnaireRepository) CreateQuestionnaire(questionnaire *ProfilingQu
 
 func (r *QuestionnaireRepository) UpdateQuestionnaire(questionnaire *ProfilingQuestionnaire) error {
 	return r.db.Save(questionnaire).Error
+}
+
+func (r *QuestionnaireRepository) UpdateQuestionnaireGenerationStatus(id uuid.UUID, status string, progress int, message string) error {
+	updates := map[string]interface{}{
+		"generation_status":     status,
+		"generation_progress":   progress,
+		"generation_message":    message,
+		"generation_updated_at": time.Now(),
+	}
+	return r.db.Model(&ProfilingQuestionnaire{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *QuestionnaireRepository) DeleteQuestionnaire(id uuid.UUID) error {

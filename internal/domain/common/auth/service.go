@@ -109,6 +109,102 @@ func (s *CommonAuthService) ChangePassword(userID uuid.UUID, req ChangePasswordR
 	return s.repo.UpdatePassword(userID, hashedPassword)
 }
 
+func (s *CommonAuthService) GetMe(userID uuid.UUID) (interface{}, error) {
+	foundUser, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	switch foundUser.Role {
+	case user.RoleStudent:
+		profile, err := s.repo.GetStudentProfileByUserID(userID)
+		if err != nil {
+			return nil, errors.New("student profile not found")
+		}
+
+		return StudentProfileResponse{
+			ID:             profile.ID,
+			UserID:         profile.UserID,
+			Fullname:       profile.Fullname,
+			NIS:            profile.NIS,
+			Class:          profile.Class,
+			ProfilePicture: profile.ProfilePicture,
+			Headline:       profile.Headline,
+			Bio:            profile.Bio,
+			CVFile:         profile.CVFile,
+			Email:          foundUser.Email,
+			Role:           string(foundUser.Role),
+			CreatedAt:      profile.CreatedAt,
+			UpdatedAt:      profile.UpdatedAt,
+		}, nil
+
+	case user.RoleAlumni:
+		profile, err := s.repo.GetAlumniProfileByUserID(userID)
+		if err != nil {
+			return nil, errors.New("alumni profile not found")
+		}
+
+		return AlumniProfileResponse{
+			ID:             profile.ID,
+			UserID:         profile.UserID,
+			Fullname:       profile.Fullname,
+			ProfilePicture: profile.ProfilePicture,
+			Headline:       profile.Headline,
+			Bio:            profile.Bio,
+			CVFile:         profile.CVFile,
+			Email:          foundUser.Email,
+			Role:           string(foundUser.Role),
+			CreatedAt:      profile.CreatedAt,
+			UpdatedAt:      profile.UpdatedAt,
+		}, nil
+
+	case user.RoleTeacher:
+		profile, err := s.repo.GetTeacherProfileByUserID(userID)
+		if err != nil {
+			return nil, errors.New("teacher profile not found")
+		}
+
+		return TeacherProfileResponse{
+			ID:             profile.ID,
+			UserID:         profile.UserID,
+			Fullname:       profile.Fullname,
+			ProfilePicture: profile.ProfilePicture,
+			Email:          foundUser.Email,
+			Role:           string(foundUser.Role),
+			CreatedAt:      profile.CreatedAt,
+		}, nil
+
+	case user.RoleCompany:
+		profile, err := s.repo.GetCompanyProfileByUserID(userID)
+		if err != nil {
+			return nil, errors.New("company profile not found")
+		}
+
+		return CompanyProfileResponse{
+			ID:              profile.ID,
+			UserID:          profile.UserID,
+			CompanyName:     profile.CompanyName,
+			CompanyLogo:     profile.CompanyLogo,
+			CompanyLocation: profile.CompanyLocation,
+			Description:     profile.Description,
+			Email:           foundUser.Email,
+			Role:            string(foundUser.Role),
+			CreatedAt:       profile.CreatedAt,
+		}, nil
+
+	case user.RoleAdmin:
+		return AdminProfileResponse{
+			ID:        foundUser.ID,
+			Email:     foundUser.Email,
+			Role:      string(foundUser.Role),
+			CreatedAt: foundUser.CreatedAt,
+		}, nil
+
+	default:
+		return nil, errors.New("invalid user role")
+	}
+}
+
 func (s *CommonAuthService) ForgotPassword(req ForgotPasswordRequest) error {
 	foundUser, err := s.repo.GetUserByEmail(strings.ToLower(req.Email))
 	if err != nil {

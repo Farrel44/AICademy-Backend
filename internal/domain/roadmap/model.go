@@ -16,7 +16,6 @@ const (
 	RoadmapVisibilityPublic  RoadmapVisibility = "public"
 )
 
-// RoadmapStatus enum for roadmap status
 type RoadmapStatus string
 
 const (
@@ -25,7 +24,6 @@ const (
 	RoadmapStatusArchived RoadmapStatus = "archived"
 )
 
-// RoadmapProgressStatus enum for roadmap progress status
 type RoadmapProgressStatus string
 
 const (
@@ -35,7 +33,6 @@ const (
 	RoadmapProgressStatusCompleted  RoadmapProgressStatus = "completed"
 )
 
-// FeatureRoadmap represents a personalized roadmap for a student
 type FeatureRoadmap struct {
 	ID               uuid.UUID         `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	StudentProfileID *uuid.UUID        `json:"student_profile_id" gorm:"type:uuid"`
@@ -44,14 +41,8 @@ type FeatureRoadmap struct {
 	Description      *string           `json:"description" gorm:"type:text"`
 	Visibility       RoadmapVisibility `json:"visibility" gorm:"type:varchar(20);default:'private'"`
 	Status           RoadmapStatus     `json:"status" gorm:"type:varchar(20);default:'draft'"`
-
-	// AI Generation metadata
-	AIGeneratedBy           *string    `json:"ai_generated_by" gorm:"type:varchar(100)"`   // AI model version used
-	AIPromptUsed            *string    `json:"ai_prompt_used" gorm:"type:text"`            // Prompt used for generation
-	QuestionnaireResponseID *uuid.UUID `json:"questionnaire_response_id" gorm:"type:uuid"` // Reference to questionnaire that triggered this roadmap
-
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	CreatedAt        time.Time         `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt        time.Time         `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relationships
 	StudentProfile interface{}       `json:"student_profile,omitempty" gorm:"foreignKey:StudentProfileID"`

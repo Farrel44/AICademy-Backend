@@ -134,6 +134,33 @@ func (h *AdminQuestionnaireHandler) GenerateQuestionnaire(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, "Questionnaire generated successfully", result)
 }
 
+// Get Generation Status
+func (h *AdminQuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
+	questionnaireIDStr := c.Params("id")
+	if questionnaireIDStr == "" {
+		return utils.SendError(c, fiber.StatusBadRequest, "Questionnaire ID is required")
+	}
+
+	questionnaireID, err := uuid.Parse(questionnaireIDStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Invalid questionnaire ID format")
+	}
+
+	status, err := h.service.GetGenerationStatus(questionnaireID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	response := QuestionnaireGenerationResponse{
+		QuestionnaireID: questionnaireID,
+		Status:          status.Status,
+		Progress:        status.Progress,
+		Message:         status.Message,
+	}
+
+	return utils.SendSuccess(c, "Generation status retrieved successfully", response)
+}
+
 // Questionnaire Management
 func (h *AdminQuestionnaireHandler) GetQuestionnaires(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))

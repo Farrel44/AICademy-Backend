@@ -31,6 +31,12 @@ func NewRepository(db *gorm.DB, rdb *redis.Client) *AuthRepository {
 	}
 }
 
+func (r *AuthRepository) GetCompanyProfileByUserID(userID uuid.UUID) (*user.CompanyProfile, error) {
+	var profile user.CompanyProfile
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	return &profile, err
+}
+
 func (r *AuthRepository) studentsCacheKey(page, pageSize int, q string) string {
 	return fmt.Sprintf("students:%s:p:%d:s:%d:q:%s",
 		r.cacheVersion, page, pageSize, url.QueryEscape(strings.ToLower(strings.TrimSpace(q))))

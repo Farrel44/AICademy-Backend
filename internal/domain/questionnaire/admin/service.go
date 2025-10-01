@@ -10,20 +10,23 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
+	"github.com/redis/go-redis/v9"
 
 	. "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/google/uuid"
 )
 
 type AdminQuestionnaireService struct {
-	repo      *questionnaire.QuestionnaireRepository
-	aiService ai.AIService
+	repo        *questionnaire.QuestionnaireRepository
+	aiService   ai.AIService
+	redisClient *redis.Client
 }
 
-func NewAdminQuestionnaireService(repo *questionnaire.QuestionnaireRepository, aiService ai.AIService) *AdminQuestionnaireService {
+func NewAdminQuestionnaireService(repo *questionnaire.QuestionnaireRepository, aiService ai.AIService, redisClient *redis.Client) *AdminQuestionnaireService {
 	return &AdminQuestionnaireService{
-		repo:      repo,
-		aiService: aiService,
+		repo:        repo,
+		aiService:   aiService,
+		redisClient: redisClient,
 	}
 }
 
@@ -537,7 +540,6 @@ func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *questionnaire.
 		UpdatedAt:   role.UpdatedAt,
 	}
 }
-
 func (s *AdminQuestionnaireService) buildQuestionGenerationPrompt(req GenerateQuestionnaireRequest, targetRoleNames []string) string {
 	customInstructions := ""
 	if req.CustomInstructions != nil {
@@ -549,7 +551,7 @@ func (s *AdminQuestionnaireService) buildQuestionGenerationPrompt(req GenerateQu
 
 	return fmt.Sprintf(`Anda adalah seorang ahli psikologi karir dan teknologi yang akan membuat kuesioner profiling karir untuk siswa SMK.
 
-TUJUAN: Buat %d pertanyaan yang dapat mengidentifikasi kecenderungan siswa terhadap peran teknologi tertentu.
+TUJUAN: Buat TEPAT %d pertanyaan yang dapat mengidentifikasi kecenderungan siswa terhadap peran teknologi tertentu.
 
 TARGET ROLES: %v
 
@@ -561,6 +563,8 @@ LEVEL KESULITAN: %s
 FOKUS AREA: %v
 
 CUSTOM INSTRUCTIONS: %s
+
+PENTING: HARUS MENGHASILKAN TEPAT %d PERTANYAAN, TIDAK BOLEH KURANG ATAU LEBIH!
 
 FORMAT OUTPUT JSON:
 {
@@ -577,45 +581,60 @@ FORMAT OUTPUT JSON:
 }
 
 RULES:
-1. Gunakan bahasa Indonesia yang mudah dipahami siswa SMK
-2. Variasikan jenis pertanyaan (60%% likert, 25%% mcq, 15%% case/text)
-3. Pastikan pertanyaan dapat membedakan antar target roles
-4. Fokus pada minat, kepribadian, dan kemampuan teknis dasar
-5. Hindari pertanyaan yang bias gender atau latar belakang sosial
-6. Untuk mcq, berikan 4-5 opsi yang masuk akal
-7. Untuk likert, gunakan skala 1-5 (sangat tidak setuju - sangat setuju)
-8. Urutkan output JSON dengan urutan tipe pertanyaan: **mcq → likert → case → text**
+1. WAJIB: Hasilkan TEPAT %d pertanyaan, tidak boleh kurang!
+2. Gunakan bahasa Indonesia yang mudah dipahami siswa SMK
+3. Variasikan jenis pertanyaan (60%% likert, 25%% mcq, 15%% case/text)
+4. Pastikan pertanyaan dapat membedakan antar target roles
+5. Fokus pada minat, kepribadian, dan kemampuan teknis dasar
+6. Hindari pertanyaan yang bias gender atau latar belakang sosial
+7. Untuk mcq, berikan 4-5 opsi yang masuk akal
+8. Untuk likert, gunakan skala 1-5 (sangat tidak setuju - sangat setuju)
+9. Urutkan output JSON dengan urutan tipe pertanyaan: **mcq → likert → case → text**
+
+VALIDASI AKHIR: Pastikan array "questions" memiliki TEPAT %d elemen!
 
 Mulai generasi sekarang:`,
-		req.QuestionCount, targetRoleNames, req.DifficultyLevel, focusAreas, customInstructions)
+		req.QuestionCount, targetRoleNames, req.DifficultyLevel, focusAreas, customInstructions,
+		req.QuestionCount, req.QuestionCount, req.QuestionCount)
 }
 
 func (s *AdminQuestionnaireService) processQuestionGeneration(questionnaireID uuid.UUID, promptUsed string, req GenerateQuestionnaireRequest) {
-	log.Printf("Starting AI question generation for questionnaire %s", questionnaireID)
+	ctx := context.Background()
 
+	s.setGenerationStatus(ctx, questionnaireID, "processing", 10, "Initializing AI question generation")
 	time.Sleep(2 * time.Second)
 
 	var aiResponse *ai.QuestionGenerationResponse
 	var err error
 
 	if s.aiService != nil {
-		ctx := context.Background()
+		s.setGenerationStatus(ctx, questionnaireID, "processing", 30, "Generating questions with AI")
 		aiResponse, err = s.aiService.GenerateQuestions(ctx, promptUsed)
 		if err != nil {
-			log.Printf("Error generating questions with AI: %v", err)
+			s.setGenerationStatus(ctx, questionnaireID, "failed", 0, fmt.Sprintf("AI generation failed: %v", err))
 			return
 		}
 	} else {
-		log.Printf("AI service not available, using default questions")
+		s.setGenerationStatus(ctx, questionnaireID, "failed", 0, "AI service not available")
 		return
 	}
 
+	s.setGenerationStatus(ctx, questionnaireID, "processing", 50, "Validating AI response")
+
+	if len(aiResponse.Questions) != req.QuestionCount {
+		s.setGenerationStatus(ctx, questionnaireID, "failed", 0,
+			fmt.Sprintf("AI generated %d questions but %d were requested", len(aiResponse.Questions), req.QuestionCount))
+		return
+	}
+
+	s.setGenerationStatus(ctx, questionnaireID, "processing", 70, "Fetching questionnaire data")
 	questionnaireEntity, err := s.repo.GetQuestionnaireByID(questionnaireID)
 	if err != nil {
-		log.Printf("Error fetching questionnaire: %v", err)
+		s.setGenerationStatus(ctx, questionnaireID, "failed", 0, fmt.Sprintf("Error fetching questionnaire: %v", err))
 		return
 	}
 
+	s.setGenerationStatus(ctx, questionnaireID, "processing", 80, "Processing questions")
 	questions := make([]questionnaire.QuestionnaireQuestion, len(aiResponse.Questions))
 	for i, aiQ := range aiResponse.Questions {
 		var optionsJSON *string
@@ -639,20 +658,21 @@ func (s *AdminQuestionnaireService) processQuestionGeneration(questionnaireID uu
 		}
 	}
 
+	s.setGenerationStatus(ctx, questionnaireID, "processing", 90, "Saving questions to database")
 	err = s.repo.AddQuestionsToQuestionnaire(questionnaireID, questions)
 	if err != nil {
-		log.Printf("Error saving questions: %v", err)
+		s.setGenerationStatus(ctx, questionnaireID, "failed", 0, fmt.Sprintf("Error saving questions: %v", err))
 		return
 	}
 
 	questionnaireEntity.AIPromptUsed = &promptUsed
 	err = s.repo.UpdateQuestionnaire(questionnaireEntity)
 	if err != nil {
-		log.Printf("Error updating questionnaire: %v", err)
+		s.setGenerationStatus(ctx, questionnaireID, "failed", 0, fmt.Sprintf("Error updating questionnaire: %v", err))
 		return
 	}
 
-	log.Printf("Successfully generated %d questions for questionnaire %s", len(questions), questionnaireID)
+	s.setGenerationStatus(ctx, questionnaireID, "completed", 100, fmt.Sprintf("Successfully generated %d questions", len(questions)))
 }
 
 func (s *AdminQuestionnaireService) getMaxScoreForType(questionType questionnaire.QuestionType) int {
@@ -670,12 +690,10 @@ func (s *AdminQuestionnaireService) getMaxScoreForType(questionType questionnair
 	}
 }
 
-// getAllActiveTargetRoles gets all active target roles from database
 func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.TargetRole, error) {
 	log.Printf("Getting all active target roles from database")
 
-	// Use GetTargetRoles with large limit to get all roles
-	roles, _, err := s.repo.GetTargetRoles(0, 1000) // Get up to 1000 roles (should be enough)
+	roles, _, err := s.repo.GetTargetRoles(0, 1000)
 	if err != nil {
 		log.Printf("Failed to get all target roles: %v", err)
 		return nil, fmt.Errorf("failed to get all target roles: %w", err)
@@ -752,4 +770,66 @@ func (s *AdminQuestionnaireService) getDefaultRoleName(id uuid.UUID) string {
 	default:
 		return "Technology Specialist"
 	}
+}
+
+type GenerationStatus struct {
+	Status   string `json:"status"`
+	Progress int    `json:"progress"`
+	Message  string `json:"message"`
+}
+
+func (s *AdminQuestionnaireService) setGenerationStatus(ctx context.Context, questionnaireID uuid.UUID, status string, progress int, message string) {
+	err := s.repo.UpdateQuestionnaireGenerationStatus(questionnaireID, status, progress, message)
+	if err != nil {
+		return
+	}
+
+	if s.redisClient != nil {
+		statusData := GenerationStatus{
+			Status:   status,
+			Progress: progress,
+			Message:  message,
+		}
+
+		statusJSON, _ := json.Marshal(statusData)
+		key := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
+		s.redisClient.Set(ctx, key, string(statusJSON), 5*time.Minute)
+	}
+}
+
+func (s *AdminQuestionnaireService) GetGenerationStatus(questionnaireID uuid.UUID) (*GenerationStatus, error) {
+	ctx := context.Background()
+	key := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
+
+	if s.redisClient != nil {
+		result, err := s.redisClient.Get(ctx, key).Result()
+		if err == nil {
+			var status GenerationStatus
+			if json.Unmarshal([]byte(result), &status) == nil {
+				return &status, nil
+			}
+		}
+	}
+
+	dbQuestionnaire, err := s.repo.GetQuestionnaireByID(questionnaireID)
+	if err != nil {
+		return &GenerationStatus{
+			Status:   "not_found",
+			Progress: 0,
+			Message:  "Generation status not found",
+		}, nil
+	}
+
+	status := &GenerationStatus{
+		Status:   dbQuestionnaire.GenerationStatus,
+		Progress: dbQuestionnaire.GenerationProgress,
+		Message:  dbQuestionnaire.GenerationMessage,
+	}
+
+	if s.redisClient != nil {
+		statusJSON, _ := json.Marshal(status)
+		s.redisClient.Set(ctx, key, string(statusJSON), 5*time.Minute)
+	}
+
+	return status, nil
 }

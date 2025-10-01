@@ -78,7 +78,7 @@ func main() {
 	commonQuestionnaireHandler := commonQuestionnaire.NewCommonQuestionnaireHandler(commonQuestionnaireService)
 
 	// Admin questionnaire service and handler
-	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService)
+	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb)
 	adminQuestionnaireHandler := adminQuestionnaire.NewAdminQuestionnaireHandler(adminQuestionnaireService)
 
 	app := fiber.New(fiber.Config{
@@ -140,7 +140,7 @@ func main() {
 	protectedAuth := authRoutes.Group("/protected", middleware.AuthRequired())
 	protectedAuth.Post("/change-password", commonAuthHandler.ChangePassword)
 	protectedAuth.Post("/logout", commonAuthHandler.Logout)
-
+	protectedAuth.Get("/me", commonAuthHandler.GetMe)
 	// Student auth
 	studentAuth := authRoutes.Group("/student", middleware.AuthRequired())
 	studentAuth.Post("/change-default-password", studentAuthHandler.ChangeDefaultPassword)
@@ -157,6 +157,7 @@ func main() {
 	adminAuth.Put("/questionnaires/target-roles/:id", adminQuestionnaireHandler.UpdateTargetRole)
 	adminAuth.Delete("/questionnaires/target-roles/:id", adminQuestionnaireHandler.DeleteTargetRole)
 	adminAuth.Post("/questionnaires/generate", adminQuestionnaireHandler.GenerateQuestionnaire)
+	adminAuth.Get("/questionnaires/generation-status/:id", adminQuestionnaireHandler.GetGenerationStatus)
 	adminAuth.Get("/questionnaires", adminQuestionnaireHandler.GetQuestionnaires)
 	adminAuth.Get("/responses", adminQuestionnaireHandler.GetQuestionnaireResponses)
 	adminAuth.Get("/responses/:id", adminQuestionnaireHandler.GetResponseDetail)
@@ -177,3 +178,4 @@ func main() {
 	log.Printf("API at: http://localhost:%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
+
