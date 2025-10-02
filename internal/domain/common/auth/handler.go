@@ -21,7 +21,7 @@ func (h *CommonAuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -72,7 +72,7 @@ func (h *CommonAuthHandler) GetMe(c *fiber.Ctx) error {
 		}
 	}
 
-	return utils.SuccessResponse(c, profile, "Profile retrieved successfully")
+	return utils.SuccessResponse(c, profile, "Profil berhasil diambil")
 }
 
 func (h *CommonAuthHandler) Logout(c *fiber.Ctx) error {
@@ -104,7 +104,7 @@ func (h *CommonAuthHandler) ChangePassword(c *fiber.Ctx) error {
 
 	var req ChangePasswordRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -126,14 +126,14 @@ func (h *CommonAuthHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Password changed successfully",
-	}, "Password changed successfully")
+		Message: "Password berhasil diubah",
+	}, "Password berhasil diubah")
 }
 
 func (h *CommonAuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req ForgotPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -158,7 +158,7 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 
 	var req ResetPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -180,7 +180,7 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Password reset successfully",
+		Message: "Password berhasil direset",
 	}, "Password reset successful")
 } // Helper methods
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role string) {
@@ -227,7 +227,7 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 	var req RefreshTokenRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -248,5 +248,5 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 		}
 	}
 
-	return utils.SuccessResponse(c, result, "Token refreshed successfully")
+	return utils.SuccessResponse(c, result, "Token berhasil direfresh")
 }

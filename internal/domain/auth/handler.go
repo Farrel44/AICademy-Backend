@@ -35,21 +35,21 @@ func (h *AuthHandler) formatValidationErrors(err error) []ValidationError {
 
 			switch fieldError.Tag() {
 			case "required":
-				message = fieldError.Field() + " is required"
+				message = fieldError.Field() + " wajib diisi"
 			case "email":
-				message = "Invalid email format"
+				message = "Format email tidak valid"
 			case "min":
-				message = fieldError.Field() + " must be at least " + fieldError.Param() + " characters"
+				message = fieldError.Field() + " minimal " + fieldError.Param() + " karakter"
 			case "max":
-				message = fieldError.Field() + " must be at most " + fieldError.Param() + " characters"
+				message = fieldError.Field() + " maksimal " + fieldError.Param() + " karakter"
 			case "regexp":
 				if strings.Contains(strings.ToLower(fieldError.Field()), "password") {
-					message = "Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character"
+					message = "Password harus mengandung minimal satu huruf kecil, satu huruf besar, satu angka, dan satu karakter khusus"
 				} else {
-					message = fieldError.Field() + " format is invalid"
+					message = "Format " + fieldError.Field() + " tidak valid"
 				}
 			default:
-				message = fieldError.Field() + " is invalid"
+				message = fieldError.Field() + " tidak valid"
 			}
 
 			validationErrors = append(validationErrors, ValidationError{
@@ -66,14 +66,14 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 	var req RegisterAlumniRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -101,21 +101,21 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return utils.SuccessResponse(c, result, "Alumni registration successful")
+	return utils.SuccessResponse(c, result, "Registrasi alumni berhasil")
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -143,7 +143,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return utils.SuccessResponse(c, result, "Login successful")
+	return utils.SuccessResponse(c, result, "Login berhasil")
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
@@ -166,22 +166,22 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	})
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Logout successful",
-	}, "Logout successful")
+		Message: "Logout berhasil",
+	}, "Logout berhasil")
 }
 
 func (h *AuthHandler) CreateTeacher(c *fiber.Ctx) error {
 	var req CreateTeacherRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -192,22 +192,22 @@ func (h *AuthHandler) CreateTeacher(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Teacher created successfully",
-	}, "Teacher created successfully")
+		Message: "Guru berhasil dibuat",
+	}, "Guru berhasil dibuat")
 }
 
 func (h *AuthHandler) CreateStudent(c *fiber.Ctx) error {
 	var req CreateStudentRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -218,22 +218,22 @@ func (h *AuthHandler) CreateStudent(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: fmt.Sprintf("Student created successfully with default password: %s", DefaultStudentPassword),
-	}, "Student created successfully")
+		Message: fmt.Sprintf("Siswa berhasil dibuat dengan password default: %s", DefaultStudentPassword),
+	}, "Siswa berhasil dibuat")
 }
 
 func (h *AuthHandler) CreateCompany(c *fiber.Ctx) error {
 	var req CreateCompanyRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -244,8 +244,8 @@ func (h *AuthHandler) CreateCompany(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Company created successfully",
-	}, "Company created successfully")
+		Message: "Perusahaan berhasil dibuat",
+	}, "Perusahaan berhasil dibuat")
 }
 
 func (h *AuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
@@ -274,15 +274,15 @@ func (h *AuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 
 	response := map[string]interface{}{
 		"created_count": createdCount,
-		"message":       fmt.Sprintf("Successfully created %d students with default password: %s", createdCount, DefaultStudentPassword),
+		"message":       fmt.Sprintf("Berhasil membuat %d siswa dengan password default: %s", createdCount, DefaultStudentPassword),
 	}
 
 	if len(validationErrors) > 0 {
 		response["validation_errors"] = validationErrors
-		response["message"] = fmt.Sprintf("Created %d students, but %d rows had errors", createdCount, len(validationErrors))
+		response["message"] = fmt.Sprintf("Berhasil membuat %d siswa, tetapi %d baris mengalami error", createdCount, len(validationErrors))
 	}
 
-	return utils.SuccessResponse(c, response, "CSV upload processed")
+	return utils.SuccessResponse(c, response, "Upload CSV berhasil diproses")
 }
 
 func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
@@ -291,14 +291,14 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	var req ChangePasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -309,22 +309,22 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Password changed successfully",
-	}, "Password changed successfully")
+		Message: "Password berhasil diubah",
+	}, "Password berhasil diubah")
 }
 
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req ForgotPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -335,27 +335,27 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "You will receive a reset email if user with that email exists",
-	}, "Reset link sent")
+		Message: "Anda akan menerima email reset jika pengguna dengan email tersebut ada",
+	}, "Link reset telah dikirim")
 }
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	token := c.Params("token")
 	if token == "" {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Reset token is required")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Token reset diperlukan")
 	}
 
 	var req ResetPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request body")
+		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		validationErrors := h.formatValidationErrors(err)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{
 			Success: false,
-			Error:   "Validation failed",
+			Error:   "Validasi gagal",
 			Details: validationErrors,
 		})
 	}
@@ -366,6 +366,6 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, MessageResponse{
-		Message: "Password reset successfully",
-	}, "Password reset successfully")
+		Message: "Password berhasil direset",
+	}, "Password berhasil direset")
 }

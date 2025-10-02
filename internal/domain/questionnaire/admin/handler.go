@@ -22,7 +22,7 @@ func NewAdminQuestionnaireHandler(service *AdminQuestionnaireService) *AdminQues
 func (h *AdminQuestionnaireHandler) CreateTargetRole(c *fiber.Ctx) error {
 	var req CreateTargetRoleRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -34,7 +34,7 @@ func (h *AdminQuestionnaireHandler) CreateTargetRole(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Target role created successfully", result)
+	return utils.SendSuccess(c, "Target role berhasil dibuat", result)
 }
 
 func (h *AdminQuestionnaireHandler) GetTargetRoles(c *fiber.Ctx) error {
@@ -58,14 +58,14 @@ func (h *AdminQuestionnaireHandler) GetTargetRoles(c *fiber.Ctx) error {
 
 	log.Printf("DEBUG: Handler got result: %+v", result)
 
-	return utils.SendSuccess(c, "Target roles retrieved successfully", result)
+	return utils.SendSuccess(c, "Data target role berhasil diambil", result)
 }
 
 func (h *AdminQuestionnaireHandler) GetTargetRole(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid target role ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID target role tidak valid")
 	}
 
 	result, err := h.service.GetTargetRoleByID(id)
@@ -73,19 +73,19 @@ func (h *AdminQuestionnaireHandler) GetTargetRole(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Target role retrieved successfully", result)
+	return utils.SendSuccess(c, "Data target role berhasil diambil", result)
 }
 
 func (h *AdminQuestionnaireHandler) UpdateTargetRole(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid target role ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID target role tidak valid")
 	}
 
 	var req UpdateTargetRoleRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -97,14 +97,14 @@ func (h *AdminQuestionnaireHandler) UpdateTargetRole(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Target role updated successfully", result)
+	return utils.SendSuccess(c, "Target role berhasil diperbarui", result)
 }
 
 func (h *AdminQuestionnaireHandler) DeleteTargetRole(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid target role ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID target role tidak valid")
 	}
 
 	err = h.service.DeleteTargetRole(id)
@@ -112,14 +112,14 @@ func (h *AdminQuestionnaireHandler) DeleteTargetRole(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Target role deleted successfully", nil)
+	return utils.SendSuccess(c, "Target role berhasil dihapus", nil)
 }
 
 // Questionnaire Generation
 func (h *AdminQuestionnaireHandler) GenerateQuestionnaire(c *fiber.Ctx) error {
 	var req GenerateQuestionnaireRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -131,19 +131,19 @@ func (h *AdminQuestionnaireHandler) GenerateQuestionnaire(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaire generated successfully", result)
+	return utils.SendSuccess(c, "Kuesioner berhasil dibuat", result)
 }
 
 // Get Generation Status
 func (h *AdminQuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
 	questionnaireIDStr := c.Params("id")
 	if questionnaireIDStr == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "Questionnaire ID is required")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID kuesioner wajib diisi")
 	}
 
 	questionnaireID, err := uuid.Parse(questionnaireIDStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid questionnaire ID format")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format ID kuesioner tidak valid")
 	}
 
 	status, err := h.service.GetGenerationStatus(questionnaireID)
@@ -158,7 +158,7 @@ func (h *AdminQuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
 		Message:         status.Message,
 	}
 
-	return utils.SendSuccess(c, "Generation status retrieved successfully", response)
+	return utils.SendSuccess(c, "Status generasi berhasil diambil", response)
 }
 
 // Questionnaire Management
@@ -178,14 +178,14 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaires(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaires retrieved successfully", result)
+	return utils.SendSuccess(c, "Data kuesioner berhasil diambil", result)
 }
 
 func (h *AdminQuestionnaireHandler) GetQuestionnaireDetail(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid questionnaire ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID kuesioner tidak valid")
 	}
 
 	result, err := h.service.GetQuestionnaireDetail(id)
@@ -193,19 +193,19 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaireDetail(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaire detail retrieved successfully", result)
+	return utils.SendSuccess(c, "Detail kuesioner berhasil diambil", result)
 }
 
 func (h *AdminQuestionnaireHandler) ActivateQuestionnaire(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid questionnaire ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID kuesioner tidak valid")
 	}
 
 	var req ActivateQuestionnaireRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	err = h.service.ActivateQuestionnaire(id, req.Active)
@@ -213,12 +213,12 @@ func (h *AdminQuestionnaireHandler) ActivateQuestionnaire(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	status := "deactivated"
+	status := "dinonaktifkan"
 	if req.Active {
-		status = "activated"
+		status = "diaktifkan"
 	}
 
-	return utils.SendSuccess(c, "Questionnaire "+status+" successfully", nil)
+	return utils.SendSuccess(c, "Kuesioner berhasil "+status, nil)
 }
 
 // Response Management
@@ -246,14 +246,14 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) erro
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaire responses retrieved successfully", result)
+	return utils.SendSuccess(c, "Data respons kuesioner berhasil diambil", result)
 }
 
 func (h *AdminQuestionnaireHandler) GetResponseDetail(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid response ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID respons tidak valid")
 	}
 
 	result, err := h.service.GetResponseDetail(id)
@@ -261,5 +261,5 @@ func (h *AdminQuestionnaireHandler) GetResponseDetail(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Response detail retrieved successfully", result)
+	return utils.SendSuccess(c, "Detail respons berhasil diambil", result)
 }

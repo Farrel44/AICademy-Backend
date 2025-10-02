@@ -18,7 +18,7 @@ func (h *AlumniAuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 	var req RegisterAlumniRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {

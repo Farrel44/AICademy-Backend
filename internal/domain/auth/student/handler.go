@@ -23,7 +23,7 @@ func (h *StudentAuthHandler) CreateStudent(c *fiber.Ctx) error {
 	var req CreateStudentRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -51,19 +51,19 @@ func (h *StudentAuthHandler) CreateStudent(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c.Status(fiber.StatusCreated), commonAuth.MessageResponse{
-		Message: "Student created successfully",
-	}, "Student created successfully")
+		Message: "Siswa berhasil dibuat",
+	}, "Siswa berhasil dibuat")
 }
 
 func (h *StudentAuthHandler) ChangeDefaultPassword(c *fiber.Ctx) error {
 	user := c.Locals("user").(*middleware.UserClaims)
 	if user == nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.ErrorResponse(c, 401, "Tidak diizinkan")
 	}
 
 	var req ChangeDefaultPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.ErrorResponse(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -94,7 +94,7 @@ func (h *StudentAuthHandler) ChangeDefaultPassword(c *fiber.Ctx) error {
 		}
 	}
 
-	return utils.SuccessResponse(c, result, "Password changed successfully")
+	return utils.SuccessResponse(c, result, "Password berhasil diubah")
 }
 
 func (h *StudentAuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {

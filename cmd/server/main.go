@@ -199,6 +199,7 @@ func main() {
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
 	studentRoutes.Get("/questionnaire/active", studentQuestionnaireHandler.GetActiveQuestionnaire)
 	studentRoutes.Post("/questionnaire/submit", studentQuestionnaireHandler.SubmitQuestionnaire)
+	studentRoutes.Get("/questionnaire/latest-result", studentQuestionnaireHandler.GetLatestQuestionnaireResult)
 	studentRoutes.Get("/questionnaire/result/:id", studentQuestionnaireHandler.GetQuestionnaireResult)
 	studentRoutes.Get("/role", studentQuestionnaireHandler.GetStudentRole)
 

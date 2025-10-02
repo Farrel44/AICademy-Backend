@@ -22,7 +22,7 @@ func (h *StudentQuestionnaireHandler) GetActiveQuestionnaire(c *fiber.Ctx) error
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Active questionnaire retrieved successfully", result)
+	return utils.SendSuccess(c, "Kuesioner aktif berhasil diambil", result)
 }
 
 func (h *StudentQuestionnaireHandler) SubmitQuestionnaire(c *fiber.Ctx) error {
@@ -38,7 +38,7 @@ func (h *StudentQuestionnaireHandler) SubmitQuestionnaire(c *fiber.Ctx) error {
 
 	var req SubmitQuestionnaireRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -50,7 +50,7 @@ func (h *StudentQuestionnaireHandler) SubmitQuestionnaire(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaire submitted successfully", result)
+	return utils.SendSuccess(c, "Kuesioner berhasil disubmit", result)
 }
 
 func (h *StudentQuestionnaireHandler) GetStudentRole(c *fiber.Ctx) error {
@@ -69,7 +69,7 @@ func (h *StudentQuestionnaireHandler) GetStudentRole(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Student role retrieved successfully", result)
+	return utils.SendSuccess(c, "Role siswa berhasil diambil", result)
 }
 
 func (h *StudentQuestionnaireHandler) GetQuestionnaireResult(c *fiber.Ctx) error {
@@ -94,7 +94,26 @@ func (h *StudentQuestionnaireHandler) GetQuestionnaireResult(c *fiber.Ctx) error
 		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Questionnaire result retrieved successfully", result)
+	return utils.SendSuccess(c, "Hasil kuesioner berhasil diambil", result)
+}
+
+func (h *StudentQuestionnaireHandler) GetLatestQuestionnaireResult(c *fiber.Ctx) error {
+	user := c.Locals("user").(*middleware.UserClaims)
+	if user == nil {
+		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	studentProfileID, err := h.getStudentProfileID(user.UserID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Profil siswa tidak ditemukan")
+	}
+
+	result, err := h.service.GetLatestQuestionnaireResult(studentProfileID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Hasil kuesioner terbaru berhasil diambil", result)
 }
 
 func (h *StudentQuestionnaireHandler) getStudentProfileID(userID uuid.UUID) (uuid.UUID, error) {

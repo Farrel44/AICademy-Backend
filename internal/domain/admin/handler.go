@@ -34,7 +34,7 @@ func (h *AdminUserHandler) GetStudents(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Students retrieved successfully", result)
+	return utils.SendSuccess(c, "Data siswa berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) GetStatistics(c *fiber.Ctx) error {
@@ -43,14 +43,14 @@ func (h *AdminUserHandler) GetStatistics(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Student statistics retrieved successfully", stats)
+	return utils.SendSuccess(c, "Statistik siswa berhasil diambil", stats)
 }
 
 func (h *AdminUserHandler) GetStudentByID(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid student ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
 	}
 
 	result, err := h.service.GetStudentByID(id)
@@ -58,19 +58,19 @@ func (h *AdminUserHandler) GetStudentByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Student retrieved successfully", result)
+	return utils.SendSuccess(c, "Data siswa berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) UpdateStudent(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid student ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
 	}
 
 	var req UpdateStudentRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -82,21 +82,21 @@ func (h *AdminUserHandler) UpdateStudent(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Student updated successfully", student)
+	return utils.SendSuccess(c, "Data siswa berhasil diperbarui", student)
 }
 
 func (h *AdminUserHandler) DeleteStudent(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid student ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
 	}
 
 	if err := h.service.DeleteStudent(id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Student deleted successfully", nil)
+	return utils.SendSuccess(c, "Data siswa berhasil dihapus", nil)
 }
 
 // Teacher handlers
@@ -117,14 +117,14 @@ func (h *AdminUserHandler) GetTeachers(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Teachers retrieved successfully", result)
+	return utils.SendSuccess(c, "Data guru berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) GetTeacherByID(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid teacher ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
 	}
 
 	result, err := h.service.GetTeacherByID(id)
@@ -132,13 +132,13 @@ func (h *AdminUserHandler) GetTeacherByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Teacher retrieved successfully", result)
+	return utils.SendSuccess(c, "Data guru berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) CreateTeacher(c *fiber.Ctx) error {
 	var req CreateTeacherRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -150,19 +150,19 @@ func (h *AdminUserHandler) CreateTeacher(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Teacher created successfully", teacher)
+	return utils.SendSuccess(c, "Data guru berhasil dibuat", teacher)
 }
 
 func (h *AdminUserHandler) UpdateTeacher(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid teacher ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
 	}
 
 	var req UpdateTeacherRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -174,21 +174,21 @@ func (h *AdminUserHandler) UpdateTeacher(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Teacher updated successfully", teacher)
+	return utils.SendSuccess(c, "Data guru berhasil diperbarui", teacher)
 }
 
 func (h *AdminUserHandler) DeleteTeacher(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid teacher ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
 	}
 
 	if err := h.service.DeleteTeacher(id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Teacher deleted successfully", nil)
+	return utils.SendSuccess(c, "Data guru berhasil dihapus", nil)
 }
 
 // Company handlers
@@ -209,14 +209,14 @@ func (h *AdminUserHandler) GetCompanies(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Companies retrieved successfully", result)
+	return utils.SendSuccess(c, "Data perusahaan berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) GetCompanyByID(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid company ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
 	}
 
 	result, err := h.service.GetCompanyByID(id)
@@ -224,13 +224,13 @@ func (h *AdminUserHandler) GetCompanyByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Company retrieved successfully", result)
+	return utils.SendSuccess(c, "Data perusahaan berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) CreateCompany(c *fiber.Ctx) error {
 	var req CreateCompanyRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -242,19 +242,19 @@ func (h *AdminUserHandler) CreateCompany(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Company created successfully", company)
+	return utils.SendSuccess(c, "Data perusahaan berhasil dibuat", company)
 }
 
 func (h *AdminUserHandler) UpdateCompany(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid company ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
 	}
 
 	var req UpdateCompanyRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -266,21 +266,21 @@ func (h *AdminUserHandler) UpdateCompany(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Company updated successfully", company)
+	return utils.SendSuccess(c, "Data perusahaan berhasil diperbarui", company)
 }
 
 func (h *AdminUserHandler) DeleteCompany(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid company ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
 	}
 
 	if err := h.service.DeleteCompany(id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Company deleted successfully", nil)
+	return utils.SendSuccess(c, "Data perusahaan berhasil dihapus", nil)
 }
 
 // Alumni handlers
@@ -301,14 +301,14 @@ func (h *AdminUserHandler) GetAlumni(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Alumni retrieved successfully", result)
+	return utils.SendSuccess(c, "Data alumni berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) GetAlumniByID(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid alumni ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
 	}
 
 	result, err := h.service.GetAlumniByID(id)
@@ -316,19 +316,19 @@ func (h *AdminUserHandler) GetAlumniByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Alumni retrieved successfully", result)
+	return utils.SendSuccess(c, "Data alumni berhasil diambil", result)
 }
 
 func (h *AdminUserHandler) UpdateAlumni(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid alumni ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
 	}
 
 	var req UpdateAlumniRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid request body")
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -340,19 +340,19 @@ func (h *AdminUserHandler) UpdateAlumni(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Alumni updated successfully", alumni)
+	return utils.SendSuccess(c, "Data alumni berhasil diperbarui", alumni)
 }
 
 func (h *AdminUserHandler) DeleteAlumni(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid alumni ID")
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
 	}
 
 	if err := h.service.DeleteAlumni(id); err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Alumni deleted successfully", nil)
+	return utils.SendSuccess(c, "Data alumni berhasil dihapus", nil)
 }
