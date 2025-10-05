@@ -122,6 +122,14 @@ func (s *CommonAuthService) GetMe(userID uuid.UUID) (interface{}, error) {
 			return nil, errors.New("student profile not found")
 		}
 
+		var roleID *uuid.UUID
+		var roleName *string
+		latestRoleID, latestRoleName, err := s.repo.GetLatestQuestionnaireResponseByStudentProfile(profile.ID)
+		if err == nil {
+			roleID = latestRoleID
+			roleName = latestRoleName
+		}
+
 		return StudentProfileResponse{
 			ID:             profile.ID,
 			UserID:         profile.UserID,
@@ -134,6 +142,8 @@ func (s *CommonAuthService) GetMe(userID uuid.UUID) (interface{}, error) {
 			CVFile:         profile.CVFile,
 			Email:          foundUser.Email,
 			Role:           string(foundUser.Role),
+			RoleID:         roleID,
+			RoleName:       roleName,
 			CreatedAt:      profile.CreatedAt,
 			UpdatedAt:      profile.UpdatedAt,
 		}, nil

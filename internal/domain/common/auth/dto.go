@@ -72,23 +72,23 @@ type ErrorResponse struct {
 	Error   string            `json:"error"`
 	Details []ValidationError `json:"details,omitempty"`
 }
-
 type StudentProfileResponse struct {
-	ID             uuid.UUID `json:"id"`
-	UserID         uuid.UUID `json:"user_id"`
-	Fullname       string    `json:"fullname"`
-	NIS            string    `json:"nis"`
-	Class          string    `json:"class"`
-	ProfilePicture string    `json:"profile_picture"`
-	Headline       string    `json:"headline"`
-	Bio            string    `json:"bio"`
-	CVFile         *string   `json:"cv_file"`
-	Email          string    `json:"email"`
-	Role           string    `json:"role"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	UserID         uuid.UUID  `json:"user_id"`
+	Fullname       string     `json:"fullname"`
+	NIS            string     `json:"nis"`
+	Class          string     `json:"class"`
+	ProfilePicture string     `json:"profile_picture"`
+	Headline       string     `json:"headline"`
+	Bio            string     `json:"bio"`
+	CVFile         *string    `json:"cv_file"`
+	Email          string     `json:"email"`
+	Role           string     `json:"user_role"`
+	RoleID         *uuid.UUID `json:"role_id,omitempty"`
+	RoleName       *string    `json:"role_name,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
-
 type AlumniProfileResponse struct {
 	ID             uuid.UUID `json:"id"`
 	UserID         uuid.UUID `json:"user_id"`

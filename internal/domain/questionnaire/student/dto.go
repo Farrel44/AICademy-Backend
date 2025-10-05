@@ -12,6 +12,7 @@ type ActiveQuestionnaireResponse struct {
 	Version     int                        `json:"version"`
 	Questions   []QuestionnaireQuestionDTO `json:"questions"`
 	Instruction string                     `json:"instruction"`
+	Submitted   bool                       `json:"submitted"`
 }
 
 type QuestionnaireQuestionDTO struct {

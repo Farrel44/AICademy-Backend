@@ -17,7 +17,17 @@ func NewStudentQuestionnaireHandler(service *StudentQuestionnaireService) *Stude
 }
 
 func (h *StudentQuestionnaireHandler) GetActiveQuestionnaire(c *fiber.Ctx) error {
-	result, err := h.service.GetActiveQuestionnaire()
+	user := c.Locals("user").(*middleware.UserClaims)
+	if user == nil {
+		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	studentProfileID, err := h.getStudentProfileID(user.UserID)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Student profile not found")
+	}
+
+	result, err := h.service.GetActiveQuestionnaire(studentProfileID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}

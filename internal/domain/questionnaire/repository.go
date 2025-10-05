@@ -566,16 +566,17 @@ func (r *QuestionnaireRepository) GetStudentByProfileIDNew(profileID uuid.UUID) 
 
 func (r *QuestionnaireRepository) GetStudentProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error) {
 	var profile user.StudentProfile
-	err := r.db.Select("id").Where("user_id = ?", userID).First(&profile).Error
+	err := r.db.Where("user_id = ?", userID).First(&profile).Error
 	if err != nil {
 		return uuid.Nil, err
 	}
 	return profile.ID, nil
 }
-
 func (r *QuestionnaireRepository) GetResponseByIDAndStudent(responseID, studentProfileID uuid.UUID) (*QuestionnaireResponse, error) {
 	var response QuestionnaireResponse
-	err := r.db.Where("id = ? AND student_profile_id = ?", responseID, studentProfileID).First(&response).Error
+	err := r.db.Where("id = ? AND student_profile_id = ?", responseID, studentProfileID).
+		Preload("Questionnaire").
+		First(&response).Error
 	if err != nil {
 		return nil, err
 	}

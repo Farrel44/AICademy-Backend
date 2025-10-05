@@ -416,3 +416,30 @@ func (r *AuthRepository) CheckEmailExists(email string) (bool, error) {
 	err := r.db.Model(&user.User{}).Where("email = ?", email).Count(&count).Error
 	return count > 0, err
 }
+
+func (r *AuthRepository) GetLatestQuestionnaireResponseByStudentProfile(studentProfileID uuid.UUID) (*uuid.UUID, *string, error) {
+	var response struct {
+		RecommendedProfilingRoleID *string `gorm:"column:recommended_profiling_role_id"`
+		RoleName                   *string `gorm:"column:name"`
+	}
+
+	err := r.db.Table("questionnaire_responses qr").
+		Select("qr.recommended_profiling_role_id, tr.name").
+		Joins("LEFT JOIN target_roles tr ON qr.recommended_profiling_role_id::uuid = tr.id").
+		Where("qr.student_profile_id = ? AND qr.recommended_profiling_role_id IS NOT NULL", studentProfileID.String()).
+		Order("qr.submitted_at DESC").
+		First(&response).Error
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var roleID *uuid.UUID
+	if response.RecommendedProfilingRoleID != nil {
+		if parsedID, err := uuid.Parse(*response.RecommendedProfilingRoleID); err == nil {
+			roleID = &parsedID
+		}
+	}
+
+	return roleID, response.RoleName, nil
+}
