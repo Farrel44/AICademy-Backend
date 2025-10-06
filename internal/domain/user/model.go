@@ -35,6 +35,19 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// Add these methods to implement JWTUser interface
+func (u *User) GetID() uuid.UUID {
+	return u.ID
+}
+
+func (u *User) GetEmail() string {
+	return u.Email
+}
+
+func (u *User) GetRole() string {
+	return string(u.Role)
+}
+
 type ResetPasswordToken struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID    uuid.UUID  `gorm:"type:uuid;not null" json:"user_id"`

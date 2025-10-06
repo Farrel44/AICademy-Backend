@@ -12,10 +12,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-
 	"gopkg.in/gomail.v2"
 )
+
+// Interface to avoid importing user package
+type EmailUser interface {
+	GetEmail() string
+}
 
 type EmailData struct {
 	URL       string
@@ -47,7 +50,7 @@ func ParseTemplateDir(dir string) (*template.Template, error) {
 	return tmpl, nil
 }
 
-func SendEmail(user *user.User, data *EmailData, templateName string) error {
+func SendEmail(user EmailUser, data *EmailData, templateName string) error {
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPortStr := os.Getenv("SMTP_PORT")
 	smtpUser := os.Getenv("SMTP_USER")
@@ -107,7 +110,7 @@ func SendEmail(user *user.User, data *EmailData, templateName string) error {
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", emailFrom)
-	m.SetHeader("To", user.Email)
+	m.SetHeader("To", user.GetEmail()) // Use interface method
 	m.SetHeader("Subject", data.Subject)
 	m.SetBody("text/html", htmlContent)
 
@@ -115,21 +118,21 @@ func SendEmail(user *user.User, data *EmailData, templateName string) error {
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 	if err := d.DialAndSend(m); err != nil {
-		log.Printf("Failed to send email to %s: %v", user.Email, err)
+		log.Printf("Failed to send email to %s: %v", user.GetEmail(), err)
 		return err
 	}
 
 	if os.Getenv("APP_ENV") != "production" {
-		log.Printf("Email sent successfully to %s", user.Email)
+		log.Printf("Email sent successfully to %s", user.GetEmail())
 	} else {
-		log.Printf("Password reset email sent: %s", user.Email)
+		log.Printf("Password reset email sent: %s", user.GetEmail())
 	}
 
 	return nil
 }
 
-func SendResetPasswordEmail(user *user.User, resetToken string) error {
-	firstName := strings.Split(user.Email, "@")[0]
+func SendResetPasswordEmail(user EmailUser, resetToken string) error {
+	firstName := strings.Split(user.GetEmail(), "@")[0]
 
 	if len(firstName) > 0 {
 		firstName = strings.ToUpper(string(firstName[0])) + firstName[1:]

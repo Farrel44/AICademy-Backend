@@ -19,6 +19,7 @@ import (
 	adminRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/admin"
 	studentRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/student"
 	teacherRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/teacher"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -111,6 +112,10 @@ func main() {
 	teacherService := teacherRoadmap.NewTeacherService(roadmapRepo)
 	teacherHandler := teacherRoadmap.NewTeacherHandler(teacherService)
 
+	userRepo := user.NewUserRepository(db, rdb.Client)
+	userService := user.NewUserService(userRepo)
+	userHandler := user.NewUserHandler(userService)
+
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
@@ -160,8 +165,7 @@ func main() {
 	protectedAuth := authRoutes.Group("/protected", middleware.AuthRequired())
 	protectedAuth.Post("/change-password", commonAuthHandler.ChangePassword)
 	protectedAuth.Post("/logout", commonAuthHandler.Logout)
-	protectedAuth.Get("/me", commonAuthHandler.GetMe)
-
+	protectedAuth.Get("/me", userHandler.GetUserByToken)
 	// Student auth
 	studentAuth := authRoutes.Group("/student", middleware.AuthRequired())
 	studentAuth.Post("/change-default-password", studentAuthHandler.ChangeDefaultPassword)
@@ -171,7 +175,6 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
-	// Admin User Management CRUD
 	adminAuth.Get("/users/statistics", adminUserHandler.GetStatistics)
 	// Students
 	adminAuth.Get("/users/students", adminUserHandler.GetStudents)

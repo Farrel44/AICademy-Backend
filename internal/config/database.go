@@ -6,10 +6,11 @@ import (
 	"os"
 	"strconv"
 
+	pkl_model "github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
+
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-	pkl_model "github.com/Farrel44/AICademy-Backend/internal/pkl"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

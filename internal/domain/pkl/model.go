@@ -1,4 +1,4 @@
-package pkl_model
+package pkl
 
 import (
 	"time"
@@ -44,7 +44,6 @@ type Internship struct {
 	InternshipReviews      []InternshipReview      `gorm:"foreignKey:InternshipID" json:"internship_reviews,omitempty"`
 }
 
-// InternshipApplication represents student applications to internships
 type InternshipApplication struct {
 	ID               uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
 	InternshipID     uuid.UUID         `gorm:"type:uuid;not null" json:"internship_id"`
@@ -56,7 +55,6 @@ type InternshipApplication struct {
 	CreatedAt        time.Time         `json:"created_at"`
 	UpdatedAt        time.Time         `json:"updated_at"`
 
-	// Relationships
 	Internship        *Internship          `gorm:"foreignKey:InternshipID" json:"internship,omitempty"`
 	StudentProfile    *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
 	ApprovedByTeacher *user.TeacherProfile `gorm:"foreignKey:ApprovedBy" json:"approved_by_teacher,omitempty"`

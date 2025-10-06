@@ -49,7 +49,6 @@ func AuthRequired() fiber.Handler {
 			})
 		}
 
-		// Set user claims sebagai struct
 		userClaims := &UserClaims{
 			UserID: claims.UserID,
 			Email:  claims.Email,
@@ -59,7 +58,7 @@ func AuthRequired() fiber.Handler {
 		c.Locals("user", userClaims)
 		c.Locals("user_id", claims.UserID.String())
 		c.Locals("user_email", claims.Email)
-		c.Locals("user_role", claims.Role)
+		c.Locals("user_role", user.UserRole(claims.Role))
 
 		return c.Next()
 	}

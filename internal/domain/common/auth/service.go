@@ -30,7 +30,6 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 		return nil, errors.New("invalid email or password")
 	}
 
-	// Generate access token dan refresh token
 	tokenPair, err := utils.GenerateTokenPair(foundUser)
 	if err != nil {
 		return nil, errors.New("failed to generate token")

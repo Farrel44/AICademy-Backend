@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
-	pkl_model "github.com/Farrel44/AICademy-Backend/internal/pkl"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/google/uuid"
 )
@@ -42,13 +41,13 @@ func (s *AdminPklService) CheckRateLimit(userID string, limit int, window time.D
 	return allowed, remaining, resetTime, nil
 }
 
-func (s *AdminPklService) CreateInternshipPosition(req *CreateInternshipRequest) (*pkl_model.Internship, error) {
+func (s *AdminPklService) CreateInternshipPosition(req *CreateInternshipRequest) (*pkl.Internship, error) {
 	existingCompany, _ := s.repo.GetCompanyByID(req.CompanyID)
 	if existingCompany == nil {
 		return nil, errors.New("Companies Not Found")
 	}
 
-	newInternshipPosition := pkl_model.Internship{
+	newInternshipPosition := pkl.Internship{
 		CompanyProfileID: existingCompany.ID,
 		Title:            req.Title,
 		Description:      req.Description,
@@ -159,7 +158,7 @@ func (s *AdminPklService) GetInternshipPositions(page, limit int, search string)
 	}, nil
 }
 
-func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*pkl_model.Internship, error) {
+func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*pkl.Internship, error) {
 	internship, err := s.repo.GetInternshipByID(id)
 	if err != nil {
 		return nil, errors.New("internship position not found")
