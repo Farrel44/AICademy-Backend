@@ -8,6 +8,7 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/pkl"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -73,6 +74,11 @@ func InitDatabase() (*gorm.DB, error) {
 		&questionnaire.QuestionGenerationTemplate{},
 		&questionnaire.TargetRole{},
 		&questionnaire.QuestionnaireTargetRole{},
+
+		// PKL/Internship models
+		&pkl_model.Internship{},
+		&pkl_model.InternshipApplication{},
+		&pkl_model.InternshipReview{},
 	)
 
 	if err != nil {
@@ -95,10 +101,25 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_nis ON student_profiles(nis)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_user_id ON student_profiles(user_id)")
 
+	// Alumni indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_alumni_profiles_user_id ON alumni_profiles(user_id)")
+
+	// Teacher indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_teacher_profiles_user_id ON teacher_profiles(user_id)")
+
+	// Company indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_company_profiles_user_id ON company_profiles(user_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_company_profiles_company_name ON company_profiles(company_name)")
+
 	// Refresh token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+
+	// Reset password token indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_user_id ON reset_password_tokens(user_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_token ON reset_password_tokens(token)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_expires_at ON reset_password_tokens(expires_at)")
 
 	// Questionnaire indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_active ON profiling_questionnaires(active)")
@@ -114,4 +135,36 @@ func addIndexes(db *gorm.DB) {
 	// Role recommendation indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_active ON role_recommendations(active)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_category ON role_recommendations(category)")
+
+	// Target role indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_target_roles_active ON target_roles(active)")
+
+	// PKL/Internship indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_company_profile_id ON internships(company_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_type ON internships(type)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_posted_at ON internships(posted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_deadline ON internships(deadline)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_created_at ON internships(created_at)")
+
+	// Internship application indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_internship_id ON internship_applications(internship_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_student_profile_id ON internship_applications(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_status ON internship_applications(status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_applied_at ON internship_applications(applied_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_reviewed_at ON internship_applications(reviewed_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_approved_by ON internship_applications(approved_by)")
+
+	// Internship review indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_internship_id ON internship_reviews(internship_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_student_profile_id ON internship_reviews(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_rating ON internship_reviews(rating)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_created_at ON internship_reviews(created_at)")
+
+	// Composite indexes untuk query yang sering digunakan
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_student_status ON internship_applications(student_profile_id, status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_internship_status ON internship_applications(internship_id, status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_company_type ON internships(company_profile_id, type)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_type_deadline ON internships(type, deadline)")
+
+	log.Println("Database indexes created successfully")
 }
