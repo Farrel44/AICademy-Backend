@@ -76,15 +76,14 @@ func InitDatabase() (*gorm.DB, error) {
 		&questionnaire.TargetRole{},
 		&questionnaire.QuestionnaireTargetRole{},
 
-		// PKL/Internship models
-		&pkl_model.Internship{},
-		&pkl_model.InternshipApplication{},
-		&pkl_model.InternshipReview{},
-
 		&roadmap.FeatureRoadmap{},
 		&roadmap.RoadmapStep{},
 		&roadmap.StudentRoadmapProgress{},
 		&roadmap.StudentStepProgress{},
+		// PKL/Internship models
+		&pkl_model.Internship{},
+		&pkl_model.InternshipApplication{},
+		&pkl_model.InternshipReview{},
 	)
 
 	if err != nil {
@@ -141,4 +140,48 @@ func addIndexes(db *gorm.DB) {
 	// Role recommendation indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_active ON role_recommendations(active)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_category ON role_recommendations(category)")
+
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_profiling_role_id ON feature_roadmaps(profiling_role_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_status ON feature_roadmaps(status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_visibility ON feature_roadmaps(visibility)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_roadmap_id ON roadmap_steps(roadmap_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_order ON roadmap_steps(step_order)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_student_id ON student_roadmap_progress(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_roadmap_id ON student_roadmap_progress(roadmap_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_roadmap_progress_id ON student_step_progress(student_roadmap_progress_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_step_id ON student_step_progress(roadmap_step_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_status ON student_step_progress(status)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_roadmap_progress_unique ON student_roadmap_progress(roadmap_id, student_profile_id)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_step_progress_unique ON student_step_progress(student_roadmap_progress_id, roadmap_step_id)")
+	// Target role indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_target_roles_active ON target_roles(active)")
+
+	// PKL/Internship indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_company_profile_id ON internships(company_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_type ON internships(type)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_posted_at ON internships(posted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_deadline ON internships(deadline)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_created_at ON internships(created_at)")
+
+	// Internship application indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_internship_id ON internship_applications(internship_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_student_profile_id ON internship_applications(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_status ON internship_applications(status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_applied_at ON internship_applications(applied_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_reviewed_at ON internship_applications(reviewed_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_approved_by ON internship_applications(approved_by)")
+
+	// Internship review indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_internship_id ON internship_reviews(internship_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_student_profile_id ON internship_reviews(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_rating ON internship_reviews(rating)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_reviews_created_at ON internship_reviews(created_at)")
+
+	// Composite indexes untuk query yang sering digunakan
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_student_status ON internship_applications(student_profile_id, status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_internship_status ON internship_applications(internship_id, status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_company_type ON internships(company_profile_id, type)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_type_deadline ON internships(type, deadline)")
+
+	log.Println("Database indexes created successfully")
 }
