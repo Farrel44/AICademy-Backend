@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"gorm.io/driver/postgres"
@@ -73,6 +74,11 @@ func InitDatabase() (*gorm.DB, error) {
 		&questionnaire.QuestionGenerationTemplate{},
 		&questionnaire.TargetRole{},
 		&questionnaire.QuestionnaireTargetRole{},
+
+		&roadmap.FeatureRoadmap{},
+		&roadmap.RoadmapStep{},
+		&roadmap.StudentRoadmapProgress{},
+		&roadmap.StudentStepProgress{},
 	)
 
 	if err != nil {
@@ -114,4 +120,17 @@ func addIndexes(db *gorm.DB) {
 	// Role recommendation indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_active ON role_recommendations(active)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_category ON role_recommendations(category)")
+
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_profiling_role_id ON feature_roadmaps(profiling_role_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_status ON feature_roadmaps(status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_visibility ON feature_roadmaps(visibility)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_roadmap_id ON roadmap_steps(roadmap_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_order ON roadmap_steps(step_order)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_student_id ON student_roadmap_progress(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_roadmap_id ON student_roadmap_progress(roadmap_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_roadmap_progress_id ON student_step_progress(student_roadmap_progress_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_step_id ON student_step_progress(roadmap_step_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_status ON student_step_progress(status)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_roadmap_progress_unique ON student_roadmap_progress(roadmap_id, student_profile_id)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_step_progress_unique ON student_step_progress(student_roadmap_progress_id, roadmap_step_id)")
 }

@@ -5,15 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-)
 
-// RoadmapVisibility enum for roadmap visibility
-type RoadmapVisibility string
-
-const (
-	RoadmapVisibilityPrivate RoadmapVisibility = "private"
-	RoadmapVisibilitySchool  RoadmapVisibility = "school"
-	RoadmapVisibilityPublic  RoadmapVisibility = "public"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 )
 
 type RoadmapStatus string
@@ -30,67 +24,93 @@ const (
 	RoadmapProgressStatusLocked     RoadmapProgressStatus = "locked"
 	RoadmapProgressStatusUnlocked   RoadmapProgressStatus = "unlocked"
 	RoadmapProgressStatusInProgress RoadmapProgressStatus = "in_progress"
+	RoadmapProgressStatusSubmitted  RoadmapProgressStatus = "submitted"
+	RoadmapProgressStatusApproved   RoadmapProgressStatus = "approved"
+	RoadmapProgressStatusRejected   RoadmapProgressStatus = "rejected"
 	RoadmapProgressStatusCompleted  RoadmapProgressStatus = "completed"
 )
 
+// FeatureRoadmap - Template roadmap yang dibuat admin untuk role tertentu
 type FeatureRoadmap struct {
-	ID               uuid.UUID         `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	StudentProfileID *uuid.UUID        `json:"student_profile_id" gorm:"type:uuid"`
-	ProfilingRoleID  *uuid.UUID        `json:"profiling_role_id" gorm:"type:uuid"`
-	RoadmapName      string            `json:"roadmap_name" gorm:"not null"`
-	Description      *string           `json:"description" gorm:"type:text"`
-	Visibility       RoadmapVisibility `json:"visibility" gorm:"type:varchar(20);default:'private'"`
-	Status           RoadmapStatus     `json:"status" gorm:"type:varchar(20);default:'draft'"`
-	CreatedAt        time.Time         `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt        time.Time         `json:"updated_at" gorm:"autoUpdateTime"`
-
-	// Relationships
-	StudentProfile interface{}       `json:"student_profile,omitempty" gorm:"foreignKey:StudentProfileID"`
-	ProfilingRole  interface{}       `json:"profiling_role,omitempty" gorm:"foreignKey:ProfilingRoleID"`
-	Steps          []RoadmapStep     `json:"steps,omitempty" gorm:"foreignKey:RoadmapID"`
-	Progress       []RoadmapProgress `json:"progress,omitempty" gorm:"foreignKey:RoadmapID"`
-}
-
-// RoadmapStep represents individual steps/modules in a roadmap
-type RoadmapStep struct {
-	ID               uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	RoadmapID        uuid.UUID `json:"roadmap_id" gorm:"type:uuid;not null"`
-	StepOrder        int       `json:"step_order" gorm:"not null"`
-	Title            string    `json:"title" gorm:"not null"`
-	ShortDescription *string   `json:"short_description" gorm:"type:text"`
-	UnlockCondition  *string   `json:"unlock_condition" gorm:"type:text"`
-
-	// AI Generated content
-	AIGeneratedContent   *string `json:"ai_generated_content" gorm:"type:text"`    // Full step description from AI
-	ExpectedOutcome      *string `json:"expected_outcome" gorm:"type:text"`        // What student should achieve
-	SubmissionGuidelines *string `json:"submission_guidelines" gorm:"type:text"`   // How to submit evidence
-	ResourceLinks        *string `json:"resource_links" gorm:"type:text"`          // JSON array of learning resources
-	EstimatedDuration    *int    `json:"estimated_duration"`                       // In hours
-	DifficultyLevel      *string `json:"difficulty_level" gorm:"type:varchar(20)"` // beginner, intermediate, advanced
+	ID              uuid.UUID     `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ProfilingRoleID uuid.UUID     `json:"profiling_role_id" gorm:"type:uuid;not null"`
+	RoadmapName     string        `json:"roadmap_name" gorm:"not null"`
+	Description     *string       `json:"description" gorm:"type:text"`
+	Status          RoadmapStatus `json:"status" gorm:"type:varchar(20);default:'draft'"`
+	CreatedBy       uuid.UUID     `json:"created_by" gorm:"type:uuid;not null"` // Admin yang membuat
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relationships
-	Roadmap  FeatureRoadmap    `json:"roadmap,omitempty" gorm:"foreignKey:RoadmapID"`
-	Progress []RoadmapProgress `json:"progress,omitempty" gorm:"foreignKey:RoadmapStepID"`
+	ProfilingRole   *questionnaire.TargetRole `json:"profiling_role,omitempty" gorm:"foreignKey:ProfilingRoleID"`
+	CreatedByUser   *user.User                `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`
+	Steps           []RoadmapStep             `json:"steps,omitempty" gorm:"foreignKey:RoadmapID;constraint:OnDelete:CASCADE"`
+	StudentProgress []StudentRoadmapProgress  `json:"student_progress,omitempty" gorm:"foreignKey:RoadmapID"`
 }
 
-// RoadmapProgress tracks student progress on each roadmap step
-type RoadmapProgress struct {
-	ID               uuid.UUID             `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	RoadmapID        uuid.UUID             `json:"roadmap_id" gorm:"type:uuid;not null"`
-	RoadmapStepID    uuid.UUID             `json:"roadmap_step_id" gorm:"type:uuid;not null"`
-	StudentProfileID uuid.UUID             `json:"student_profile_id" gorm:"type:uuid;not null"`
-	Status           RoadmapProgressStatus `json:"status" gorm:"type:varchar(20);default:'locked'"`
+// RoadmapStep - Step dalam roadmap template
+type RoadmapStep struct {
+	ID          uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	RoadmapID   uuid.UUID `json:"roadmap_id" gorm:"type:uuid;not null"`
+	StepOrder   int       `json:"step_order" gorm:"not null"`
+	Title       string    `json:"title" gorm:"not null"`
+	Description string    `json:"description" gorm:"type:text;not null"`
 
-	// Submission & Validation
-	EvidenceLink                *string    `json:"evidence_link" gorm:"type:text"`                   // Student submission
-	EvidenceType                *string    `json:"evidence_type" gorm:"type:varchar(50)"`            // file, url, text
-	SubmissionNotes             *string    `json:"submission_notes" gorm:"type:text"`                // Student notes
-	ValidatedByTeacherProfileID *uuid.UUID `json:"validated_by_teacher_profile_id" gorm:"type:uuid"` // Teacher who validated
-	ValidationNotes             *string    `json:"validation_notes" gorm:"type:text"`                // Teacher feedback
-	ValidationScore             *int       `json:"validation_score"`                                 // 1-100 score from teacher
+	// Learning objectives dan requirements
+	LearningObjectives   string  `json:"learning_objectives" gorm:"type:text;not null"`
+	SubmissionGuidelines string  `json:"submission_guidelines" gorm:"type:text;not null"`
+	ResourceLinks        *string `json:"resource_links" gorm:"type:text"`                   // JSON array of resources
+	EstimatedDuration    int     `json:"estimated_duration" gorm:"not null"`                // In hours
+	DifficultyLevel      string  `json:"difficulty_level" gorm:"type:varchar(20);not null"` // beginner, intermediate, advanced
+
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+
+	// Relationships
+	Roadmap         FeatureRoadmap        `json:"roadmap,omitempty" gorm:"foreignKey:RoadmapID"`
+	StudentProgress []StudentStepProgress `json:"student_progress,omitempty" gorm:"foreignKey:RoadmapStepID"`
+}
+
+// StudentRoadmapProgress - Progress siswa pada roadmap tertentu
+type StudentRoadmapProgress struct {
+	ID               uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	RoadmapID        uuid.UUID `json:"roadmap_id" gorm:"type:uuid;not null"`
+	StudentProfileID uuid.UUID `json:"student_profile_id" gorm:"type:uuid;not null"`
+
+	// Progress tracking
+	TotalSteps      int     `json:"total_steps" gorm:"not null"`
+	CompletedSteps  int     `json:"completed_steps" gorm:"default:0"`
+	ProgressPercent float64 `json:"progress_percent" gorm:"default:0"`
+
+	StartedAt      *time.Time `json:"started_at"`
+	LastActivityAt *time.Time `json:"last_activity_at"`
+	CompletedAt    *time.Time `json:"completed_at"`
+	CreatedAt      time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+
+	// Relationships
+	Roadmap        FeatureRoadmap        `json:"roadmap,omitempty" gorm:"foreignKey:RoadmapID"`
+	StudentProfile *user.StudentProfile  `json:"student_profile,omitempty" gorm:"foreignKey:StudentProfileID"`
+	StepProgress   []StudentStepProgress `json:"step_progress,omitempty" gorm:"foreignKey:StudentRoadmapProgressID"`
+}
+
+// StudentStepProgress - Progress siswa pada step tertentu
+type StudentStepProgress struct {
+	ID                       uuid.UUID             `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	StudentRoadmapProgressID uuid.UUID             `json:"student_roadmap_progress_id" gorm:"type:uuid;not null"`
+	RoadmapStepID            uuid.UUID             `json:"roadmap_step_id" gorm:"type:uuid;not null"`
+	Status                   RoadmapProgressStatus `json:"status" gorm:"type:varchar(20);default:'locked'"`
+
+	// Submission data
+	EvidenceLink    *string `json:"evidence_link" gorm:"type:text"`
+	EvidenceType    *string `json:"evidence_type" gorm:"type:varchar(50)"` // url, file, text
+	SubmissionNotes *string `json:"submission_notes" gorm:"type:text"`
+
+	// Teacher validation
+	ValidatedByTeacherID *uuid.UUID `json:"validated_by_teacher_id" gorm:"type:uuid"`
+	ValidationNotes      *string    `json:"validation_notes" gorm:"type:text"`
+	ValidationScore      *int       `json:"validation_score"` // 0-100
 
 	// Timestamps
 	StartedAt   *time.Time `json:"started_at"`
@@ -99,55 +119,21 @@ type RoadmapProgress struct {
 	UpdatedAt   time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relationships
-	Roadmap            FeatureRoadmap `json:"roadmap,omitempty" gorm:"foreignKey:RoadmapID"`
-	RoadmapStep        RoadmapStep    `json:"roadmap_step,omitempty" gorm:"foreignKey:RoadmapStepID"`
-	StudentProfile     interface{}    `json:"student_profile,omitempty" gorm:"foreignKey:StudentProfileID"`
-	ValidatedByTeacher interface{}    `json:"validated_by_teacher,omitempty" gorm:"foreignKey:ValidatedByTeacherProfileID"`
+	StudentRoadmapProgress StudentRoadmapProgress `json:"student_roadmap_progress,omitempty" gorm:"foreignKey:StudentRoadmapProgressID"`
+	RoadmapStep            RoadmapStep            `json:"roadmap_step,omitempty" gorm:"foreignKey:RoadmapStepID"`
+	ValidatedByTeacher     *user.TeacherProfile   `json:"validated_by_teacher,omitempty" gorm:"foreignKey:ValidatedByTeacherID"`
 }
 
-// RoadmapTemplate represents AI-generated roadmap templates for different roles
-type RoadmapTemplate struct {
-	ID              uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	ProfilingRoleID uuid.UUID `json:"profiling_role_id" gorm:"type:uuid;not null"`
-	TemplateName    string    `json:"template_name" gorm:"not null"`
-	Description     *string   `json:"description" gorm:"type:text"`
-
-	// AI Generation metadata
-	AIGeneratedBy string `json:"ai_generated_by" gorm:"not null"`          // AI model version
-	AIPromptUsed  string `json:"ai_prompt_used" gorm:"type:text;not null"` // Prompt used
-	VersionNumber int    `json:"version_number" gorm:"default:1"`          // Template version
-	IsActive      bool   `json:"is_active" gorm:"default:true"`
-
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-
-	// Relationships
-	ProfilingRole interface{}           `json:"profiling_role,omitempty" gorm:"foreignKey:ProfilingRoleID"`
-	TemplateSteps []RoadmapTemplateStep `json:"template_steps,omitempty" gorm:"foreignKey:TemplateID"`
+// Unique constraint untuk student progress
+func (StudentRoadmapProgress) TableName() string {
+	return "student_roadmap_progress"
 }
 
-// RoadmapTemplateStep represents template steps that can be used to generate personal roadmaps
-type RoadmapTemplateStep struct {
-	ID                   uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	TemplateID           uuid.UUID `json:"template_id" gorm:"type:uuid;not null"`
-	StepOrder            int       `json:"step_order" gorm:"not null"`
-	Title                string    `json:"title" gorm:"not null"`
-	ShortDescription     *string   `json:"short_description" gorm:"type:text"`
-	AIGeneratedContent   *string   `json:"ai_generated_content" gorm:"type:text"`
-	ExpectedOutcome      *string   `json:"expected_outcome" gorm:"type:text"`
-	SubmissionGuidelines *string   `json:"submission_guidelines" gorm:"type:text"`
-	ResourceLinks        *string   `json:"resource_links" gorm:"type:text"`
-	EstimatedDuration    *int      `json:"estimated_duration"`
-	DifficultyLevel      *string   `json:"difficulty_level" gorm:"type:varchar(20)"`
-
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-
-	// Relationships
-	Template RoadmapTemplate `json:"template,omitempty" gorm:"foreignKey:TemplateID"`
+func (StudentStepProgress) TableName() string {
+	return "student_step_progress"
 }
 
-// BeforeCreate hooks for UUID generation
+// BeforeCreate hooks
 func (r *FeatureRoadmap) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == uuid.Nil {
 		r.ID = uuid.New()
@@ -162,23 +148,16 @@ func (rs *RoadmapStep) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-func (rp *RoadmapProgress) BeforeCreate(tx *gorm.DB) error {
-	if rp.ID == uuid.Nil {
-		rp.ID = uuid.New()
+func (srp *StudentRoadmapProgress) BeforeCreate(tx *gorm.DB) error {
+	if srp.ID == uuid.Nil {
+		srp.ID = uuid.New()
 	}
 	return nil
 }
 
-func (rt *RoadmapTemplate) BeforeCreate(tx *gorm.DB) error {
-	if rt.ID == uuid.Nil {
-		rt.ID = uuid.New()
-	}
-	return nil
-}
-
-func (rts *RoadmapTemplateStep) BeforeCreate(tx *gorm.DB) error {
-	if rts.ID == uuid.Nil {
-		rts.ID = uuid.New()
+func (ssp *StudentStepProgress) BeforeCreate(tx *gorm.DB) error {
+	if ssp.ID == uuid.Nil {
+		ssp.ID = uuid.New()
 	}
 	return nil
 }

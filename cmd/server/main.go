@@ -13,6 +13,10 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
 	studentQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/student"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
+	adminRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/admin"
+	studentRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/student"
+	teacherRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/teacher"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -43,7 +47,7 @@ func main() {
 
 	log.Println("Seeding database...")
 	if err := config.SeedData(db); err != nil {
-		log.Printf("Warning: Failed to seed data: %v", err)
+		log.Printf("Seeding failed: %v", err)
 	}
 
 	var aiService ai.AIService
@@ -51,8 +55,7 @@ func main() {
 	if geminiAPIKey != "" {
 		aiService, err = ai.NewGeminiService(geminiAPIKey)
 		if err != nil {
-			log.Printf("Failed to initialize Gemini AI service: %v", err)
-			log.Println("Falling back to NoAI service")
+			log.Printf("Failed to initialize Gemini service: %v", err)
 			aiService = ai.NewNoAIService()
 		}
 	} else {
@@ -86,6 +89,21 @@ func main() {
 	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb)
 	adminQuestionnaireHandler := adminQuestionnaire.NewAdminQuestionnaireHandler(adminQuestionnaireService)
 
+	// Roadmap services and handlers
+	roadmapRepo := roadmap.NewRoadmapRepository(db)
+
+	// Admin roadmap service and handler
+	adminRoadmapService := adminRoadmap.NewAdminRoadmapService(roadmapRepo)
+	adminRoadmapHandler := adminRoadmap.NewAdminRoadmapHandler(adminRoadmapService)
+
+	// Student roadmap service and handler
+	studentRoadmapService := studentRoadmap.NewStudentRoadmapService(roadmapRepo)
+	studentRoadmapHandler := studentRoadmap.NewStudentRoadmapHandler(studentRoadmapService)
+
+	// Teacher service and handler
+	teacherService := teacherRoadmap.NewTeacherService(roadmapRepo)
+	teacherHandler := teacherRoadmap.NewTeacherHandler(teacherService)
+
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
@@ -94,9 +112,6 @@ func main() {
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
 			}
-
-			log.Printf("Error: %v", err)
-
 			return c.Status(code).JSON(fiber.Map{
 				"success": false,
 				"error":   err.Error(),
@@ -117,15 +132,8 @@ func main() {
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"message": "AICademy API is running!",
-			"version": "1.0.0",
+			"message": "AICademy API v1.0",
 			"status":  "OK",
-			"ai_service": func() string {
-				if geminiAPIKey != "" {
-					return "Gemini AI"
-				}
-				return "Disabled"
-			}(),
 		})
 	})
 
@@ -146,6 +154,7 @@ func main() {
 	protectedAuth.Post("/change-password", commonAuthHandler.ChangePassword)
 	protectedAuth.Post("/logout", commonAuthHandler.Logout)
 	protectedAuth.Get("/me", commonAuthHandler.GetMe)
+
 	// Student auth
 	studentAuth := authRoutes.Group("/student", middleware.AuthRequired())
 	studentAuth.Post("/change-default-password", studentAuthHandler.ChangeDefaultPassword)
@@ -195,6 +204,25 @@ func main() {
 	adminAuth.Put("/questionnaires/:id/activate", adminQuestionnaireHandler.ActivateQuestionnaire)
 	adminAuth.Get("/questionnaires/:id", adminQuestionnaireHandler.GetQuestionnaireDetail)
 
+	// Admin Roadmap Routes
+	adminAuth.Get("/roadmaps/statistics", adminRoadmapHandler.GetStatistics)
+	adminAuth.Get("/roadmaps/submissions", adminRoadmapHandler.GetPendingSubmissions)
+	adminAuth.Post("/roadmaps", adminRoadmapHandler.CreateRoadmap)
+	adminAuth.Get("/roadmaps", adminRoadmapHandler.GetRoadmaps)
+	adminAuth.Get("/roadmaps/:id", adminRoadmapHandler.GetRoadmapByID)
+	adminAuth.Put("/roadmaps/:id", adminRoadmapHandler.UpdateRoadmap)
+	adminAuth.Delete("/roadmaps/:id", adminRoadmapHandler.DeleteRoadmap)
+	adminAuth.Post("/roadmaps/:roadmapId/steps", adminRoadmapHandler.CreateRoadmapStep)
+	adminAuth.Put("/roadmaps/steps/:stepId", adminRoadmapHandler.UpdateRoadmapStep)
+	adminAuth.Delete("/roadmaps/steps/:stepId", adminRoadmapHandler.DeleteRoadmapStep)
+	adminAuth.Put("/roadmaps/steps/reorder", adminRoadmapHandler.UpdateStepOrders)
+	adminAuth.Get("/roadmaps/:roadmapId/progress", adminRoadmapHandler.GetStudentProgress)
+
+	// Teacher Routes (for reviewing submissions)
+	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
+	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
+	teacherAuth.Post("/roadmaps/submissions/:submissionId/review", teacherHandler.ReviewSubmission)
+
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
 	studentRoutes.Get("/questionnaire/active", studentQuestionnaireHandler.GetActiveQuestionnaire)
@@ -202,6 +230,14 @@ func main() {
 	studentRoutes.Get("/questionnaire/latest-result", studentQuestionnaireHandler.GetLatestQuestionnaireResult)
 	studentRoutes.Get("/questionnaire/result/:id", studentQuestionnaireHandler.GetQuestionnaireResult)
 	studentRoutes.Get("/role", studentQuestionnaireHandler.GetStudentRole)
+
+	// Student Roadmap Routes
+	studentRoutes.Get("/roadmaps", studentRoadmapHandler.GetAvailableRoadmaps)
+	studentRoutes.Post("/roadmaps/start", studentRoadmapHandler.StartRoadmap)
+	studentRoutes.Get("/roadmaps/:roadmapId/progress", studentRoadmapHandler.GetRoadmapProgress)
+	studentRoutes.Post("/roadmaps/steps/start", studentRoadmapHandler.StartStep)
+	studentRoutes.Post("/roadmaps/steps/submit", studentRoadmapHandler.SubmitEvidence)
+	studentRoutes.Get("/roadmaps/my-progress", studentRoadmapHandler.GetMyProgress)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
