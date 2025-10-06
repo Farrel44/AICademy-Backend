@@ -1,10 +1,6 @@
 package auth
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -37,30 +33,6 @@ func (r *AuthRepository) GetCompanyProfileByUserID(userID uuid.UUID) (*user.Comp
 	return &profile, err
 }
 
-func (r *AuthRepository) studentsCacheKey(page, pageSize int, q string) string {
-	return fmt.Sprintf("students:%s:p:%d:s:%d:q:%s",
-		r.cacheVersion, page, pageSize, url.QueryEscape(strings.ToLower(strings.TrimSpace(q))))
-}
-
-func (r *AuthRepository) cacheGet(ctx context.Context, key string, dst any) (bool, error) {
-	b, err := r.rdb.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, json.Unmarshal(b, dst)
-}
-
-func (r *AuthRepository) cacheSet(ctx context.Context, key string, v any) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	return r.rdb.Set(ctx, key, b, r.cacheTTL).Err()
-}
-
 func (r *AuthRepository) CreateUser(u *user.User) error {
 	return r.db.Create(u).Error
 }
@@ -82,38 +54,6 @@ func (r *AuthRepository) GetUserByID(id uuid.UUID) (*user.User, error) {
 	}
 	return &u, nil
 }
-
-// func (r *AuthRepository) getStudentData(ctx context.Context, page, pageSize int, q string) (StudentData, error) {
-// 	if page < 1 {
-// 		page = 1
-// 	}
-// 	if pageSize <= 0 || pageSize > 200 {
-// 		pageSize = 20
-// 	}
-
-// 	cacheKey := r.studentsCacheKey(page, pageSize, q)
-// 	var cached StudentData
-// 	if ok, _ := r.cacheGet(ctx, cacheKey, &cached); ok {
-// 		return cached, nil
-// 	}
-
-// 	dbq := r.db.WithContext(ctx).Model(&user.StudentProfile{})
-
-// 	if q = strings.TrimSpace(q); q != "" {
-// 		like := "%" + strings.ToLower(q) + "%"
-// 		dbq = dbq.Where(`
-// 			LOWER(fullname) LIKE ? OR LOWER(email) LIKE ? OR nis LIKE ? OR LOWER(class) LIKE ?`,
-// 			like, like, like, like)
-// 	}
-
-// 	var total int64
-// 	if err := dbq.Count(&total).Error; err != nil {
-// 		return StudentData{}, nil
-// 	}
-
-// 	var profiles []user.StudentProfile
-
-// }
 
 func (r *AuthRepository) UpdatePassword(userID uuid.UUID, hashedPassword string) error {
 	return r.db.Model(&user.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error

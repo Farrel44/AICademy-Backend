@@ -9,6 +9,7 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	pkl_model "github.com/Farrel44/AICademy-Backend/internal/pkl"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -75,6 +76,11 @@ func InitDatabase() (*gorm.DB, error) {
 		&questionnaire.TargetRole{},
 		&questionnaire.QuestionnaireTargetRole{},
 
+		// PKL/Internship models
+		&pkl_model.Internship{},
+		&pkl_model.InternshipApplication{},
+		&pkl_model.InternshipReview{},
+
 		&roadmap.FeatureRoadmap{},
 		&roadmap.RoadmapStep{},
 		&roadmap.StudentRoadmapProgress{},
@@ -101,10 +107,25 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_nis ON student_profiles(nis)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_profiles_user_id ON student_profiles(user_id)")
 
+	// Alumni indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_alumni_profiles_user_id ON alumni_profiles(user_id)")
+
+	// Teacher indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_teacher_profiles_user_id ON teacher_profiles(user_id)")
+
+	// Company indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_company_profiles_user_id ON company_profiles(user_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_company_profiles_company_name ON company_profiles(company_name)")
+
 	// Refresh token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+
+	// Reset password token indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_user_id ON reset_password_tokens(user_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_token ON reset_password_tokens(token)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_expires_at ON reset_password_tokens(expires_at)")
 
 	// Questionnaire indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_questionnaires_active ON profiling_questionnaires(active)")
@@ -120,17 +141,4 @@ func addIndexes(db *gorm.DB) {
 	// Role recommendation indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_active ON role_recommendations(active)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_role_recommendations_category ON role_recommendations(category)")
-
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_profiling_role_id ON feature_roadmaps(profiling_role_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_status ON feature_roadmaps(status)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_feature_roadmaps_visibility ON feature_roadmaps(visibility)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_roadmap_id ON roadmap_steps(roadmap_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_roadmap_steps_order ON roadmap_steps(step_order)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_student_id ON student_roadmap_progress(student_profile_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_roadmap_progress_roadmap_id ON student_roadmap_progress(roadmap_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_roadmap_progress_id ON student_step_progress(student_roadmap_progress_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_step_id ON student_step_progress(roadmap_step_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_student_step_progress_status ON student_step_progress(status)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_roadmap_progress_unique ON student_roadmap_progress(roadmap_id, student_profile_id)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_student_step_progress_unique ON student_step_progress(student_roadmap_progress_id, roadmap_step_id)")
 }

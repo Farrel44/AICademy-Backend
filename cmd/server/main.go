@@ -10,6 +10,8 @@ import (
 	authAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/auth/alumni"
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
+	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
 	studentQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/student"
@@ -64,7 +66,7 @@ func main() {
 		aiService = ai.NewNoAIService()
 	}
 
-	authRepo := auth.NewRepository(db, rdb)
+	authRepo := auth.NewRepository(db, rdb.Client)
 
 	commonAuthService := commonAuth.NewCommonAuthService(authRepo)
 	alumniAuthService := authAlumni.NewAlumniAuthService(authRepo)
@@ -75,7 +77,7 @@ func main() {
 	studentAuthHandler := authStudent.NewStudentAuthHandler(studentAuthService)
 
 	// Admin service and handler
-	adminUserService := admin.NewAdminUserService(authRepo)
+	adminUserService := admin.NewAdminUserService(authRepo, rdb)
 	adminUserHandler := admin.NewAdminUserHandler(adminUserService)
 
 	// Questionnaire services and handlers
@@ -86,8 +88,13 @@ func main() {
 	studentQuestionnaireHandler := studentQuestionnaire.NewStudentQuestionnaireHandler(studentQuestionnaireService)
 
 	// Admin questionnaire service and handler
-	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb)
+	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb.Client)
 	adminQuestionnaireHandler := adminQuestionnaire.NewAdminQuestionnaireHandler(adminQuestionnaireService)
+
+	// PKL services and handlers
+	pklRepo := pkl.NewPklRepository(db, rdb.Client)
+	pklAdminService := pklAdmin.NewAdminPklService(pklRepo, rdb)
+	pklAdminHandler := pklAdmin.NewPklHandler(pklAdminService)
 
 	// Roadmap services and handlers
 	roadmapRepo := roadmap.NewRoadmapRepository(db)
@@ -203,6 +210,13 @@ func main() {
 	// Parameterized routes must be last
 	adminAuth.Put("/questionnaires/:id/activate", adminQuestionnaireHandler.ActivateQuestionnaire)
 	adminAuth.Get("/questionnaires/:id", adminQuestionnaireHandler.GetQuestionnaireDetail)
+
+	// PKL Admin Routes
+	adminAuth.Post("/users/internships", pklAdminHandler.CreateInternshipPosition)
+	adminAuth.Get("/users/internships", pklAdminHandler.GetInternshipPositions)
+	adminAuth.Get("/users/internships/:id", pklAdminHandler.GetInternshipByID)
+	adminAuth.Put("/users/internships/:id", pklAdminHandler.UpdateInternshipPosition)
+	adminAuth.Delete("/users/internships/:id", pklAdminHandler.DeleteInternshipPosition)
 
 	// Admin Roadmap Routes
 	adminAuth.Get("/roadmaps/statistics", adminRoadmapHandler.GetStatistics)
