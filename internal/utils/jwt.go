@@ -7,16 +7,21 @@ import (
 	"os"
 	"time"
 
-	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
+// Interface to avoid importing user package
+type JWTUser interface {
+	GetID() uuid.UUID
+	GetEmail() string
+	GetRole() string
+}
+
 type Claims struct {
-	UserID uuid.UUID     `json:"user_id"`
-	Email  string        `json:"email"`
-	Role   user.UserRole `json:"role"`
+	UserID uuid.UUID `json:"user_id"`
+	Email  string    `json:"email"`
+	Role   string    `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -27,7 +32,7 @@ type TokenPair struct {
 }
 
 // GenerateAccessToken membuat JWT access token dengan expire time pendek (15 menit)
-func GenerateAccessToken(user *user.User) (string, error) {
+func GenerateAccessToken(user JWTUser) (string, error) {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		return "", errors.New("JWT_SECRET not set")
@@ -37,9 +42,9 @@ func GenerateAccessToken(user *user.User) (string, error) {
 	expireTime := time.Now().Add(15 * time.Minute)
 
 	claims := Claims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
+		UserID: user.GetID(),
+		Email:  user.GetEmail(),
+		Role:   user.GetRole(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expireTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -66,7 +71,7 @@ func GenerateRefreshToken() (string, error) {
 }
 
 // GenerateTokenPair membuat access token dan refresh token sekaligus
-func GenerateTokenPair(user *user.User) (*TokenPair, error) {
+func GenerateTokenPair(user JWTUser) (*TokenPair, error) {
 	accessToken, err := GenerateAccessToken(user)
 	if err != nil {
 		return nil, err
@@ -85,7 +90,7 @@ func GenerateTokenPair(user *user.User) (*TokenPair, error) {
 }
 
 // Legacy function untuk backward compatibility
-func GenerateToken(user *user.User) (string, error) {
+func GenerateToken(user JWTUser) (string, error) {
 	return GenerateAccessToken(user)
 }
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-	pkl_model "github.com/Farrel44/AICademy-Backend/internal/pkl"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -28,12 +27,12 @@ func NewPklRepository(db *gorm.DB, rdb *redis.Client) *PklRepository {
 	}
 }
 
-func (r *PklRepository) CreateInternshipPosition(internship *pkl_model.Internship) error {
+func (r *PklRepository) CreateInternshipPosition(internship *Internship) error {
 	return r.db.Create(internship).Error
 }
 
-func (r *PklRepository) GetInternshipByID(id uuid.UUID) (*pkl_model.Internship, error) {
-	var internship pkl_model.Internship
+func (r *PklRepository) GetInternshipByID(id uuid.UUID) (*Internship, error) {
+	var internship Internship
 	err := r.db.Preload("CompanyProfile").
 		Preload("CompanyProfile.User").
 		First(&internship, "id = ?", id).Error
@@ -43,13 +42,13 @@ func (r *PklRepository) GetInternshipByID(id uuid.UUID) (*pkl_model.Internship, 
 	return &internship, nil
 }
 
-func (r *PklRepository) GetAllInternships(offset, limit int, search string) ([]pkl_model.Internship, int64, error) {
-	var internships []pkl_model.Internship
+func (r *PklRepository) GetAllInternships(offset, limit int, search string) ([]Internship, int64, error) {
+	var internships []Internship
 	var total int64
 
 	query := r.db.Preload("CompanyProfile").
 		Preload("CompanyProfile.User").
-		Model(&pkl_model.Internship{})
+		Model(&Internship{})
 
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
@@ -64,12 +63,12 @@ func (r *PklRepository) GetAllInternships(offset, limit int, search string) ([]p
 	return internships, total, err
 }
 
-func (r *PklRepository) UpdateInternshipPosition(internship *pkl_model.Internship) error {
+func (r *PklRepository) UpdateInternshipPosition(internship *Internship) error {
 	return r.db.Save(internship).Error
 }
 
 func (r *PklRepository) DeleteInternshipPosition(id uuid.UUID) error {
-	return r.db.Delete(&pkl_model.Internship{}, "id = ?", id).Error
+	return r.db.Delete(&Internship{}, "id = ?", id).Error
 }
 
 func (r *PklRepository) GetCompanyByID(id uuid.UUID) (*user.CompanyProfile, error) {
