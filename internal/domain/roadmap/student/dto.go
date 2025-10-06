@@ -85,7 +85,7 @@ type StartStepResponse struct {
 type SubmitEvidenceRequest struct {
 	StepID          uuid.UUID `json:"step_id" validate:"required"`
 	EvidenceLink    string    `json:"evidence_link" validate:"required,url"`
-	EvidenceType    string    `json:"evidence_type" validate:"required,oneof=url file"`
+	EvidenceType    string    `json:"evidence_type" validate:"required,oneof=url"` //nanti di tambahin lagi untuk type nya, misal file
 	SubmissionNotes *string   `json:"submission_notes,omitempty" validate:"omitempty,max=1000"`
 }
 

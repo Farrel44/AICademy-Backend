@@ -213,6 +213,10 @@ func (s *StudentRoadmapService) SubmitEvidence(req SubmitEvidenceRequest, studen
 		return nil, err
 	}
 
+	if req.EvidenceType != "url" {
+		return nil, errors.New("only URL evidence type is supported currently")
+	}
+
 	if progress.Status != roadmap.RoadmapProgressStatusInProgress && progress.Status != roadmap.RoadmapProgressStatusRejected {
 		return nil, errors.New("step is not available for submission")
 	}
