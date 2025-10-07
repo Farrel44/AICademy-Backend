@@ -34,7 +34,11 @@ func (h *AdminUserHandler) GetStudents(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Data siswa berhasil diambil", result)
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data siswa berhasil diambil",
+		Data:    result.Data,
+	})
 }
 
 func (h *AdminUserHandler) GetStatistics(c *fiber.Ctx) error {
@@ -117,7 +121,11 @@ func (h *AdminUserHandler) GetTeachers(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Data guru berhasil diambil", result)
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data guru berhasil diambil",
+		Data:    result.Data,
+	})
 }
 
 func (h *AdminUserHandler) GetTeacherByID(c *fiber.Ctx) error {
@@ -209,7 +217,11 @@ func (h *AdminUserHandler) GetCompanies(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Data perusahaan berhasil diambil", result)
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data perusahaan berhasil diambil",
+		Data:    result.Data,
+	})
 }
 
 func (h *AdminUserHandler) GetCompanyByID(c *fiber.Ctx) error {
@@ -301,7 +313,11 @@ func (h *AdminUserHandler) GetAlumni(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Data alumni berhasil diambil", result)
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data alumni berhasil diambil",
+		Data:    result.Data,
+	})
 }
 
 func (h *AdminUserHandler) GetAlumniByID(c *fiber.Ctx) error {
