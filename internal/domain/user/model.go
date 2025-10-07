@@ -26,6 +26,8 @@ type User struct {
 	PasswordResetAt    *time.Time `gorm:"column:password_reset_at" json:"-"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
+
+	StudentProfile *StudentProfile `gorm:"foreignKey:UserID;references:ID" json:"student_profile,omitempty"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
@@ -126,6 +128,20 @@ type CompanyProfile struct {
 	CompanyLocation *string   `json:"company_location"`
 	Description     *string   `json:"description"`
 	CreatedAt       time.Time `json:"created_at"`
+
+	Photos []CompanyPhoto `gorm:"foreignKey:CompanyID;constraint:OnDelete:CASCADE" json:"photos"`
+}
+
+type CompanyPhoto struct {
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	CompanyID   uuid.UUID `gorm:"type:uuid;not null;index" json:"company_id"`
+	PhotoURL    string    `gorm:"not null" json:"photo_url"`
+	Description *string   `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (CompanyPhoto) TableName() string {
+	return "company_photos"
 }
 
 func (c *CompanyProfile) BeforeCreate(tx *gorm.DB) error {

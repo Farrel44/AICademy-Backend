@@ -26,12 +26,30 @@ type CreateStudentRequest struct {
 }
 
 type CreateCompanyRequest struct {
-	CompanyName     string  `json:"company_name" validate:"required,min=2"`
-	Email           string  `json:"email" validate:"required,email"`
-	Password        string  `json:"password" validate:"required,min=8"`
-	CompanyLogo     *string `json:"company_logo"`
-	CompanyLocation *string `json:"company_location"`
-	Description     *string `json:"description"`
+	CompanyName     string   `json:"company_name" validate:"required,min=2"`
+	Email           string   `json:"email" validate:"required,email"`
+	Password        string   `json:"password" validate:"required,min=8"`
+	CompanyLogo     *string  `json:"company_logo"`
+	CompanyLocation *string  `json:"company_location"`
+	Description     *string  `json:"description"`
+	Photos          []string `json:"photos,omitempty"` // Array of photo URLs
+}
+
+// Add this struct for individual photo data with description
+type CompanyPhotoRequest struct {
+	PhotoURL    string  `json:"photo_url" validate:"required"`
+	Description *string `json:"description,omitempty"`
+}
+
+// Alternative structure if you want to include descriptions
+type CreateCompanyWithPhotosRequest struct {
+	CompanyName     string                `json:"company_name" validate:"required,min=2"`
+	Email           string                `json:"email" validate:"required,email"`
+	Password        string                `json:"password" validate:"required,min=8"`
+	CompanyLogo     *string               `json:"company_logo"`
+	CompanyLocation *string               `json:"company_location"`
+	Description     *string               `json:"description"`
+	Photos          []CompanyPhotoRequest `json:"photos,omitempty"` // Array of photos with descriptions
 }
 
 type StudentCSVRow struct {

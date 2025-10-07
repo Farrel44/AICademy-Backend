@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,6 +20,12 @@ type RedisClient struct {
 }
 
 func NewRedisClient() *RedisClient {
+	// Skip Redis in development
+	if isDevelopment() {
+		log.Printf("APP_ENV=development: Redis caching disabled")
+		return &RedisClient{Client: nil}
+	}
+
 	host := getenv("REDIS_HOST", "redis")
 	port := getenv("REDIS_PORT", "6379")
 	addr := fmt.Sprintf("%s:%s", host, port)
@@ -52,8 +59,17 @@ func NewRedisClient() *RedisClient {
 	return &RedisClient{Client: rdb}
 }
 
+// isDevelopment checks if we're in development mode
+func isDevelopment() bool {
+	return strings.ToLower(os.Getenv("APP_ENV")) == "development"
+}
+
 // Set string value dengan TTL
 func (r *RedisClient) Set(key string, value interface{}, expiration time.Duration) error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis SET for key '%s'", key)
+		return nil
+	}
 	err := r.Client.Set(ctx, key, value, expiration).Err()
 	if err != nil {
 		log.Printf("Redis SET failed for key '%s': %v", key, err)
@@ -65,6 +81,10 @@ func (r *RedisClient) Set(key string, value interface{}, expiration time.Duratio
 
 // Get string value
 func (r *RedisClient) Get(key string) (string, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis GET for key '%s'", key)
+		return "", redis.Nil
+	}
 	val, err := r.Client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -80,6 +100,10 @@ func (r *RedisClient) Get(key string) (string, error) {
 
 // SetJSON - simpan object/struct sebagai JSON dengan TTL
 func (r *RedisClient) SetJSON(key string, value interface{}, expiration time.Duration) error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis SetJSON for key '%s'", key)
+		return nil
+	}
 	jsonData, err := json.Marshal(value)
 	if err != nil {
 		log.Printf("Redis SetJSON marshal failed for key '%s': %v", key, err)
@@ -97,6 +121,10 @@ func (r *RedisClient) SetJSON(key string, value interface{}, expiration time.Dur
 
 // GetJSON - ambil dan unmarshal JSON value
 func (r *RedisClient) GetJSON(key string, dest interface{}) error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis GetJSON for key '%s'", key)
+		return redis.Nil
+	}
 	val, err := r.Client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -119,6 +147,10 @@ func (r *RedisClient) GetJSON(key string, dest interface{}) error {
 
 // Delete key
 func (r *RedisClient) Delete(key string) error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis DELETE for key '%s'", key)
+		return nil
+	}
 	deleted, err := r.Client.Del(ctx, key).Result()
 	if err != nil {
 		log.Printf("Redis DELETE failed for key '%s': %v", key, err)
@@ -134,6 +166,10 @@ func (r *RedisClient) Delete(key string) error {
 
 // Exists check if key exists
 func (r *RedisClient) Exists(key string) (bool, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis EXISTS for key '%s'", key)
+		return false, nil
+	}
 	result, err := r.Client.Exists(ctx, key).Result()
 	exists := result > 0
 	if err != nil {
@@ -146,6 +182,10 @@ func (r *RedisClient) Exists(key string) (bool, error) {
 
 // Incr - increment counter (untuk rate limiting)
 func (r *RedisClient) Incr(key string) (int64, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis INCR for key '%s'", key)
+		return 1, nil
+	}
 	count, err := r.Client.Incr(ctx, key).Result()
 	if err != nil {
 		log.Printf("Redis INCR failed for key '%s': %v", key, err)
@@ -157,6 +197,10 @@ func (r *RedisClient) Incr(key string) (int64, error) {
 
 // SetNX - set only if key doesn't exist (atomic)
 func (r *RedisClient) SetNX(key string, value interface{}, expiration time.Duration) (bool, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis SETNX for key '%s'", key)
+		return true, nil
+	}
 	success, err := r.Client.SetNX(ctx, key, value, expiration).Result()
 	if err != nil {
 		log.Printf("Redis SETNX failed for key '%s': %v", key, err)
@@ -172,6 +216,10 @@ func (r *RedisClient) SetNX(key string, value interface{}, expiration time.Durat
 
 // GetTTL - get remaining time to live
 func (r *RedisClient) GetTTL(key string) (time.Duration, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis TTL for key '%s'", key)
+		return -2, nil
+	}
 	ttl, err := r.Client.TTL(ctx, key).Result()
 	if err != nil {
 		log.Printf("Redis TTL failed for key '%s': %v", key, err)
@@ -189,6 +237,10 @@ func (r *RedisClient) GetTTL(key string) (time.Duration, error) {
 
 // SetExpire - set TTL for existing key
 func (r *RedisClient) SetExpire(key string, expiration time.Duration) error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis EXPIRE for key '%s'", key)
+		return nil
+	}
 	success, err := r.Client.Expire(ctx, key, expiration).Result()
 	if err != nil {
 		log.Printf("Redis EXPIRE failed for key '%s': %v", key, err)
@@ -206,6 +258,10 @@ func (r *RedisClient) SetExpire(key string, expiration time.Duration) error {
 
 // FlushDB - clear all keys in current database (untuk testing)
 func (r *RedisClient) FlushDB() error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis FLUSHDB")
+		return nil
+	}
 	err := r.Client.FlushDB(ctx).Err()
 	if err != nil {
 		log.Printf("Redis FLUSHDB failed: %v", err)
@@ -217,6 +273,10 @@ func (r *RedisClient) FlushDB() error {
 
 // GetInfo - get Redis server info
 func (r *RedisClient) GetInfo() (string, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis INFO")
+		return "", nil
+	}
 	info, err := r.Client.Info(ctx).Result()
 	if err != nil {
 		log.Printf("Redis INFO failed: %v", err)
@@ -228,6 +288,10 @@ func (r *RedisClient) GetInfo() (string, error) {
 
 // Keys - get all keys matching pattern (untuk debugging - jangan dipakai di production)
 func (r *RedisClient) Keys(pattern string) ([]string, error) {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis KEYS for pattern '%s'", pattern)
+		return []string{}, nil
+	}
 	keys, err := r.Client.Keys(ctx, pattern).Result()
 	if err != nil {
 		log.Printf("Redis KEYS failed for pattern '%s': %v", pattern, err)
@@ -239,6 +303,10 @@ func (r *RedisClient) Keys(pattern string) ([]string, error) {
 
 // Close connection
 func (r *RedisClient) Close() error {
+	if isDevelopment() {
+		log.Printf("Development mode: Skipping Redis close")
+		return nil
+	}
 	err := r.Client.Close()
 	if err != nil {
 		log.Printf("Redis close failed: %v", err)

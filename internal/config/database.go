@@ -57,7 +57,6 @@ func InitDatabase() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Auto migrate semua model
 	err = db.AutoMigrate(
 		// User models
 		&user.User{},

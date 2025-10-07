@@ -1,6 +1,7 @@
 package pkl
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
@@ -21,9 +22,9 @@ const (
 type ApplicationStatus string
 
 const (
-	ApplicationStatusPending           ApplicationStatus = "pending"
-	ApplicationStatusApprovedByTeacher ApplicationStatus = "approved_by_teacher"
-	ApplicationStatusRejected          ApplicationStatus = "rejected"
+	ApplicationStatusPending  ApplicationStatus = "pending"
+	ApplicationStatusApproved ApplicationStatus = "approved"
+	ApplicationStatusRejected ApplicationStatus = "rejected"
 )
 
 // Internship represents an internship opportunity posted by companies
@@ -51,13 +52,16 @@ type InternshipApplication struct {
 	Status           ApplicationStatus `gorm:"type:varchar(30);default:'pending'" json:"status"`
 	AppliedAt        time.Time         `gorm:"autoCreateTime" json:"applied_at"`
 	ReviewedAt       *time.Time        `json:"reviewed_at"`
-	ApprovedBy       *uuid.UUID        `gorm:"type:uuid" json:"approved_by"` // Teacher who approved
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
 
-	Internship        *Internship          `gorm:"foreignKey:InternshipID" json:"internship,omitempty"`
-	StudentProfile    *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
-	ApprovedByTeacher *user.TeacherProfile `gorm:"foreignKey:ApprovedBy" json:"approved_by_teacher,omitempty"`
+	ApprovedByUserID *uuid.UUID `gorm:"type:uuid" json:"approved_by_user_id"`     // bisa admin atau teacher
+	ApprovedByRole   *string    `gorm:"type:varchar(20)" json:"approved_by_role"` // "teacher" / "admin"
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	Internship     *Internship          `gorm:"foreignKey:InternshipID" json:"internship,omitempty"`
+	StudentProfile *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
+	ApprovedByUser *user.User           `gorm:"foreignKey:ApprovedByUserID;references:ID" json:"approved_by_user,omitempty"`
 }
 
 // InternshipReview represents student reviews/testimonials for completed internships
@@ -127,7 +131,7 @@ func (i *Internship) CanApply() bool {
 
 // IsApproved checks if the application is approved by teacher
 func (ia *InternshipApplication) IsApproved() bool {
-	return ia.Status == ApplicationStatusApprovedByTeacher
+	return ia.Status == ApplicationStatusApproved
 }
 
 // IsPending checks if the application is still pending
@@ -141,11 +145,13 @@ func (ia *InternshipApplication) IsRejected() bool {
 }
 
 // SetReviewed marks the application as reviewed
-func (ia *InternshipApplication) SetReviewed(approvedBy *uuid.UUID, status ApplicationStatus) {
+func (ia *InternshipApplication) SetReviewed(approvedBy *uuid.UUID, status ApplicationStatus, role string) {
 	now := time.Now()
 	ia.ReviewedAt = &now
-	ia.ApprovedBy = approvedBy
-	ia.Status = status
+	ia.ApprovedByUserID = approvedBy // kolom FK ke users.id
+	role = strings.ToLower(role)     // "admin" atau "teacher"
+	ia.ApprovedByRole = &role
+	ia.Status = status // biasanya ApplicationStatusApproved atau Rejected
 }
 
 // IsValidRating checks if the rating is within valid range (1-5)

@@ -141,28 +141,46 @@ func (s *AdminPklService) invalidateAllPklCache() {
 }
 
 func (s *AdminPklService) GetInternshipPositions(page, limit int, search string) (*PaginatedInternshipResponse, error) {
+	cacheKey := fmt.Sprintf("internship:page:%d:limit:%d:search:%s", page, limit, search)
+	var cachedResult PaginatedInternshipResponse
+
+	if err := s.redis.GetJSON(cacheKey, &cachedResult); err == nil {
+		fmt.Print("cache return")
+		return &cachedResult, nil
+	}
+
 	internships, total, err := s.repo.GetAllInternships(page, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get internship positions")
 	}
 
-	// Fix type conversion from int64 to int
 	totalPages := int(total+int64(limit)-1) / limit
 
-	return &PaginatedInternshipResponse{
+	result := &PaginatedInternshipResponse{
 		Data:       internships,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	s.redis.SetJSON(cacheKey, result, 5*time.Minute)
+
+	return result, nil
 }
 
 func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*pkl.Internship, error) {
+	cacheKey := fmt.Sprintf("internship:%s", id.String())
+	var cachedStudent pkl.Internship
+	if err := s.redis.GetJSON(cacheKey, &cachedStudent); err == nil {
+		return &cachedStudent, nil
+	}
 	internship, err := s.repo.GetInternshipByID(id)
 	if err != nil {
 		return nil, errors.New("internship position not found")
 	}
+	s.redis.SetJSON(cacheKey, internship, 5*time.Minute)
+
 	return internship, nil
 }
 
@@ -220,4 +238,232 @@ func (s *AdminPklService) DeleteInternshipPosition(id uuid.UUID) error {
 
 	s.invalidateInternshipCache(id)
 	return nil
+}
+
+func (s *AdminPklService) GetSubmissionsByInternshipID(internshipID uuid.UUID) ([]SubmissionResponse, error) {
+	cacheKey := fmt.Sprintf("submissions:internship:%s", internshipID.String())
+	var cached []SubmissionResponse
+	if err := s.redis.GetJSON(cacheKey, &cached); err == nil {
+		return cached, nil
+	}
+
+	submissions, err := s.repo.GetSubmissionsByInternshipID(internshipID)
+	if err != nil {
+		return nil, errors.New("failed to get submissions")
+	}
+
+	var out []SubmissionResponse
+	for _, sub := range submissions {
+		resp := SubmissionResponse{
+			ID:               sub.ID.String(),
+			InternshipID:     sub.InternshipID.String(),
+			StudentProfileID: sub.StudentProfileID.String(),
+			Status:           string(sub.Status),
+			AppliedAt:        sub.AppliedAt,
+			ReviewedAt:       sub.ReviewedAt,
+			Student: StudentSummary{
+				ID:             sub.StudentProfile.ID.String(),
+				Name:           sub.StudentProfile.User.Email,
+				Email:          sub.StudentProfile.User.Email,
+				Fullname:       sub.StudentProfile.Fullname,
+				NIS:            sub.StudentProfile.NIS,
+				Class:          sub.StudentProfile.Class,
+				ProfilePicture: &sub.StudentProfile.ProfilePicture,
+				Headline:       &sub.StudentProfile.Headline,
+				Bio:            &sub.StudentProfile.Bio,
+				CvFile:         sub.StudentProfile.CVFile,
+			},
+		}
+		if sub.ApprovedByUserID != nil {
+			idStr := sub.ApprovedByUserID.String()
+			resp.ApprovedByUserID = &idStr
+			if sub.ApprovedByRole != nil {
+				role := *sub.ApprovedByRole
+				resp.ApprovedByRole = &role
+			}
+			if sub.ApprovedByUser != nil {
+				email := sub.ApprovedByUser.Email
+				resp.ApproverEmail = &email
+			}
+		}
+		out = append(out, resp)
+	}
+
+	s.redis.SetJSON(cacheKey, out, 2*time.Minute)
+	return out, nil
+}
+
+func (s *AdminPklService) GetInternshipsWithSubmissionsByCompanyID(companyID uuid.UUID) ([]InternshipWithSubmissionsResponse, error) {
+	cacheKey := fmt.Sprintf("internships_submissions:company:%s", companyID.String())
+	var cached []InternshipWithSubmissionsResponse
+	if err := s.redis.GetJSON(cacheKey, &cached); err == nil {
+		return cached, nil
+	}
+
+	internships, err := s.repo.GetInternshipsWithSubmissionsByCompanyID(companyID)
+	if err != nil {
+		return nil, errors.New("failed to get internships with submissions")
+	}
+
+	var responses []InternshipWithSubmissionsResponse
+	for _, in := range internships {
+		var subsResp []SubmissionResponse
+		for _, app := range in.InternshipApplications {
+			sr := SubmissionResponse{
+				ID:               app.ID.String(),
+				InternshipID:     app.InternshipID.String(),
+				StudentProfileID: app.StudentProfileID.String(),
+				Status:           string(app.Status),
+				AppliedAt:        app.AppliedAt,
+				ReviewedAt:       app.ReviewedAt,
+				Student: StudentSummary{
+					ID:             app.StudentProfile.ID.String(),
+					Name:           app.StudentProfile.User.Email,
+					Email:          app.StudentProfile.User.Email,
+					Fullname:       app.StudentProfile.Fullname,
+					NIS:            app.StudentProfile.NIS,
+					Class:          app.StudentProfile.Class,
+					ProfilePicture: &app.StudentProfile.ProfilePicture,
+					Headline:       &app.StudentProfile.Headline,
+					Bio:            &app.StudentProfile.Bio,
+					CvFile:         app.StudentProfile.CVFile,
+				},
+			}
+			if app.ApprovedByUserID != nil {
+				idStr := app.ApprovedByUserID.String()
+				sr.ApprovedByUserID = &idStr
+				if app.ApprovedByRole != nil {
+					role := *app.ApprovedByRole
+					sr.ApprovedByRole = &role
+				}
+				if app.ApprovedByUser != nil {
+					email := app.ApprovedByUser.Email
+					sr.ApproverEmail = &email
+				}
+			}
+			subsResp = append(subsResp, sr)
+		}
+
+		resp := InternshipWithSubmissionsResponse{
+			ID:          in.ID.String(),
+			Title:       in.Title,
+			Description: in.Description,
+			Type:        string(in.Type),
+			PostedAt:    in.PostedAt,
+			Deadline:    in.Deadline,
+			Company: CompanySummary{
+				Name:        in.CompanyProfile.CompanyName,
+				Email:       in.CompanyProfile.User.Email,
+				Logo:        in.CompanyProfile.CompanyLogo,
+				Location:    in.CompanyProfile.CompanyLocation,
+				Description: in.CompanyProfile.Description,
+			},
+			Submissions:     subsResp,
+			SubmissionCount: len(subsResp),
+		}
+		responses = append(responses, resp)
+	}
+
+	s.redis.SetJSON(cacheKey, responses, 2*time.Minute)
+	return responses, nil
+}
+
+func (s *AdminPklService) GetSubmissionByID(submissionID uuid.UUID) (*SubmissionResponse, error) {
+	cacheKey := fmt.Sprintf("submission:%s", submissionID.String())
+	var cached SubmissionResponse
+	if err := s.redis.GetJSON(cacheKey, &cached); err == nil {
+		return &cached, nil
+	}
+
+	sub, err := s.repo.GetSubmissionByID(submissionID)
+	if err != nil {
+		return nil, errors.New("submission not found")
+	}
+
+	resp := &SubmissionResponse{
+		ID:               sub.ID.String(),
+		InternshipID:     sub.InternshipID.String(),
+		StudentProfileID: sub.StudentProfileID.String(),
+		Status:           string(sub.Status),
+		AppliedAt:        sub.AppliedAt,
+		ReviewedAt:       sub.ReviewedAt,
+		Student: StudentSummary{
+			ID:             sub.StudentProfile.ID.String(),
+			Name:           sub.StudentProfile.User.Email,
+			Email:          sub.StudentProfile.User.Email,
+			Fullname:       sub.StudentProfile.Fullname,
+			NIS:            sub.StudentProfile.NIS,
+			Class:          sub.StudentProfile.Class,
+			ProfilePicture: &sub.StudentProfile.ProfilePicture,
+			Headline:       &sub.StudentProfile.Headline,
+			Bio:            &sub.StudentProfile.Bio,
+			CvFile:         sub.StudentProfile.CVFile,
+		},
+		Internship: &InternshipSummary{
+			ID:       sub.Internship.ID.String(),
+			Title:    sub.Internship.Title,
+			Type:     string(sub.Internship.Type),
+			PostedAt: sub.Internship.PostedAt,
+			Deadline: sub.Internship.Deadline,
+			Company: CompanySummary{
+				Name:        sub.Internship.CompanyProfile.CompanyName,
+				Email:       sub.Internship.CompanyProfile.User.Email,
+				Logo:        sub.Internship.CompanyProfile.CompanyLogo,
+				Location:    sub.Internship.CompanyProfile.CompanyLocation,
+				Description: sub.Internship.CompanyProfile.Description,
+			},
+		},
+	}
+
+	if sub.ApprovedByUserID != nil {
+		idStr := sub.ApprovedByUserID.String()
+		resp.ApprovedByUserID = &idStr
+		if sub.ApprovedByRole != nil {
+			role := *sub.ApprovedByRole
+			resp.ApprovedByRole = &role
+		}
+		if sub.ApprovedByUser != nil {
+			email := sub.ApprovedByUser.Email
+			resp.ApproverEmail = &email
+		}
+	}
+
+	s.redis.SetJSON(cacheKey, resp, 5*time.Minute)
+	return resp, nil
+}
+
+func (s *AdminPklService) UpdateSubmissionStatus(submissionID uuid.UUID, status string, approverID uuid.UUID) error {
+	var newStatus pkl.ApplicationStatus
+	switch status {
+	case "approved":
+		newStatus = pkl.ApplicationStatusApproved
+	case "rejected":
+		newStatus = pkl.ApplicationStatusRejected
+	default:
+		return errors.New("invalid status")
+	}
+
+	_, err := s.repo.GetSubmissionByID(submissionID)
+	if err != nil {
+		return errors.New("submission not found")
+	}
+
+	// role hardcode "admin" (endpoint admin). Jika nanti teacher dipakai, bisa ambil dari context.
+	if err := s.repo.UpdateSubmissionStatus(submissionID, newStatus, &approverID, "admin"); err != nil {
+		return errors.New("failed to update submission status")
+	}
+
+	s.invalidateSubmissionCache(submissionID)
+	return nil
+}
+
+func (s *AdminPklService) invalidateSubmissionCache(submissionID uuid.UUID) {
+	key := fmt.Sprintf("submission:%s", submissionID.String())
+	s.redis.Delete(key)
+	s.redis.Delete("internship_statistics")
+	s.invalidateApplicationsListCache()
+
+	// hapus list cache generik (bisa disempurnakan dengan scan pattern jika ada util)
+	s.redis.Delete("submissions:internship:")
+	s.redis.Delete("internships_submissions:company:")
 }

@@ -1,7 +1,7 @@
 package user
 
 import (
-	"os/user"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,20 +25,18 @@ func NewUserRepository(db *gorm.DB, rdb *redis.Client) *UserRepository {
 	}
 }
 
-func (r *UserRepository) GetUserByToken(id uuid.UUID) (*user.User, error) {
-	var u user.User
-	err := r.db.First(&u, "id = ?", id).Error
+func (r *UserRepository) GetUserByID(id uuid.UUID) (*User, error) {
+	var u User
+	err := r.db.
+		Preload("StudentProfile").
+		First(&u, "id = ?", id).Error
 	if err != nil {
+		fmt.Printf("err %s", err)
 		return nil, err
 	}
 	return &u, nil
 }
 
-func (r *UserRepository) GetUserByID(id uuid.UUID) (*User, error) {
-	var u User
-	err := r.db.First(&u, "id = ?", id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
+func (r *UserRepository) UpdateStudentProfile(student *StudentProfile) error {
+	return r.db.Save(student).Error
 }

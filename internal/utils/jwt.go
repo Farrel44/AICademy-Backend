@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -114,4 +116,17 @@ func ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func GetClaimsFromHeader(c *fiber.Ctx) (*Claims, error) {
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return nil, errors.New("authorization header is required")
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" || parts[1] == "" {
+		return nil, errors.New("authorization header format must be Bearer {token}")
+	}
+
+	return ValidateToken(parts[1])
 }
