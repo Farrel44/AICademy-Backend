@@ -52,7 +52,8 @@ func (r *RoadmapRepository) GetRoadmaps(offset, limit int, profilingRoleID *uuid
 		return nil, 0, err
 	}
 
-	err = query.Order("created_at DESC").
+	err = query.Preload("Steps").
+		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&roadmaps).Error
@@ -418,19 +419,31 @@ func (r *RoadmapRepository) GetTeacherProfile(teacherProfileID uuid.UUID) (*user
 }
 
 func (r *RoadmapRepository) GetStudentRecommendedRole(studentProfileID uuid.UUID) (*uuid.UUID, error) {
-	var roleID *uuid.UUID
+	var result struct {
+		RecommendedProfilingRoleID *string `gorm:"column:recommended_profiling_role_id"`
+	}
+
 	err := r.db.Table("questionnaire_responses").
 		Select("recommended_profiling_role_id").
 		Where("student_profile_id = ? AND recommended_profiling_role_id IS NOT NULL", studentProfileID).
 		Order("submitted_at DESC").
 		Limit(1).
-		Scan(&roleID).Error
+		First(&result).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if err == gorm.ErrRecordNotFound || result.RecommendedProfilingRoleID == nil {
 		return nil, nil
 	}
 
-	return roleID, err
+	if err != nil {
+		return nil, err
+	}
+
+	roleID, err := uuid.Parse(*result.RecommendedProfilingRoleID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &roleID, nil
 }
 
 func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (interface{}, error) {
@@ -440,8 +453,8 @@ func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (interface{}, err
 		Description string    `json:"description"`
 	}
 
-	err := r.db.Table("role_recommendations").
-		Select("id, role_name as name, description").
+	err := r.db.Table("target_roles").
+		Select("id, name, description").
 		Where("id = ?", roleID).
 		First(&role).Error
 

@@ -41,8 +41,8 @@ func SeedData(db *gorm.DB) error {
 		return fmt.Errorf("gagal melakukan seeding kuesioner: %v", err)
 	}
 
-	if err := SeedRoleRecommendations(db); err != nil {
-		return fmt.Errorf("gagal melakukan seeding role recommendations: %v", err)
+	if err := SeedTargetRoles(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding target roles: %v", err)
 	}
 
 	log.Println("Proses seeding database selesai dengan sukses")
@@ -497,78 +497,168 @@ func SeedDefaultQuestionnaires(db *gorm.DB) error {
 
 	return nil
 }
-func SeedRoleRecommendations(db *gorm.DB) error {
-	roles := []questionnaire.RoleRecommendation{
+func SeedTargetRoles(db *gorm.DB) error {
+	roles := []questionnaire.TargetRole{
 		{
-			RoleName:    "Backend Developer",
+			Name:        "Backend Developer",
 			Description: "Mengembangkan aplikasi server-side, API, dan sistem database",
-			Category:    "software_development",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Frontend Developer",
+			Name:        "Frontend Developer",
 			Description: "Mengembangkan antarmuka pengguna dan pengalaman pengguna aplikasi web",
-			Category:    "software_development",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Full Stack Developer",
+			Name:        "Full Stack Developer",
 			Description: "Mengembangkan aplikasi end-to-end dari frontend hingga backend",
-			Category:    "software_development",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Mobile Developer",
+			Name:        "Mobile Developer",
 			Description: "Mengembangkan aplikasi mobile untuk Android dan iOS",
-			Category:    "mobile_development",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "DevOps Engineer",
+			Name:        "DevOps Engineer",
 			Description: "Mengelola infrastruktur, deployment, dan operasi sistem",
-			Category:    "infrastructure",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Data Scientist",
+			Name:        "Data Scientist",
 			Description: "Menganalisis data dan membangun model machine learning",
-			Category:    "data_science",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "UI/UX Designer",
+			Name:        "Data Analyst",
+			Description: "Menganalisis data bisnis untuk menghasilkan insight dan laporan",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Machine Learning Engineer",
+			Description: "Mengimplementasikan dan deploy model machine learning ke production",
+			Category:    "Technology",
+		},
+		{
+			Name:        "UI/UX Designer",
 			Description: "Merancang antarmuka dan pengalaman pengguna aplikasi",
-			Category:    "design",
+			Category:    "Creative",
 		},
 		{
-			RoleName:    "QA Engineer",
+			Name:        "Graphic Designer",
+			Description: "Membuat desain visual untuk berbagai media dan platform",
+			Category:    "Creative",
+		},
+		{
+			Name:        "Product Designer",
+			Description: "Merancang produk digital dari konsep hingga implementasi",
+			Category:    "Creative",
+		},
+		{
+			Name:        "QA Engineer",
 			Description: "Menguji kualitas software dan memastikan aplikasi bebas bug",
-			Category:    "quality_assurance",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "System Administrator",
+			Name:        "Test Automation Engineer",
+			Description: "Mengembangkan dan mengelola automated testing frameworks",
+			Category:    "Technology",
+		},
+		{
+			Name:        "System Administrator",
 			Description: "Mengelola infrastruktur IT dan sistem operasi",
-			Category:    "infrastructure",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Cloud Engineer",
+			Name:        "Cloud Engineer",
 			Description: "Merancang dan mengelola infrastruktur cloud",
-			Category:    "cloud_computing",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Cyber Security Specialist",
+			Name:        "Cloud Architect",
+			Description: "Merancang arsitektur cloud untuk aplikasi enterprise",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Cyber Security Specialist",
 			Description: "Melindungi sistem dan data dari ancaman keamanan",
-			Category:    "security",
+			Category:    "Technology",
 		},
 		{
-			RoleName:    "Database Administrator",
+			Name:        "Security Analyst",
+			Description: "Menganalisis ancaman keamanan dan implementasi solusi keamanan",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Database Administrator",
 			Description: "Mengelola dan mengoptimalkan sistem database enterprise",
-			Category:    "database",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Database Developer",
+			Description: "Mengembangkan struktur database dan stored procedures",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Product Manager",
+			Description: "Mengelola pengembangan produk dari perencanaan hingga peluncuran",
+			Category:    "Business",
+		},
+		{
+			Name:        "Technical Product Manager",
+			Description: "Mengelola produk teknologi dengan fokus pada aspek teknis",
+			Category:    "Business",
+		},
+		{
+			Name:        "Business Analyst",
+			Description: "Menganalisis kebutuhan bisnis dan merancang solusi teknologi",
+			Category:    "Business",
+		},
+		{
+			Name:        "Systems Analyst",
+			Description: "Menganalisis sistem informasi dan merancang perbaikan",
+			Category:    "Business",
+		},
+		{
+			Name:        "Game Developer",
+			Description: "Mengembangkan game untuk berbagai platform",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Game Designer",
+			Description: "Merancang gameplay, level, dan experience dalam game",
+			Category:    "Creative",
+		},
+		{
+			Name:        "Blockchain Developer",
+			Description: "Mengembangkan aplikasi dan smart contracts berbasis blockchain",
+			Category:    "Technology",
+		},
+		{
+			Name:        "IoT Developer",
+			Description: "Mengembangkan sistem Internet of Things dan embedded systems",
+			Category:    "Technology",
+		},
+		{
+			Name:        "AI Engineer",
+			Description: "Mengembangkan solusi artificial intelligence dan deep learning",
+			Category:    "Technology",
+		},
+		{
+			Name:        "Robotics Engineer",
+			Description: "Merancang dan mengembangkan sistem robotika",
+			Category:    "Technology",
 		},
 	}
 
 	for _, role := range roles {
-		var existingRole questionnaire.RoleRecommendation
-		err := db.Where("role_name = ?", role.RoleName).First(&existingRole).Error
+		var existingRole questionnaire.TargetRole
+		err := db.Where("name = ?", role.Name).First(&existingRole).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := db.Create(&role).Error; err != nil {
-				return fmt.Errorf("failed to create role %s: %w", role.RoleName, err)
+				return fmt.Errorf("failed to create target role %s: %w", role.Name, err)
 			}
-			log.Printf("Created role: %s", role.RoleName)
+			log.Printf("Created target role: %s", role.Name)
 		}
 	}
 

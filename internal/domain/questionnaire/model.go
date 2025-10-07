@@ -105,23 +105,6 @@ func (q *QuestionGenerationTemplate) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type RoleRecommendation struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	RoleName    string    `gorm:"not null;unique"`
-	Description string    `gorm:"not null"`
-	Category    string    `gorm:"not null"`
-	Active      bool      `gorm:"default:true"`
-	CreatedAt   time.Time `gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
-}
-
-func (r *RoleRecommendation) BeforeCreate(tx *gorm.DB) error {
-	if r.ID == uuid.Nil {
-		r.ID = uuid.New()
-	}
-	return nil
-}
-
 // TargetRole represents available target roles for questionnaire generation
 type TargetRole struct {
 	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`

@@ -272,63 +272,6 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponses(questionnaireID uuid
 	return responses, total, nil
 }
 
-func (r *QuestionnaireRepository) GetAllRoles() ([]RoleRecommendation, error) {
-	var roles []RoleRecommendation
-	err := r.db.Where("active = ?", true).Order("role_name ASC").Find(&roles).Error
-	return roles, err
-}
-
-func (r *QuestionnaireRepository) GetRoleByName(roleName string) (*RoleRecommendation, error) {
-	var role RoleRecommendation
-	err := r.db.Where("role_name = ? AND active = ?", roleName, true).First(&role).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("role tidak ditemukan: %s", roleName)
-		}
-		return nil, err
-	}
-	return &role, nil
-}
-
-func (r *QuestionnaireRepository) GetRoleByID(id uuid.UUID) (*RoleRecommendation, error) {
-	var role RoleRecommendation
-	err := r.db.Where("id = ? AND active = ?", id, true).First(&role).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("role tidak ditemukan")
-		}
-		return nil, err
-	}
-	return &role, nil
-}
-
-func (r *QuestionnaireRepository) CreateRole(role *RoleRecommendation) error {
-	var existingRole RoleRecommendation
-	err := r.db.Where("role_name = ?", role.RoleName).First(&existingRole).Error
-	if err == nil {
-		return fmt.Errorf("role dengan nama '%s' sudah ada", role.RoleName)
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return err
-	}
-
-	return r.db.Create(role).Error
-}
-
-func (r *QuestionnaireRepository) UpdateRole(role *RoleRecommendation) error {
-	return r.db.Save(role).Error
-}
-
-func (r *QuestionnaireRepository) DeleteRole(id uuid.UUID) error {
-	return r.db.Model(&RoleRecommendation{}).Where("id = ?", id).Update("active", false).Error
-}
-
-func (r *QuestionnaireRepository) GetRolesByNames(roleNames []string) ([]RoleRecommendation, error) {
-	var roles []RoleRecommendation
-	err := r.db.Where("role_name IN ? AND active = ?", roleNames, true).Find(&roles).Error
-	return roles, err
-}
-
 // New methods for restructured questionnaire system
 
 // Target Role methods
@@ -536,19 +479,6 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponsesNew(offset, limit int
 
 	err = query.Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&responses).Error
 	return responses, total, err
-}
-
-// Recommendation methods for new structure
-func (r *QuestionnaireRepository) CreateRoleRecommendationNew(recommendation *RoleRecommendation) error {
-	return r.db.Create(recommendation).Error
-}
-
-func (r *QuestionnaireRepository) GetRecommendationsByResponseIDNew(responseID uuid.UUID) ([]RoleRecommendation, error) {
-	var recommendations []RoleRecommendation
-	err := r.db.Where("response_id = ?", responseID).
-		Order("score DESC").
-		Find(&recommendations).Error
-	return recommendations, err
 }
 
 // Student profile methods for new structure

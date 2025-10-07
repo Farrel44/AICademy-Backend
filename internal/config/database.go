@@ -72,7 +72,7 @@ func InitDatabase() (*gorm.DB, error) {
 		&questionnaire.ProfilingQuestionnaire{},
 		&questionnaire.QuestionnaireQuestion{},
 		&questionnaire.QuestionnaireResponse{},
-		&questionnaire.RoleRecommendation{},
+
 		&questionnaire.QuestionGenerationTemplate{},
 		&questionnaire.TargetRole{},
 		&questionnaire.QuestionnaireTargetRole{},
