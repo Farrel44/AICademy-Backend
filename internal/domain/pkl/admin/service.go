@@ -140,9 +140,9 @@ func (s *AdminPklService) invalidateAllPklCache() {
 	s.invalidateReviewsListCache()
 }
 
-func (s *AdminPklService) GetInternshipPositions(page, limit int, search string) (*PaginatedInternshipResponse, error) {
+func (s *AdminPklService) GetInternshipPositions(page, limit int, search string) (*CleanPaginatedInternshipResponse, error) {
 	cacheKey := fmt.Sprintf("internship:page:%d:limit:%d:search:%s", page, limit, search)
-	var cachedResult PaginatedInternshipResponse
+	var cachedResult CleanPaginatedInternshipResponse
 
 	if err := s.redis.GetJSON(cacheKey, &cachedResult); err == nil {
 		fmt.Print("cache return")
@@ -156,8 +156,38 @@ func (s *AdminPklService) GetInternshipPositions(page, limit int, search string)
 
 	totalPages := int(total+int64(limit)-1) / limit
 
-	result := &PaginatedInternshipResponse{
-		Data:       internships,
+	// Convert to clean response format
+	var cleanInternships []CleanInternshipResponse
+	for _, internship := range internships {
+		var photosStr *string
+		if len(internship.CompanyProfile.Photos) > 0 {
+			if internship.CompanyProfile.Photos[0].PhotoURL != "" {
+				photosStr = &internship.CompanyProfile.Photos[0].PhotoURL
+			}
+		}
+
+		cleanInternship := CleanInternshipResponse{
+			ID:               internship.ID.String(),
+			CompanyProfileID: internship.CompanyProfileID.String(),
+			Title:            internship.Title,
+			Description:      internship.Description,
+			Type:             string(internship.Type),
+			PostedAt:         internship.PostedAt,
+			Deadline:         internship.Deadline,
+			CompanyProfile: CleanCompanyProfileResponse{
+				ID:              internship.CompanyProfile.ID.String(),
+				CompanyName:     internship.CompanyProfile.CompanyName,
+				CompanyLogo:     internship.CompanyProfile.CompanyLogo,
+				CompanyLocation: internship.CompanyProfile.CompanyLocation,
+				Description:     internship.CompanyProfile.Description,
+				Photos:          photosStr,
+			},
+		}
+		cleanInternships = append(cleanInternships, cleanInternship)
+	}
+
+	result := &CleanPaginatedInternshipResponse{
+		Data:       cleanInternships,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
@@ -169,19 +199,46 @@ func (s *AdminPklService) GetInternshipPositions(page, limit int, search string)
 	return result, nil
 }
 
-func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*pkl.Internship, error) {
+func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*CleanInternshipResponse, error) {
 	cacheKey := fmt.Sprintf("internship:%s", id.String())
-	var cachedStudent pkl.Internship
-	if err := s.redis.GetJSON(cacheKey, &cachedStudent); err == nil {
-		return &cachedStudent, nil
+	var cachedInternship CleanInternshipResponse
+	if err := s.redis.GetJSON(cacheKey, &cachedInternship); err == nil {
+		return &cachedInternship, nil
 	}
+
 	internship, err := s.repo.GetInternshipByID(id)
 	if err != nil {
 		return nil, errors.New("internship position not found")
 	}
-	s.redis.SetJSON(cacheKey, internship, 5*time.Minute)
 
-	return internship, nil
+	var photosStr *string
+	if len(internship.CompanyProfile.Photos) > 0 {
+		if internship.CompanyProfile.Photos[0].PhotoURL != "" {
+			photosStr = &internship.CompanyProfile.Photos[0].PhotoURL
+		}
+	}
+
+	cleanInternship := &CleanInternshipResponse{
+		ID:               internship.ID.String(),
+		CompanyProfileID: internship.CompanyProfileID.String(),
+		Title:            internship.Title,
+		Description:      internship.Description,
+		Type:             string(internship.Type),
+		PostedAt:         internship.PostedAt,
+		Deadline:         internship.Deadline,
+		CompanyProfile: CleanCompanyProfileResponse{
+			ID:              internship.CompanyProfile.ID.String(),
+			CompanyName:     internship.CompanyProfile.CompanyName,
+			CompanyLogo:     internship.CompanyProfile.CompanyLogo,
+			CompanyLocation: internship.CompanyProfile.CompanyLocation,
+			Description:     internship.CompanyProfile.Description,
+			Photos:          photosStr,
+		},
+	}
+
+	s.redis.SetJSON(cacheKey, cleanInternship, 5*time.Minute)
+
+	return cleanInternship, nil
 }
 
 func (s *AdminPklService) UpdateInternshipPosition(id uuid.UUID, req *UpdateInternshipRequest) error {

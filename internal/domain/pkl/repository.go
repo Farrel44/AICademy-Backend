@@ -108,6 +108,8 @@ func (r *PklRepository) GetSubmissionsByInternshipID(internshipID uuid.UUID) ([]
 	var submissions []InternshipApplication
 	err := r.db.Preload("StudentProfile").
 		Preload("StudentProfile.User").
+		Preload("AlumniProfile").
+		Preload("AlumniProfile.User").
 		Preload("Internship").
 		Preload("Internship.CompanyProfile").
 		Preload("Internship.CompanyProfile.User").
@@ -125,6 +127,8 @@ func (r *PklRepository) GetInternshipsWithSubmissionsByCompanyID(companyID uuid.
 		Preload("InternshipApplications").
 		Preload("InternshipApplications.StudentProfile").
 		Preload("InternshipApplications.StudentProfile.User").
+		Preload("InternshipApplications.AlumniProfile").
+		Preload("InternshipApplications.AlumniProfile.User").
 		Preload("InternshipApplications.ApprovedByUser").
 		Where("company_profile_id = ?", companyID).
 		Order("posted_at DESC").
@@ -136,6 +140,8 @@ func (r *PklRepository) GetSubmissionByID(submissionID uuid.UUID) (*InternshipAp
 	var submission InternshipApplication
 	err := r.db.Preload("StudentProfile").
 		Preload("StudentProfile.User").
+		Preload("AlumniProfile").
+		Preload("AlumniProfile.User").
 		Preload("Internship").
 		Preload("Internship.CompanyProfile").
 		Preload("Internship.CompanyProfile.User").
@@ -168,7 +174,110 @@ func (r *PklRepository) GetUserSubmissionByInternshipID(internshipID uuid.UUID) 
 	var submissions []InternshipApplication
 	err := r.db.Preload("StudentProfile").
 		Preload("StudentProfile.User").
+		Preload("AlumniProfile").
+		Preload("AlumniProfile.User").
 		Where("internship_id = ?", internshipID).
 		Find(&submissions).Error
 	return submissions, err
+}
+
+// Alumni-specific methods
+func (r *PklRepository) GetAlumniUserByID(id uuid.UUID) (*user.User, error) {
+	var u user.User
+	err := r.db.
+		Preload("AlumniProfile").
+		First(&u, "id = ?", id).Error
+	if err != nil {
+		fmt.Printf("err %s", err)
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *PklRepository) HasExistingAlumniApplication(internshipID, alumniProfileID uuid.UUID) (bool, error) {
+	var count int64
+	if err := r.db.Model(&InternshipApplication{}).
+		Where("internship_id = ? AND alumni_profile_id = ?", internshipID, alumniProfileID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *PklRepository) GetAlumniInternships(offset, limit int, search string) ([]Internship, int64, error) {
+	var internships []Internship
+	var total int64
+
+	query := r.db.Preload("CompanyProfile").
+		Preload("CompanyProfile.User").
+		Model(&Internship{}).
+		Where("type IN (?)", []InternshipType{InternshipTypeJob, InternshipTypeFreelance})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("posted_at DESC").Find(&internships).Error
+	return internships, total, err
+}
+
+func (r *PklRepository) GetAlumniApplicationsByProfileID(alumniProfileID uuid.UUID, offset, limit int) ([]InternshipApplication, int64, error) {
+	var applications []InternshipApplication
+	var total int64
+
+	query := r.db.Preload("Internship").
+		Preload("Internship.CompanyProfile").
+		Preload("Internship.CompanyProfile.User").
+		Preload("AlumniProfile").
+		Preload("AlumniProfile.User").
+		Preload("ApprovedByUser").
+		Model(&InternshipApplication{}).
+		Where("alumni_profile_id = ?", alumniProfileID)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("applied_at DESC").Find(&applications).Error
+	return applications, total, err
+}
+
+// Company-specific methods
+func (r *PklRepository) GetCompanyUserByID(id uuid.UUID) (*user.User, error) {
+	var u user.User
+	err := r.db.
+		Preload("CompanyProfile").
+		First(&u, "id = ?", id).Error
+	if err != nil {
+		fmt.Printf("err %s", err)
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *PklRepository) GetInternshipsByCompanyID(companyProfileID uuid.UUID, offset, limit int, search string) ([]Internship, int64, error) {
+	var internships []Internship
+	var total int64
+
+	query := r.db.Preload("CompanyProfile").
+		Preload("CompanyProfile.User").
+		Model(&Internship{}).
+		Where("company_profile_id = ?", companyProfileID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("posted_at DESC").Find(&internships).Error
+	return internships, total, err
 }

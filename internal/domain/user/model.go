@@ -28,6 +28,9 @@ type User struct {
 	UpdatedAt          time.Time  `json:"updated_at"`
 
 	StudentProfile *StudentProfile `gorm:"foreignKey:UserID;references:ID" json:"student_profile,omitempty"`
+	AlumniProfile  *AlumniProfile  `gorm:"foreignKey:UserID;references:ID" json:"alumni_profile,omitempty"`
+	CompanyProfile *CompanyProfile `gorm:"foreignKey:UserID;references:ID" json:"company_profile,omitempty"`
+	TeacherProfile *TeacherProfile `gorm:"foreignKey:UserID;references:ID" json:"teacher_profile,omitempty"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {

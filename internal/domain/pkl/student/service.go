@@ -85,7 +85,7 @@ func (s *StudentPklService) ApplyStudentInternshipPosition(c *fiber.Ctx, interns
 
 	app := &pkl.InternshipApplication{
 		InternshipID:     internship.ID,
-		StudentProfileID: user.StudentProfile.ID,
+		StudentProfileID: &user.StudentProfile.ID,
 		AppliedAt:        time.Now(),
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),

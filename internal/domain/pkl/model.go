@@ -48,7 +48,8 @@ type Internship struct {
 type InternshipApplication struct {
 	ID               uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
 	InternshipID     uuid.UUID         `gorm:"type:uuid;not null" json:"internship_id"`
-	StudentProfileID uuid.UUID         `gorm:"type:uuid;not null" json:"student_profile_id"`
+	StudentProfileID *uuid.UUID        `gorm:"type:uuid" json:"student_profile_id"` // nullable for alumni
+	AlumniProfileID  *uuid.UUID        `gorm:"type:uuid" json:"alumni_profile_id"`  // nullable for students
 	Status           ApplicationStatus `gorm:"type:varchar(30);default:'pending'" json:"status"`
 	AppliedAt        time.Time         `gorm:"autoCreateTime" json:"applied_at"`
 	ReviewedAt       *time.Time        `json:"reviewed_at"`
@@ -61,6 +62,7 @@ type InternshipApplication struct {
 
 	Internship     *Internship          `gorm:"foreignKey:InternshipID" json:"internship,omitempty"`
 	StudentProfile *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
+	AlumniProfile  *user.AlumniProfile  `gorm:"foreignKey:AlumniProfileID" json:"alumni_profile,omitempty"`
 	ApprovedByUser *user.User           `gorm:"foreignKey:ApprovedByUserID;references:ID" json:"approved_by_user,omitempty"`
 }
 

@@ -102,3 +102,29 @@ func StudentRequired() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AlumniRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleAlumni {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Alumni access required",
+			})
+		}
+		return c.Next()
+	}
+}
+
+func CompanyRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleCompany {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Company access required",
+			})
+		}
+		return c.Next()
+	}
+}
