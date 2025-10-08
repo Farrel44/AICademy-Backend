@@ -44,19 +44,14 @@ func (s *AdminUserService) CheckRateLimit(userID string, limit int, window time.
 	return allowed, remaining, resetTime, nil
 }
 
-// ========== STUDENT METHODS WITH CACHING ==========
-
 func (s *AdminUserService) GetStudents(page, limit int, search string) (*PaginatedStudentsResponse, error) {
-	// Cache key dengan parameters
 	cacheKey := fmt.Sprintf("students:page:%d:limit:%d:search:%s", page, limit, search)
 
-	// Try cache first
 	var cachedResult PaginatedStudentsResponse
 	if err := s.redis.GetJSON(cacheKey, &cachedResult); err == nil {
 		return &cachedResult, nil
 	}
 
-	// Cache miss - query database
 	offset := (page - 1) * limit
 	students, total, err := s.repo.GetStudents(offset, limit, search)
 	if err != nil {
@@ -97,10 +92,8 @@ func (s *AdminUserService) GetStudents(page, limit int, search string) (*Paginat
 }
 
 func (s *AdminUserService) GetStudentByID(id uuid.UUID) (*StudentResponse, error) {
-	// Cache key for individual student
 	cacheKey := fmt.Sprintf("student:%s", id.String())
 
-	// Try cache first
 	var cachedStudent StudentResponse
 	if err := s.redis.GetJSON(cacheKey, &cachedStudent); err == nil {
 		return &cachedStudent, nil

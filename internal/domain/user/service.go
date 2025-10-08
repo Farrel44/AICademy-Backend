@@ -2,9 +2,9 @@ package user
 
 import (
 	"errors"
-	"os"
-	"strings"
+	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -27,48 +27,49 @@ func NewUserService(repo *UserRepository) *UserService {
 	}
 }
 
-func (s *UserService) validateToken(tokenString string) (*Claims, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		return nil, errors.New("JWT_SECRET not found in environment")
-	}
-
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	})
-
+func (s *UserService) GetUserByToken(c *fiber.Ctx) (*User, error) {
+	userId, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to get user id")
 	}
-
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
-}
-
-func (s *UserService) GetUserFromToken(c *fiber.Ctx) (*User, error) {
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return nil, errors.New("authorization header is required")
-	}
-
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return nil, errors.New("authorization header format must be Bearer {token}")
-	}
-
-	tokenString := parts[1]
-
-	claims, err := s.validateToken(tokenString)
+	user, err := s.repo.GetUserByID(userId)
 	if err != nil {
-		return nil, errors.New("invalid token")
-	}
-
-	user, err := s.repo.GetUserByID(claims.UserID)
-	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New("failed to get user data")
 	}
 	return user, nil
+}
+
+func (s *UserService) UpdateUserProfile(c *fiber.Ctx, req *UpdateStudentRequest) (*StudentProfile, error) {
+	userId, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return nil, errors.New("error getting user id")
+	}
+	user, _ := s.repo.GetUserByID(userId)
+	if user == nil {
+		return nil, errors.New("Failed to fetch current user data")
+	}
+	if req.Bio != nil {
+		user.StudentProfile.Bio = *req.Bio
+	}
+
+	if req.CvFile != nil {
+		user.StudentProfile.CVFile = *&req.CvFile
+	}
+
+	if req.Headline != nil {
+		user.StudentProfile.Headline = *req.Headline
+	}
+
+	if req.ProfilePicture != nil {
+		user.StudentProfile.ProfilePicture = *req.ProfilePicture
+	}
+
+	user.StudentProfile.UpdatedAt = time.Now()
+
+	err = s.repo.UpdateStudentProfile(user.StudentProfile)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
+
+	return user.StudentProfile, nil
 }

@@ -12,6 +12,11 @@ import (
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
+	pklAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/alumni"
+	pklCompany "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/company"
+	pklStudent "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/student"
+	pklTeacher "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/teacher"
+
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
 	studentQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/student"
@@ -116,6 +121,22 @@ func main() {
 	userService := user.NewUserService(userRepo)
 	userHandler := user.NewUserHandler(userService)
 
+	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
+	pklStudentService := pklStudent.NewStudentPklService(pklStudentRepo, rdb)
+	pklStudentHandler := pklStudent.NewStudentPklHandler(pklStudentService)
+
+	pklAlumniRepo := pkl.NewPklRepository(db, rdb.Client)
+	pklAlumniService := pklAlumni.NewAlumniPklService(pklAlumniRepo, rdb)
+	pklAlumniHandler := pklAlumni.NewAlumniPklHandler(pklAlumniService)
+
+	pklCompanyRepo := pkl.NewPklRepository(db, rdb.Client)
+	pklCompanyService := pklCompany.NewCompanyPklService(pklCompanyRepo, rdb)
+	pklCompanyHandler := pklCompany.NewCompanyPklHandler(pklCompanyService)
+
+	pklTeacherRepo := pkl.NewPklRepository(db, rdb.Client)
+	pklTeacherService := pklTeacher.NewTeacherPklService(pklTeacherRepo, rdb)
+	pklTeacherHandler := pklTeacher.NewTeacherPklHandler(pklTeacherService)
+
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
@@ -165,7 +186,6 @@ func main() {
 	protectedAuth := authRoutes.Group("/protected", middleware.AuthRequired())
 	protectedAuth.Post("/change-password", commonAuthHandler.ChangePassword)
 	protectedAuth.Post("/logout", commonAuthHandler.Logout)
-	protectedAuth.Get("/me", userHandler.GetUserByToken)
 	// Student auth
 	studentAuth := authRoutes.Group("/student", middleware.AuthRequired())
 	studentAuth.Post("/change-default-password", studentAuthHandler.ChangeDefaultPassword)
@@ -210,6 +230,7 @@ func main() {
 	adminAuth.Get("/questionnaires", adminQuestionnaireHandler.GetQuestionnaires)
 	adminAuth.Get("/responses", adminQuestionnaireHandler.GetQuestionnaireResponses)
 	adminAuth.Get("/responses/:id", adminQuestionnaireHandler.GetResponseDetail)
+
 	// Parameterized routes must be last
 	adminAuth.Put("/questionnaires/:id/activate", adminQuestionnaireHandler.ActivateQuestionnaire)
 	adminAuth.Get("/questionnaires/:id", adminQuestionnaireHandler.GetQuestionnaireDetail)
@@ -220,6 +241,12 @@ func main() {
 	adminAuth.Get("/users/internships/:id", pklAdminHandler.GetInternshipByID)
 	adminAuth.Put("/users/internships/:id", pklAdminHandler.UpdateInternshipPosition)
 	adminAuth.Delete("/users/internships/:id", pklAdminHandler.DeleteInternshipPosition)
+
+	// Submission routes
+	adminAuth.Get("/internship/:id/submissions", pklAdminHandler.GetSubmissionsByInternshipID)
+	adminAuth.Get("/company/:id/internships-with-submissions", pklAdminHandler.GetInternshipsWithSubmissionsByCompanyID)
+	adminAuth.Get("/submission/:id", pklAdminHandler.GetSubmissionByID)
+	adminAuth.Put("/submission/:id/status", pklAdminHandler.UpdateSubmissionStatus)
 
 	// Admin Roadmap Routes
 	adminAuth.Get("/roadmaps/statistics", adminRoadmapHandler.GetStatistics)
@@ -240,6 +267,12 @@ func main() {
 	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
 	teacherAuth.Post("/roadmaps/submissions/:submissionId/review", teacherHandler.ReviewSubmission)
 
+	teacherAuth.Get("/internships", pklTeacherHandler.GetAllInternships)
+	teacherAuth.Get("/internship/:id/submissions", pklTeacherHandler.GetSubmissionsByInternshipID)
+	teacherAuth.Get("/company/:id/internships-with-submissions", pklTeacherHandler.GetInternshipsWithSubmissionsByCompanyID)
+	teacherAuth.Get("/submission/:id", pklTeacherHandler.GetSubmissionByID)
+	teacherAuth.Put("/submission/:id/status", pklTeacherHandler.UpdateSubmissionStatus)
+
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
 	studentRoutes.Get("/questionnaire/active", studentQuestionnaireHandler.GetActiveQuestionnaire)
@@ -256,6 +289,33 @@ func main() {
 	studentRoutes.Post("/roadmaps/steps/submit", studentRoadmapHandler.SubmitEvidence)
 	studentRoutes.Get("/roadmaps/my-progress", studentRoadmapHandler.GetMyProgress)
 
+	studentRoutes.Get("/me", userHandler.GetUserByToken)
+	studentRoutes.Put("/profile", userHandler.UpdateUserProfile)
+
+	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
+
+	studentRoutes.Get("/users/internships", pklAdminHandler.GetInternshipPositions)
+	studentRoutes.Get("/users/internships/:id", pklAdminHandler.GetInternshipByID)
+
+	// Alumni Routes
+	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())
+	alumniRoutes.Get("/internships", pklAlumniHandler.GetAvailablePositions)
+	alumniRoutes.Post("/internship/apply", pklAlumniHandler.ApplyPklPosition)
+	alumniRoutes.Get("/applications", pklAlumniHandler.GetMyApplications)
+	alumniRoutes.Get("/applications/:id", pklAlumniHandler.GetApplicationByID)
+	alumniRoutes.Get("/me", userHandler.GetUserByToken)
+	alumniRoutes.Put("/profile", userHandler.UpdateUserProfile)
+
+	// Company Routes
+	companyRoutes := api.Group("/company", middleware.AuthRequired(), middleware.CompanyRequired())
+	companyRoutes.Get("/internships", pklCompanyHandler.GetMyInternships)
+	companyRoutes.Post("/internships", pklCompanyHandler.CreateInternship)
+	companyRoutes.Put("/internships/:id", pklCompanyHandler.UpdateInternship)
+	companyRoutes.Delete("/internships/:id", pklCompanyHandler.DeleteInternship)
+	companyRoutes.Get("/internships/:id/applications", pklCompanyHandler.GetInternshipApplications)
+	companyRoutes.Put("/applications/:id/status", pklCompanyHandler.UpdateApplicationStatus)
+	companyRoutes.Get("/me", userHandler.GetUserByToken)
+	companyRoutes.Put("/profile", userHandler.UpdateUserProfile)
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8000"

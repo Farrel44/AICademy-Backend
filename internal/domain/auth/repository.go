@@ -383,3 +383,19 @@ func (r *AuthRepository) GetLatestQuestionnaireResponseByStudentProfile(studentP
 
 	return roleID, response.RoleName, nil
 }
+
+func (r *AuthRepository) CreateCompanyPhotos(photos []user.CompanyPhoto) error {
+	if len(photos) == 0 {
+		return nil
+	}
+	return r.db.Create(&photos).Error
+}
+
+func (r *AuthRepository) GetCompanyWithPhotos(id uuid.UUID) (*user.CompanyProfile, error) {
+	var company user.CompanyProfile
+	err := r.db.Preload("User").
+		Preload("Photos").
+		Where("id = ?", id).
+		First(&company).Error
+	return &company, err
+}
