@@ -1,11 +1,15 @@
 package auth
 
-import "github.com/google/uuid"
+import (
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+
+	"github.com/google/uuid"
+)
 
 type RegisterAlumniRequest struct {
 	Fullname string `json:"fullname" validate:"required,min=2"`
 	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	Password string `json:"password" validate:"required,min=8"`
 }
 
 type CreateTeacherRequest struct {
@@ -22,12 +26,30 @@ type CreateStudentRequest struct {
 }
 
 type CreateCompanyRequest struct {
-	CompanyName     string  `json:"company_name" validate:"required,min=2"`
-	Email           string  `json:"email" validate:"required,email"`
-	Password        string  `json:"password" validate:"required,min=8"`
-	CompanyLogo     *string `json:"company_logo"`
-	CompanyLocation *string `json:"company_location"`
-	Description     *string `json:"description"`
+	CompanyName     string   `json:"company_name" validate:"required,min=2"`
+	Email           string   `json:"email" validate:"required,email"`
+	Password        string   `json:"password" validate:"required,min=8"`
+	CompanyLogo     *string  `json:"company_logo"`
+	CompanyLocation *string  `json:"company_location"`
+	Description     *string  `json:"description"`
+	Photos          []string `json:"photos,omitempty"` // Array of photo URLs
+}
+
+// Add this struct for individual photo data with description
+type CompanyPhotoRequest struct {
+	PhotoURL    string  `json:"photo_url" validate:"required"`
+	Description *string `json:"description,omitempty"`
+}
+
+// Alternative structure if you want to include descriptions
+type CreateCompanyWithPhotosRequest struct {
+	CompanyName     string                `json:"company_name" validate:"required,min=2"`
+	Email           string                `json:"email" validate:"required,email"`
+	Password        string                `json:"password" validate:"required,min=8"`
+	CompanyLogo     *string               `json:"company_logo"`
+	CompanyLocation *string               `json:"company_location"`
+	Description     *string               `json:"description"`
+	Photos          []CompanyPhotoRequest `json:"photos,omitempty"` // Array of photos with descriptions
 }
 
 type StudentCSVRow struct {
@@ -44,7 +66,7 @@ type LoginRequest struct {
 
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" validate:"required"`
-	NewPassword     string `json:"new_password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	NewPassword     string `json:"new_password" validate:"required,min=8"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }
 
@@ -53,7 +75,7 @@ type ForgotPasswordRequest struct {
 }
 
 type ResetPasswordRequest struct {
-	Password        string `json:"password" validate:"required,min=8,regexp=^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]"`
+	Password        string `json:"password" validate:"required,min=8"`
 	PasswordConfirm string `json:"passwordConfirm" validate:"required"`
 }
 
@@ -82,4 +104,11 @@ type ErrorResponse struct {
 	Success bool              `json:"success"`
 	Error   string            `json:"error"`
 	Details []ValidationError `json:"details,omitempty"`
+}
+
+type StudentData struct {
+	TotalStudent    int                   `json:"total_student"`
+	TotalStudentIt  int                   `json:"total_student_it"`
+	TotalStudentNet int                   `json:"total_student_network"`
+	Students        []user.StudentProfile `json:"students"`
 }

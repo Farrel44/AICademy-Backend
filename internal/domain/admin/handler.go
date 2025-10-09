@@ -1,0 +1,374 @@
+package admin
+
+import (
+	"strconv"
+
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+)
+
+type AdminUserHandler struct {
+	service *AdminUserService
+}
+
+func NewAdminUserHandler(service *AdminUserService) *AdminUserHandler {
+	return &AdminUserHandler{service: service}
+}
+
+func (h *AdminUserHandler) GetStudents(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	result, err := h.service.GetStudents(page, limit, search)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data siswa berhasil diambil",
+		Data:    result.Data,
+	})
+}
+
+func (h *AdminUserHandler) GetStatistics(c *fiber.Ctx) error {
+	stats, err := h.service.GetStatistics()
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Statistik siswa berhasil diambil", stats)
+}
+
+func (h *AdminUserHandler) GetStudentByID(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
+	}
+
+	result, err := h.service.GetStudentByID(id)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusNotFound, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data siswa berhasil diambil", result)
+}
+
+func (h *AdminUserHandler) UpdateStudent(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
+	}
+
+	var req UpdateStudentRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	student, err := h.service.UpdateStudent(id, &req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data siswa berhasil diperbarui", student)
+}
+
+func (h *AdminUserHandler) DeleteStudent(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID siswa tidak valid")
+	}
+
+	if err := h.service.DeleteStudent(id); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data siswa berhasil dihapus", nil)
+}
+
+// Teacher handlers
+func (h *AdminUserHandler) GetTeachers(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	result, err := h.service.GetTeachers(page, limit, search)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data guru berhasil diambil",
+		Data:    result.Data,
+	})
+}
+
+func (h *AdminUserHandler) GetTeacherByID(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
+	}
+
+	result, err := h.service.GetTeacherByID(id)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusNotFound, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data guru berhasil diambil", result)
+}
+
+func (h *AdminUserHandler) CreateTeacher(c *fiber.Ctx) error {
+	var req CreateTeacherRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	teacher, err := h.service.CreateTeacher(&req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data guru berhasil dibuat", teacher)
+}
+
+func (h *AdminUserHandler) UpdateTeacher(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
+	}
+
+	var req UpdateTeacherRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	teacher, err := h.service.UpdateTeacher(id, &req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data guru berhasil diperbarui", teacher)
+}
+
+func (h *AdminUserHandler) DeleteTeacher(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID guru tidak valid")
+	}
+
+	if err := h.service.DeleteTeacher(id); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data guru berhasil dihapus", nil)
+}
+
+// Company handlers
+func (h *AdminUserHandler) GetCompanies(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	result, err := h.service.GetCompanies(page, limit, search)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data perusahaan berhasil diambil",
+		Data:    result.Data,
+	})
+}
+
+func (h *AdminUserHandler) GetCompanyByID(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
+	}
+
+	result, err := h.service.GetCompanyByID(id)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusNotFound, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data perusahaan berhasil diambil", result)
+}
+
+func (h *AdminUserHandler) CreateCompany(c *fiber.Ctx) error {
+	var req CreateCompanyRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	company, err := h.service.CreateCompany(&req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data perusahaan berhasil dibuat", company)
+}
+
+func (h *AdminUserHandler) UpdateCompany(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
+	}
+
+	var req UpdateCompanyRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	company, err := h.service.UpdateCompany(id, &req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data perusahaan berhasil diperbarui", company)
+}
+
+func (h *AdminUserHandler) DeleteCompany(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID perusahaan tidak valid")
+	}
+
+	if err := h.service.DeleteCompany(id); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data perusahaan berhasil dihapus", nil)
+}
+
+// Alumni handlers
+func (h *AdminUserHandler) GetAlumni(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	result, err := h.service.GetAlumni(page, limit, search)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(utils.Response{
+		Success: true,
+		Message: "Data alumni berhasil diambil",
+		Data:    result.Data,
+	})
+}
+
+func (h *AdminUserHandler) GetAlumniByID(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
+	}
+
+	result, err := h.service.GetAlumniByID(id)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusNotFound, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data alumni berhasil diambil", result)
+}
+
+func (h *AdminUserHandler) UpdateAlumni(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
+	}
+
+	var req UpdateAlumniRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	alumni, err := h.service.UpdateAlumni(id, &req)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data alumni berhasil diperbarui", alumni)
+}
+
+func (h *AdminUserHandler) DeleteAlumni(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID alumni tidak valid")
+	}
+
+	if err := h.service.DeleteAlumni(id); err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.SendSuccess(c, "Data alumni berhasil dihapus", nil)
+}

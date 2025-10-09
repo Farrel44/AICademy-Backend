@@ -17,15 +17,19 @@ const (
 )
 
 type ProfilingQuestionnaire struct {
-	ID              uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	Name            string    `gorm:"not null"`
-	ProfilingRoleID *uuid.UUID
-	Version         int    `gorm:"default:1"`
-	Active          bool   `gorm:"default:false"`
-	GeneratedBy     string `gorm:"default:'manual'"`
-	AIPromptUsed    *string
-	CreatedAt       time.Time `gorm:"autoCreateTime"`
-	UpdatedAt       time.Time `gorm:"autoUpdateTime"`
+	ID                  uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	Name                string    `gorm:"not null"`
+	ProfilingRoleID     *uuid.UUID
+	Version             int    `gorm:"default:1"`
+	Active              bool   `gorm:"default:false"`
+	GeneratedBy         string `gorm:"default:'manual'"`
+	AIPromptUsed        *string
+	GenerationStatus    string `gorm:"default:'draft'"`
+	GenerationProgress  int    `gorm:"default:0"`
+	GenerationMessage   string `gorm:"default:''"`
+	GenerationUpdatedAt *time.Time
+	CreatedAt           time.Time `gorm:"autoCreateTime"`
+	UpdatedAt           time.Time `gorm:"autoUpdateTime"`
 
 	Questions []QuestionnaireQuestion `gorm:"foreignKey:QuestionnaireID"`
 }
@@ -101,19 +105,20 @@ func (q *QuestionGenerationTemplate) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type RoleRecommendation struct {
+// TargetRole represents available target roles for questionnaire generation
+type TargetRole struct {
 	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	RoleName    string    `gorm:"not null;unique"`
+	Name        string    `gorm:"not null;uniqueIndex"`
 	Description string    `gorm:"not null"`
-	Category    string    `gorm:"not null"`
+	Category    string    `gorm:"not null"` // e.g., "Technology", "Business", "Creative"
 	Active      bool      `gorm:"default:true"`
 	CreatedAt   time.Time `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
 }
 
-func (r *RoleRecommendation) BeforeCreate(tx *gorm.DB) error {
-	if r.ID == uuid.Nil {
-		r.ID = uuid.New()
+func (t *TargetRole) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
 	}
 	return nil
 }

@@ -2,10 +2,11 @@
 package middleware
 
 import (
-	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"net/http"
 	"strings"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -48,7 +49,6 @@ func AuthRequired() fiber.Handler {
 			})
 		}
 
-		// Set user claims sebagai struct
 		userClaims := &UserClaims{
 			UserID: claims.UserID,
 			Email:  claims.Email,
@@ -58,7 +58,7 @@ func AuthRequired() fiber.Handler {
 		c.Locals("user", userClaims)
 		c.Locals("user_id", claims.UserID.String())
 		c.Locals("user_email", claims.Email)
-		c.Locals("user_role", claims.Role)
+		c.Locals("user_role", user.UserRole(claims.Role))
 
 		return c.Next()
 	}
@@ -84,6 +84,45 @@ func TeacherOrAdminRequired() fiber.Handler {
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Teacher or Admin access required",
+			})
+		}
+		return c.Next()
+	}
+}
+
+func StudentRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleStudent {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Student access required",
+			})
+		}
+		return c.Next()
+	}
+}
+
+func AlumniRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleAlumni {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Alumni access required",
+			})
+		}
+		return c.Next()
+	}
+}
+
+func CompanyRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("user_role")
+		if role != user.RoleCompany {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Company access required",
 			})
 		}
 		return c.Next()

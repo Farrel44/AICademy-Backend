@@ -1,13 +1,14 @@
 package auth
 
 import (
-	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
-	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/google/uuid"
 )
@@ -213,6 +214,88 @@ func (s *AuthService) CreateCompany(req CreateCompanyRequest) error {
 	err = s.repo.CreateCompanyProfile(companyProfile)
 	if err != nil {
 		return errors.New("failed to create company profile")
+	}
+
+	// Create company photos if provided
+	if len(req.Photos) > 0 {
+		var photos []user.CompanyPhoto
+		for _, photoURL := range req.Photos {
+			if photoURL != "" { // Only add non-empty URLs
+				photo := user.CompanyPhoto{
+					CompanyID: companyProfile.ID,
+					PhotoURL:  photoURL,
+				}
+				photos = append(photos, photo)
+			}
+		}
+
+		if len(photos) > 0 {
+			err = s.repo.CreateCompanyPhotos(photos)
+			if err != nil {
+				return errors.New("failed to create company photos")
+			}
+		}
+	}
+
+	return nil
+}
+
+// Add this method for the alternative structure with descriptions
+func (s *AuthService) CreateCompanyWithPhotos(req CreateCompanyWithPhotosRequest) error {
+	existingUser, _ := s.repo.GetUserByEmail(strings.ToLower(req.Email))
+	if existingUser != nil {
+		return errors.New("user with this email already exists")
+	}
+
+	hashedPassword, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	newUser := &user.User{
+		Email:        strings.ToLower(req.Email),
+		PasswordHash: hashedPassword,
+		Role:         user.RoleCompany,
+	}
+
+	err = s.repo.CreateUser(newUser)
+	if err != nil {
+		return errors.New("failed to create user")
+	}
+
+	companyProfile := &user.CompanyProfile{
+		UserID:          newUser.ID,
+		CompanyName:     req.CompanyName,
+		CompanyLogo:     req.CompanyLogo,
+		CompanyLocation: req.CompanyLocation,
+		Description:     req.Description,
+	}
+
+	err = s.repo.CreateCompanyProfile(companyProfile)
+	if err != nil {
+		return errors.New("failed to create company profile")
+	}
+
+	// Create company photos with descriptions if provided
+	if len(req.Photos) > 0 {
+		var photos []user.CompanyPhoto
+		for _, photoReq := range req.Photos {
+			if photoReq.PhotoURL != "" { // Only add non-empty URLs
+				photo := user.CompanyPhoto{
+					CompanyID:   companyProfile.ID,
+					PhotoURL:    photoReq.PhotoURL,
+					Description: photoReq.Description,
+				}
+				photos = append(photos, photo)
+			}
+		}
+
+		if len(photos) > 0 {
+			err = s.repo.CreateCompanyPhotos(photos)
+			if err != nil {
+				return errors.New("failed to create company photos")
+			}
+		}
 	}
 
 	return nil

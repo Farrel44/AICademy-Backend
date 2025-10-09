@@ -3,6 +3,7 @@ package utils
 import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type Response struct {
@@ -15,6 +16,43 @@ type Response struct {
 type ValidationErrorDetail struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
+}
+
+// SendSuccess sends a success response
+func SendSuccess(c *fiber.Ctx, message string, data interface{}) error {
+	return c.JSON(Response{
+		Success: true,
+		Message: message,
+		Data:    data,
+	})
+}
+
+// SendError sends an error response
+func SendError(c *fiber.Ctx, statusCode int, message string) error {
+	return c.Status(statusCode).JSON(Response{
+		Success: false,
+		Error:   message,
+	})
+}
+
+// GetUserIDFromToken extracts user ID from JWT token stored in context
+func GetUserIDFromToken(c *fiber.Ctx) (uuid.UUID, error) {
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "User ID not found in token")
+	}
+	
+	userIDString, ok := userIDStr.(string)
+	if !ok {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID format")
+	}
+	
+	userID, err := uuid.Parse(userIDString)
+	if err != nil {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID")
+	}
+	
+	return userID, nil
 }
 
 func SuccessResponse(c *fiber.Ctx, data interface{}, message string) error {

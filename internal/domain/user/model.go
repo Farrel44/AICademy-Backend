@@ -26,6 +26,11 @@ type User struct {
 	PasswordResetAt    *time.Time `gorm:"column:password_reset_at" json:"-"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
+
+	StudentProfile *StudentProfile `gorm:"foreignKey:UserID;references:ID" json:"student_profile,omitempty"`
+	AlumniProfile  *AlumniProfile  `gorm:"foreignKey:UserID;references:ID" json:"alumni_profile,omitempty"`
+	CompanyProfile *CompanyProfile `gorm:"foreignKey:UserID;references:ID" json:"company_profile,omitempty"`
+	TeacherProfile *TeacherProfile `gorm:"foreignKey:UserID;references:ID" json:"teacher_profile,omitempty"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
@@ -33,6 +38,19 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 		u.ID = uuid.New()
 	}
 	return nil
+}
+
+// Add these methods to implement JWTUser interface
+func (u *User) GetID() uuid.UUID {
+	return u.ID
+}
+
+func (u *User) GetEmail() string {
+	return u.Email
+}
+
+func (u *User) GetRole() string {
+	return string(u.Role)
 }
 
 type ResetPasswordToken struct {
@@ -113,6 +131,20 @@ type CompanyProfile struct {
 	CompanyLocation *string   `json:"company_location"`
 	Description     *string   `json:"description"`
 	CreatedAt       time.Time `json:"created_at"`
+
+	Photos []CompanyPhoto `gorm:"foreignKey:CompanyID;constraint:OnDelete:CASCADE" json:"photos"`
+}
+
+type CompanyPhoto struct {
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	CompanyID   uuid.UUID `gorm:"type:uuid;not null;index" json:"company_id"`
+	PhotoURL    string    `gorm:"not null" json:"photo_url"`
+	Description *string   `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (CompanyPhoto) TableName() string {
+	return "company_photos"
 }
 
 func (c *CompanyProfile) BeforeCreate(tx *gorm.DB) error {
@@ -131,4 +163,45 @@ func (r *ResetPasswordToken) IsValid() bool {
 func (r *ResetPasswordToken) MarkAsUsed() {
 	now := time.Now()
 	r.UsedAt = &now
+}
+
+// BlacklistedToken untuk menyimpan token JWT yang sudah di-logout
+type BlacklistedToken struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	TokenHash string    `gorm:"uniqueIndex;not null" json:"token_hash"` // Hash dari JWT token untuk security
+	UserID    uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	ExpiresAt time.Time `gorm:"not null" json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (b *BlacklistedToken) BeforeCreate(tx *gorm.DB) error {
+	if b.ID == uuid.Nil {
+		b.ID = uuid.New()
+	}
+	return nil
+}
+
+// RefreshToken untuk menyimpan refresh token yang valid
+type RefreshToken struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Token     string    `gorm:"uniqueIndex;not null" json:"token"`
+	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (r *RefreshToken) BeforeCreate(tx *gorm.DB) error {
+	if r.ID == uuid.Nil {
+		r.ID = uuid.New()
+	}
+	return nil
+}
+
+// Method untuk cek apakah refresh token masih valid
+func (r *RefreshToken) IsValid() bool {
+	return time.Now().Before(r.ExpiresAt)
 }
