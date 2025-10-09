@@ -103,19 +103,6 @@ func (r *RoadmapRepository) DeleteRoadmapStep(stepID uuid.UUID) error {
 	return r.db.Delete(&RoadmapStep{}, stepID).Error
 }
 
-func (r *RoadmapRepository) UpdateStepOrders(steps []RoadmapStep) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		for _, step := range steps {
-			if err := tx.Model(&RoadmapStep{}).
-				Where("id = ?", step.ID).
-				Update("step_order", step.StepOrder).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 func (r *RoadmapRepository) GetStudentRoadmapProgress(roadmapID, studentProfileID uuid.UUID) (*StudentRoadmapProgress, error) {
 	var progress StudentRoadmapProgress
 	err := r.db.Where("roadmap_id = ? AND student_profile_id = ?", roadmapID, studentProfileID).
@@ -444,6 +431,20 @@ func (r *RoadmapRepository) GetStudentRecommendedRole(studentProfileID uuid.UUID
 	}
 
 	return &roleID, nil
+}
+
+func (r *RoadmapRepository) GetNextStepOrder(roadmapID uuid.UUID) (int, error) {
+	var maxOrder int
+	err := r.db.Model(&RoadmapStep{}).
+		Where("roadmap_id = ?", roadmapID).
+		Select("COALESCE(MAX(step_order), 0)").
+		Scan(&maxOrder).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	return maxOrder + 1, nil
 }
 
 func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (interface{}, error) {

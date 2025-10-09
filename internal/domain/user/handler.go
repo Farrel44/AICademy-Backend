@@ -16,12 +16,25 @@ func NewUserHandler(service *UserService) *UserHandler {
 }
 
 func (h *UserHandler) GetUserByToken(c *fiber.Ctx) error {
-	user, err := h.service.GetUserByToken(c)
+	userId, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get user id")
 	}
 
-	return utils.SendSuccess(c, "Data siswa berhasil diambil", user)
+	user, err := h.service.repo.GetUserByID(userId)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get user data")
+	}
+
+	if user.Role == RoleStudent {
+		enhancedUser, err := h.service.GetStudentWithRecommendedRole(c)
+		if err != nil {
+			return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+		}
+		return utils.SendSuccess(c, "Data siswa berhasil diambil", enhancedUser)
+	}
+
+	return utils.SendSuccess(c, "Data user berhasil diambil", user)
 }
 
 func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {

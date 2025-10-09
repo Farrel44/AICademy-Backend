@@ -49,7 +49,6 @@ type FeatureRoadmap struct {
 	StudentProgress []StudentRoadmapProgress `json:"student_progress,omitempty" gorm:"foreignKey:RoadmapID"`
 }
 
-// RoadmapStep - Step dalam roadmap template
 type RoadmapStep struct {
 	ID          uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	RoadmapID   uuid.UUID `json:"roadmap_id" gorm:"type:uuid;not null"`
@@ -57,7 +56,6 @@ type RoadmapStep struct {
 	Title       string    `json:"title" gorm:"not null"`
 	Description string    `json:"description" gorm:"type:text;not null"`
 
-	// Learning objectives dan requirements
 	LearningObjectives   string  `json:"learning_objectives" gorm:"type:text;not null"`
 	SubmissionGuidelines string  `json:"submission_guidelines" gorm:"type:text;not null"`
 	ResourceLinks        *string `json:"resource_links" gorm:"type:text"`                   // JSON array of resources

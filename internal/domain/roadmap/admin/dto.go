@@ -58,7 +58,6 @@ type CreateStepRequest struct {
 	ResourceLinks        *string `json:"resource_links,omitempty"`
 	EstimatedDuration    int     `json:"estimated_duration" validate:"required,min=1,max=500"`
 	DifficultyLevel      string  `json:"difficulty_level" validate:"required,oneof=beginner intermediate advanced"`
-	StepOrder            int     `json:"step_order" validate:"required,min=1"`
 }
 
 type UpdateStepRequest struct {
@@ -184,16 +183,6 @@ type PaginatedSubmissionsResponse struct {
 	Page       int                         `json:"page"`
 	Limit      int                         `json:"limit"`
 	TotalPages int                         `json:"total_pages"`
-}
-
-// Bulk Operations DTOs
-type BulkStepOrderRequest struct {
-	Steps []StepOrderUpdate `json:"steps" validate:"required,dive"`
-}
-
-type StepOrderUpdate struct {
-	StepID uuid.UUID `json:"step_id" validate:"required"`
-	Order  int       `json:"order" validate:"required,min=1"`
 }
 
 type RoadmapStatistics struct {

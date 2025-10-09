@@ -150,6 +150,14 @@ func (s *AdminQuestionnaireService) GenerateQuestionnaire(req GenerateQuestionna
 		return nil, errors.New("failed to create questionnaire")
 	}
 
+	// Link all active target roles to the questionnaire
+	for _, role := range targetRoles {
+		err = s.repo.LinkQuestionnaireTargetRole(questionnaire.ID, role.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to link target role %s to questionnaire: %w", role.Name, err)
+		}
+	}
+
 	prompt := s.buildQuestionGenerationPrompt(req, targetRoleNames)
 
 	go s.processQuestionGeneration(questionnaire.ID, prompt, req)
@@ -171,12 +179,22 @@ func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int) (*Paginat
 
 	questionnaireResponses := make([]QuestionnaireListResponse, len(questionnaires))
 	for i, q := range questionnaires {
+		targetRoles, err := s.repo.GetTargetRolesByQuestionnaireID(q.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		targetRoleNames := make([]string, len(targetRoles))
+		for j, role := range targetRoles {
+			targetRoleNames[j] = role.Name
+		}
+
 		questionnaireResponses[i] = QuestionnaireListResponse{
 			ID:          q.ID,
 			Name:        q.Name,
-			Description: "", // Not available in ProfilingQuestionnaire model
+			Description: "",
 			Version:     fmt.Sprintf("v%d", q.Version),
-			TargetRoles: []TargetRoleResponse{}, // TODO: Load target roles if needed
+			TargetRoles: targetRoleNames,
 			Active:      q.Active,
 			CreatedAt:   q.CreatedAt,
 			UpdatedAt:   q.UpdatedAt,

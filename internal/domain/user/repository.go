@@ -37,6 +37,53 @@ func (r *UserRepository) GetUserByID(id uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
+func (r *UserRepository) GetStudentRecommendedRole(userID uuid.UUID) (*RecommendedRoleInfo, error) {
+	var result struct {
+		RoleID          *uuid.UUID `json:"role_id"`
+		RoleName        *string    `json:"role_name"`
+		RoleDescription *string    `json:"role_description"`
+		RoleCategory    *string    `json:"role_category"`
+		Score           *float64   `json:"score"`
+		Justification   *string    `json:"justification"`
+	}
+
+	err := r.db.Table("questionnaire_responses").
+		Select(`
+			target_roles.id as role_id,
+			target_roles.name as role_name,
+			target_roles.description as role_description,
+			target_roles.category as role_category,
+			questionnaire_responses.total_score::float as score,
+			questionnaire_responses.ai_analysis as justification
+		`).
+		Joins("LEFT JOIN target_roles ON target_roles.id::text = questionnaire_responses.recommended_profiling_role_id").
+		Joins("LEFT JOIN student_profiles ON student_profiles.id::text = questionnaire_responses.student_profile_id").
+		Where("student_profiles.user_id = ? AND questionnaire_responses.recommended_profiling_role_id IS NOT NULL AND questionnaire_responses.recommended_profiling_role_id != ''", userID).
+		Order("questionnaire_responses.created_at DESC").
+		Limit(1).
+		Scan(&result).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if result.RoleID == nil {
+		return nil, nil
+	}
+
+	return &RecommendedRoleInfo{
+		RoleID:          *result.RoleID,
+		RoleName:        *result.RoleName,
+		RoleDescription: *result.RoleDescription,
+		RoleCategory:    *result.RoleCategory,
+		Score:           result.Score,
+		Justification:   result.Justification,
+	}, nil
+}
+
 func (r *UserRepository) UpdateStudentProfile(student *StudentProfile) error {
 	return r.db.Save(student).Error
 }

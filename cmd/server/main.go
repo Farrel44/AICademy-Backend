@@ -427,7 +427,6 @@ func main() {
 	adminAuth.Post("/roadmaps/:roadmapId/steps", adminRoadmapHandler.CreateRoadmapStep)
 	adminAuth.Put("/roadmaps/steps/:stepId", adminRoadmapHandler.UpdateRoadmapStep)
 	adminAuth.Delete("/roadmaps/steps/:stepId", adminRoadmapHandler.DeleteRoadmapStep)
-	adminAuth.Put("/roadmaps/steps/reorder", adminRoadmapHandler.UpdateStepOrders)
 	adminAuth.Get("/roadmaps/:roadmapId/progress", adminRoadmapHandler.GetStudentProgress)
 
 	// Admin Challenge Routes

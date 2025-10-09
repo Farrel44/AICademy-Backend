@@ -121,9 +121,14 @@ func (s *AdminRoadmapService) CreateRoadmapStep(roadmapID uuid.UUID, req CreateS
 		return nil, errors.New("roadmap not found")
 	}
 
+	nextOrder, err := s.repo.GetNextStepOrder(roadmapID)
+	if err != nil {
+		return nil, errors.New("failed to determine step order")
+	}
+
 	newStep := &roadmap.RoadmapStep{
 		RoadmapID:            roadmapID,
-		StepOrder:            req.StepOrder,
+		StepOrder:            nextOrder,
 		Title:                req.Title,
 		Description:          req.Description,
 		LearningObjectives:   req.LearningObjectives,
@@ -201,18 +206,6 @@ func (s *AdminRoadmapService) DeleteRoadmapStep(stepID uuid.UUID) error {
 	}
 
 	return s.repo.DeleteRoadmapStep(stepID)
-}
-
-func (s *AdminRoadmapService) UpdateStepOrders(req BulkStepOrderRequest) error {
-	steps := make([]roadmap.RoadmapStep, len(req.Steps))
-	for i, stepUpdate := range req.Steps {
-		steps[i] = roadmap.RoadmapStep{
-			ID:        stepUpdate.StepID,
-			StepOrder: stepUpdate.Order,
-		}
-	}
-
-	return s.repo.UpdateStepOrders(steps)
 }
 
 func (s *AdminRoadmapService) GetAllStudentProgress(roadmapID uuid.UUID, page, limit int) (*PaginatedSubmissionsResponse, error) {

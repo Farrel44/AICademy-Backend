@@ -39,6 +39,53 @@ func (s *UserService) GetUserByToken(c *fiber.Ctx) (*User, error) {
 	return user, nil
 }
 
+func (s *UserService) GetStudentWithRecommendedRole(c *fiber.Ctx) (*EnhancedUserResponse, error) {
+	userId, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return nil, errors.New("failed to get user id")
+	}
+
+	user, err := s.repo.GetUserByID(userId)
+	if err != nil {
+		return nil, errors.New("failed to get user data")
+	}
+
+	response := &EnhancedUserResponse{
+		ID:        user.ID,
+		Email:     user.Email,
+		Role:      user.Role,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+
+	if user.StudentProfile != nil {
+		enhancedProfile := &EnhancedStudentProfile{
+			ID:             user.StudentProfile.ID,
+			UserID:         user.StudentProfile.UserID,
+			Fullname:       user.StudentProfile.Fullname,
+			NIS:            user.StudentProfile.NIS,
+			Class:          user.StudentProfile.Class,
+			ProfilePicture: user.StudentProfile.ProfilePicture,
+			Headline:       user.StudentProfile.Headline,
+			Bio:            user.StudentProfile.Bio,
+			CVFile:         user.StudentProfile.CVFile,
+			CreatedAt:      user.StudentProfile.CreatedAt,
+			UpdatedAt:      user.StudentProfile.UpdatedAt,
+		}
+
+		recommendedRole, err := s.repo.GetStudentRecommendedRole(userId)
+		if err != nil {
+			return nil, errors.New("failed to get recommended role")
+		}
+
+		enhancedProfile.RecommendedRole = recommendedRole
+
+		response.StudentProfile = enhancedProfile
+	}
+
+	return response, nil
+}
+
 func (s *UserService) UpdateUserProfile(c *fiber.Ctx, req *UpdateStudentRequest) (*StudentProfile, error) {
 	userId, err := utils.GetUserIDFromToken(c)
 	if err != nil {
@@ -53,7 +100,7 @@ func (s *UserService) UpdateUserProfile(c *fiber.Ctx, req *UpdateStudentRequest)
 	}
 
 	if req.CvFile != nil {
-		user.StudentProfile.CVFile = *&req.CvFile
+		user.StudentProfile.CVFile = req.CvFile
 	}
 
 	if req.Headline != nil {
