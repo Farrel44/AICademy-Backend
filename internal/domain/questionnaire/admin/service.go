@@ -8,6 +8,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/redis/go-redis/v9"
@@ -32,7 +33,7 @@ func NewAdminQuestionnaireService(repo *questionnaire.QuestionnaireRepository, a
 
 // Target Role CRUD Operations
 func (s *AdminQuestionnaireService) CreateTargetRole(req CreateTargetRoleRequest) (*TargetRoleResponse, error) {
-	targetRole := &questionnaire.TargetRole{
+	targetRole := &project.TargetRole{
 		ID:          uuid.New(),
 		Name:        req.Name,
 		Description: req.Description,
@@ -529,7 +530,7 @@ func (s *AdminQuestionnaireService) GetResponseDetail(id uuid.UUID) (*ResponseDe
 }
 
 // Helper methods
-func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *questionnaire.TargetRole) *TargetRoleResponse {
+func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *project.TargetRole) *TargetRoleResponse {
 	return &TargetRoleResponse{
 		ID:          role.ID,
 		Name:        role.Name,
@@ -690,7 +691,7 @@ func (s *AdminQuestionnaireService) getMaxScoreForType(questionType questionnair
 	}
 }
 
-func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.TargetRole, error) {
+func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]project.TargetRole, error) {
 	log.Printf("Getting all active target roles from database")
 
 	roles, _, err := s.repo.GetTargetRoles(0, 1000)
@@ -700,7 +701,7 @@ func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.T
 	}
 
 	// Filter only active roles
-	var activeRoles []questionnaire.TargetRole
+	var activeRoles []project.TargetRole
 	for _, role := range roles {
 		if role.Active {
 			activeRoles = append(activeRoles, role)

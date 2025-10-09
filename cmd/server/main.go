@@ -1,8 +1,12 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/Farrel44/AICademy-Backend/internal/config"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/admin"
@@ -16,6 +20,7 @@ import (
 	pklCompany "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/company"
 	pklStudent "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/student"
 	pklTeacher "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/teacher"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	adminQuestionnaire "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire/admin"
@@ -34,19 +39,162 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
+
+	challengeRepo "github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
+	adminChallenge "github.com/Farrel44/AICademy-Backend/internal/domain/challenge/admin"
+	studentChallenge "github.com/Farrel44/AICademy-Backend/internal/domain/challenge/student"
+	teacherChallenge "github.com/Farrel44/AICademy-Backend/internal/domain/challenge/teacher"
+)
+
+// RouteList prints all registered routes in a formatted table
+func RouteList(app *fiber.App, filterPrefix string) {
+	type RouteInfo struct {
+		Method string
+		Path   string
+		Name   string
+	}
+
+	var routes []RouteInfo
+	allowedMethods := map[string]bool{
+		"GET":    true,
+		"POST":   true,
+		"PUT":    true,
+		"DELETE": true,
+	}
+
+	for _, stack := range app.Stack() {
+		for _, route := range stack {
+			if !allowedMethods[route.Method] {
+				continue
+			}
+
+			if filterPrefix == "" || strings.HasPrefix(route.Path, filterPrefix) {
+				routes = append(routes, RouteInfo{
+					Method: route.Method,
+					Path:   route.Path,
+					Name:   route.Name,
+				})
+			}
+		}
+	}
+
+	// Sort routes by path, then by method
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].Path == routes[j].Path {
+			return routes[i].Method < routes[j].Method
+		}
+		return routes[i].Path < routes[j].Path
+	})
+
+	// Print header
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("🚀 AICademy API - Registered Routes")
+	fmt.Println(strings.Repeat("=", 80))
+
+	if filterPrefix != "" {
+		fmt.Printf("📝 Filter: %s\n", filterPrefix)
+		fmt.Println(strings.Repeat("-", 80))
+	}
+
+	// Print table header
+	fmt.Printf("%-8s | %-50s | %s\n", "METHOD", "PATH", "HANDLER")
+	fmt.Println(strings.Repeat("-", 80))
+
+	// Group routes by prefix for better readability
+	currentGroup := ""
+	for _, route := range routes {
+		// Determine route group
+		pathParts := strings.Split(strings.TrimPrefix(route.Path, "/"), "/")
+		var group string
+		if len(pathParts) >= 3 && pathParts[0] == "api" && pathParts[1] == "v1" {
+			group = pathParts[2]
+		} else if len(pathParts) >= 1 {
+			group = pathParts[0]
+		}
+
+		// Print group separator
+		if group != currentGroup && group != "" {
+			if currentGroup != "" {
+				fmt.Println(strings.Repeat("-", 80))
+			}
+			fmt.Printf("📁 %s\n", strings.ToUpper(group))
+			fmt.Println(strings.Repeat("-", 80))
+			currentGroup = group
+		}
+
+		// Truncate handler name if too long
+		handlerName := route.Name
+		if len(handlerName) > 25 {
+			handlerName = handlerName[:22] + "..."
+		}
+
+		// Color code by method
+		methodColor := getMethodColor(route.Method)
+		fmt.Printf("%-8s | %-50s | %s\n",
+			methodColor+route.Method+"\033[0m",
+			route.Path,
+			handlerName)
+	}
+
+	// Print footer
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Printf("📊 Total Routes: %d\n", len(routes))
+
+	// Group statistics
+	methodStats := make(map[string]int)
+	for _, route := range routes {
+		methodStats[route.Method]++
+	}
+
+	fmt.Println("\n📈 Method Statistics:")
+	for method, count := range methodStats {
+		fmt.Printf("  %s: %d\n", method, count)
+	}
+
+	fmt.Println(strings.Repeat("=", 80))
+}
+
+// getMethodColor returns ANSI color code for HTTP methods
+func getMethodColor(method string) string {
+	switch method {
+	case "GET":
+		return "\033[32m" // Green
+	case "POST":
+		return "\033[34m" // Blue
+	case "PUT":
+		return "\033[33m" // Yellow
+	case "DELETE":
+		return "\033[31m" // Red
+	case "PATCH":
+		return "\033[35m" // Magenta
+	case "OPTIONS":
+		return "\033[36m" // Cyan
+	default:
+		return "\033[0m" // Default
+	}
+}
+
+// CLI flags for route listing
+var (
+	routeListFlag   = flag.Bool("route:list", false, "print all registered Fiber routes and exit")
+	routePrefixFlag = flag.String("route:prefix", "", "optional prefix filter, e.g. /api/v1/admin")
 )
 
 func main() {
+	// Parse CLI flags early
+	flag.Parse()
+
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
+
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 
 	rdb := utils.NewRedisClient()
 	defer func() {
 		_ = rdb.Close()
 	}()
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
 
 	db, err := config.InitDatabase()
 	if err != nil {
@@ -121,6 +269,11 @@ func main() {
 	userService := user.NewUserService(userRepo)
 	userHandler := user.NewUserHandler(userService)
 
+	// Project services and handlers
+	projectRepo := project.NewProjectRepository(db, rdb.Client)
+	projectService := project.NewProjectService(projectRepo)
+	projectHandler := project.NewProjectHandler(projectService)
+
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklStudentService := pklStudent.NewStudentPklService(pklStudentRepo, rdb)
 	pklStudentHandler := pklStudent.NewStudentPklHandler(pklStudentService)
@@ -136,6 +289,21 @@ func main() {
 	pklTeacherRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklTeacherService := pklTeacher.NewTeacherPklService(pklTeacherRepo, rdb)
 	pklTeacherHandler := pklTeacher.NewTeacherPklHandler(pklTeacherService)
+
+	// Challenge services and handlers
+	challengeRepository := challengeRepo.NewChallengeRepository(db, rdb.Client)
+
+	// Admin challenge
+	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository)
+	adminChallengeHandler := adminChallenge.NewAdminChallengeHandler(adminChallengeService)
+
+	// Teacher challenge
+	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository)
+	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
+
+	// Student challenge
+	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository, db)
+	studentChallengeHandler := studentChallenge.NewStudentChallengeHandler(studentChallengeService)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
@@ -262,6 +430,16 @@ func main() {
 	adminAuth.Put("/roadmaps/steps/reorder", adminRoadmapHandler.UpdateStepOrders)
 	adminAuth.Get("/roadmaps/:roadmapId/progress", adminRoadmapHandler.GetStudentProgress)
 
+	// Admin Challenge Routes
+	adminAuth.Post("/challenges", adminChallengeHandler.CreateChallenge)
+	adminAuth.Get("/challenges", adminChallengeHandler.GetAllChallenges)
+	adminAuth.Get("/challenges/:id", adminChallengeHandler.GetChallengeByID)
+	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
+	adminAuth.Delete("/challenges/:id", adminChallengeHandler.DeleteChallenge)
+	adminAuth.Get("/challenges/submissions", adminChallengeHandler.GetAllSubmissions)
+	adminAuth.Post("/challenges/submissions/score", adminChallengeHandler.ScoreSubmission)
+	adminAuth.Get("/challenges/leaderboard", adminChallengeHandler.GetLeaderboard)
+
 	// Teacher Routes (for reviewing submissions)
 	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
 	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
@@ -272,6 +450,16 @@ func main() {
 	teacherAuth.Get("/company/:id/internships-with-submissions", pklTeacherHandler.GetInternshipsWithSubmissionsByCompanyID)
 	teacherAuth.Get("/submission/:id", pklTeacherHandler.GetSubmissionByID)
 	teacherAuth.Put("/submission/:id/status", pklTeacherHandler.UpdateSubmissionStatus)
+
+	// Teacher Challenge Routes
+	teacherAuth.Post("/challenges", teacherChallengeHandler.CreateChallenge)
+	teacherAuth.Get("/challenges", teacherChallengeHandler.GetMyChallenges)
+	teacherAuth.Get("/challenges/:id", teacherChallengeHandler.GetChallengeByID)
+	teacherAuth.Put("/challenges/:id", teacherChallengeHandler.UpdateChallenge)
+	teacherAuth.Delete("/challenges/:id", teacherChallengeHandler.DeleteChallenge)
+	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
+	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
+	teacherAuth.Get("/challenges/leaderboard", teacherChallengeHandler.GetLeaderboard)
 
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
@@ -292,10 +480,32 @@ func main() {
 	studentRoutes.Get("/me", userHandler.GetUserByToken)
 	studentRoutes.Put("/profile", userHandler.UpdateUserProfile)
 
+	// Project Routes for Students
+	studentRoutes.Post("/projects", projectHandler.CreateProject)
+	studentRoutes.Get("/projects", projectHandler.GetMyProjects)
+	studentRoutes.Get("/projects/:id", projectHandler.GetProjectByID)
+	studentRoutes.Put("/projects/:id", projectHandler.UpdateProject)
+	studentRoutes.Delete("/projects/:id", projectHandler.DeleteProject)
+	studentRoutes.Post("/projects/:id/contributors", projectHandler.AddProjectContributor)
+
+	// Certification Routes for Students
+	studentRoutes.Post("/certifications", projectHandler.CreateCertification)
+	studentRoutes.Get("/certifications", projectHandler.GetMyCertifications)
+	studentRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
+	studentRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
+	studentRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
+
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
 
 	studentRoutes.Get("/users/internships", pklAdminHandler.GetInternshipPositions)
 	studentRoutes.Get("/users/internships/:id", pklAdminHandler.GetInternshipByID)
+
+	// Student Challenge Routes
+	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
+	studentRoutes.Get("/challenges/teams", studentChallengeHandler.GetMyTeams)
+	studentRoutes.Get("/challenges", studentChallengeHandler.GetAvailableChallenges)
+	studentRoutes.Post("/challenges/register", studentChallengeHandler.RegisterTeamToChallenge)
+	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
 
 	// Alumni Routes
 	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())
@@ -305,6 +515,21 @@ func main() {
 	alumniRoutes.Get("/applications/:id", pklAlumniHandler.GetApplicationByID)
 	alumniRoutes.Get("/me", userHandler.GetUserByToken)
 	alumniRoutes.Put("/profile", userHandler.UpdateUserProfile)
+
+	// Project Routes for Alumni
+	alumniRoutes.Post("/projects", projectHandler.CreateProject)
+	alumniRoutes.Get("/projects", projectHandler.GetMyProjects)
+	alumniRoutes.Get("/projects/:id", projectHandler.GetProjectByID)
+	alumniRoutes.Put("/projects/:id", projectHandler.UpdateProject)
+	alumniRoutes.Delete("/projects/:id", projectHandler.DeleteProject)
+	alumniRoutes.Post("/projects/:id/contributors", projectHandler.AddProjectContributor)
+
+	// Certification Routes for Alumni
+	alumniRoutes.Post("/certifications", projectHandler.CreateCertification)
+	alumniRoutes.Get("/certifications", projectHandler.GetMyCertifications)
+	alumniRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
+	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
+	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
 	// Company Routes
 	companyRoutes := api.Group("/company", middleware.AuthRequired(), middleware.CompanyRequired())
@@ -316,10 +541,34 @@ func main() {
 	companyRoutes.Put("/applications/:id/status", pklCompanyHandler.UpdateApplicationStatus)
 	companyRoutes.Get("/me", userHandler.GetUserByToken)
 	companyRoutes.Put("/profile", userHandler.UpdateUserProfile)
+
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8000"
 	}
-	log.Printf("API at: http://localhost:%s", port)
+
+	// Check for route listing flags/env vars AFTER all routes are registered
+	if *routeListFlag || os.Getenv("ROUTE_LIST") == "1" {
+		prefix := *routePrefixFlag
+		if envPrefix := os.Getenv("ROUTE_PREFIX"); envPrefix != "" {
+			prefix = envPrefix
+		}
+		RouteList(app, prefix)
+		return // Exit after displaying routes
+	}
+
+	// Start server
+	log.Printf("🚀 AICademy API starting...")
+	log.Printf("📡 Server running at: http://localhost:%s", port)
+	log.Printf("📚 API Documentation: http://localhost:%s/api/v1", port)
+	log.Printf("🔧 Environment: %s", os.Getenv("APP_ENV"))
+
+	// Show route count on startup
+	routeCount := 0
+	for _, stack := range app.Stack() {
+		routeCount += len(stack)
+	}
+	log.Printf("📋 Total registered routes: %d", routeCount)
+
 	log.Fatal(app.Listen(":" + port))
 }

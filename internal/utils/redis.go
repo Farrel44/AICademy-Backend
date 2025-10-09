@@ -79,7 +79,6 @@ func (r *RedisClient) Set(key string, value interface{}, expiration time.Duratio
 	return err
 }
 
-// Get string value
 func (r *RedisClient) Get(key string) (string, error) {
 	if isDevelopment() {
 		log.Printf("Development mode: Skipping Redis GET for key '%s'", key)
