@@ -302,7 +302,7 @@ func main() {
 	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
 
 	// Student challenge
-	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository, db)
+	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository)
 	studentChallengeHandler := studentChallenge.NewStudentChallengeHandler(studentChallengeService)
 
 	app := fiber.New(fiber.Config{

@@ -10,24 +10,19 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type StudentChallengeService struct {
-	repo   *challenge.ChallengeRepository
-	userDB *gorm.DB // For searching students
+	repo *challenge.ChallengeRepository
 }
 
-func NewStudentChallengeService(repo *challenge.ChallengeRepository, db *gorm.DB) *StudentChallengeService {
+func NewStudentChallengeService(repo *challenge.ChallengeRepository) *StudentChallengeService {
 	return &StudentChallengeService{
-		repo:   repo,
-		userDB: db,
+		repo: repo,
 	}
 }
 
-// Search students by NIS, name, or email
-func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStudentRequest) ([]StudentSearchResult, error) {
-	// Verify student access
+func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
 		return nil, errors.New("unauthorized")
@@ -37,29 +32,12 @@ func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStuden
 		return nil, errors.New("access denied: student role required")
 	}
 
-	var students []StudentSearchResult
 	query := strings.TrimSpace(req.Query)
+	if req.Limit == 0 {
+		req.Limit = 10
+	}
 
-	// Search in users table with student_profiles
-	err = s.userDB.Table("users").
-		Select(`
-            student_profiles.id,
-            users.nis,
-            users.full_name,
-            users.email,
-            student_profiles.profile_picture,
-            users.class
-        `).
-		Joins("JOIN student_profiles ON users.id = student_profiles.user_id").
-		Where("users.role = ? AND users.id != ?", "student", claims.UserID).
-		Where(`
-            users.nis ILIKE ? OR 
-            users.full_name ILIKE ? OR 
-            users.email ILIKE ?
-        `, "%"+query+"%", "%"+query+"%", "%"+query+"%").
-		Limit(req.Limit).
-		Scan(&students).Error
-
+	students, err := s.repo.SearchStudents(query, req.Limit, claims.UserID)
 	if err != nil {
 		return nil, errors.New("failed to search students")
 	}
@@ -80,11 +58,7 @@ func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamReques
 	}
 
 	// Get student profile ID
-	var studentProfileID uuid.UUID
-	err = s.userDB.Table("student_profiles").
-		Select("id").
-		Where("user_id = ?", claims.UserID).
-		Scan(&studentProfileID).Error
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -95,17 +69,14 @@ func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamReques
 	}
 
 	// Validate all member IDs exist and are students
-	var memberCount int64
-	err = s.userDB.Table("student_profiles").
-		Where("id IN ?", req.MemberIDs).
-		Count(&memberCount).Error
-	if err != nil || memberCount != 2 {
+	isValid, err := s.repo.ValidateStudentProfileIDs(req.MemberIDs)
+	if err != nil || !isValid {
 		return nil, errors.New("invalid member IDs provided")
 	}
 
 	// Check if creator is not in member list
 	for _, memberID := range req.MemberIDs {
-		if memberID == studentProfileID {
+		if memberID == *studentProfileID {
 			return nil, errors.New("creator cannot be added as a member")
 		}
 	}
@@ -115,62 +86,50 @@ func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamReques
 		TeamName:                  req.TeamName,
 		About:                     req.About,
 		TeamProfilePicture:        req.TeamProfilePicture,
-		CreatedByStudentProfileID: studentProfileID,
+		CreatedByStudentProfileID: *studentProfileID,
 		CreatedAt:                 time.Now(),
 	}
 
-	// Start transaction
-	tx := s.userDB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Create team
-	if err := tx.Create(team).Error; err != nil {
-		tx.Rollback()
+	// Create team in repository
+	if err := s.repo.CreateTeam(team); err != nil {
 		return nil, errors.New("failed to create team")
 	}
 
-	// Add creator as first member
-	creatorMember := challenge.TeamMember{
+	// Prepare team members
+	var members []challenge.TeamMember
+
+	// Add creator as leader
+	members = append(members, challenge.TeamMember{
 		TeamID:           team.ID,
-		StudentProfileID: studentProfileID,
+		StudentProfileID: *studentProfileID,
 		MemberRole:       stringPtr("Leader"),
 		JoinedAt:         time.Now(),
-	}
-	if err := tx.Create(&creatorMember).Error; err != nil {
-		tx.Rollback()
-		return nil, errors.New("failed to add creator to team")
-	}
-
-	// Add other members
-	var allMembers []TeamMemberInfo
-	allMembers = append(allMembers, TeamMemberInfo{
-		StudentProfileID: studentProfileID,
-		MemberRole:       stringPtr("Leader"),
 	})
 
+	// Add other members
 	for _, memberID := range req.MemberIDs {
-		member := challenge.TeamMember{
+		members = append(members, challenge.TeamMember{
 			TeamID:           team.ID,
 			StudentProfileID: memberID,
 			MemberRole:       stringPtr("Member"),
 			JoinedAt:         time.Now(),
-		}
-		if err := tx.Create(&member).Error; err != nil {
-			tx.Rollback()
-			return nil, errors.New("failed to add member to team")
-		}
-
-		allMembers = append(allMembers, TeamMemberInfo{
-			StudentProfileID: memberID,
-			MemberRole:       stringPtr("Member"),
 		})
 	}
 
-	tx.Commit()
+	// Create team members in repository
+	if err := s.repo.CreateTeamMembers(members); err != nil {
+		return nil, errors.New("failed to add members to team")
+	}
+
+	// Get member details for response
+	var memberInfos []TeamMemberInfo
+	for _, member := range members {
+		memberInfo := TeamMemberInfo{
+			StudentProfileID: member.StudentProfileID,
+			MemberRole:       member.MemberRole,
+		}
+		memberInfos = append(memberInfos, memberInfo)
+	}
 
 	return &CreateTeamResponse{
 		ID:                 team.ID,
@@ -178,13 +137,13 @@ func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamReques
 		About:              team.About,
 		TeamProfilePicture: team.TeamProfilePicture,
 		CreatedAt:          team.CreatedAt,
-		Members:            allMembers,
-		MemberCount:        len(allMembers),
+		Members:            memberInfos,
+		MemberCount:        len(memberInfos),
 	}, nil
 }
 
 // Get my teams
-func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]challenge.Team, error) {
+func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, error) {
 	// Verify student access
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
@@ -196,31 +155,45 @@ func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]challenge.Team, er
 	}
 
 	// Get student profile ID
-	var studentProfileID uuid.UUID
-	err = s.userDB.Table("student_profiles").
-		Select("id").
-		Where("user_id = ?", claims.UserID).
-		Scan(&studentProfileID).Error
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
 
-	var teams []challenge.Team
-	err = s.userDB.
-		Preload("Members").
-		Where(`
-            id IN (
-                SELECT team_id FROM team_members 
-                WHERE student_profile_id = ?
-            )
-        `, studentProfileID).
-		Find(&teams).Error
-
+	teams, err := s.repo.GetTeamsByStudentProfileID(*studentProfileID)
 	if err != nil {
 		return nil, errors.New("failed to fetch teams")
 	}
 
-	return teams, nil
+	var response []MyTeamResponse
+	for _, team := range teams {
+		var memberInfos []TeamMemberInfo
+		for _, member := range team.Members {
+			memberInfo := TeamMemberInfo{
+				StudentProfileID: member.StudentProfileID,
+				MemberRole:       member.MemberRole,
+			}
+			memberInfos = append(memberInfos, memberInfo)
+		}
+
+		// Get registered challenges for this team
+		var registeredChallenges []RegisteredChallengeInfo
+		// You can implement this by getting submissions for the team
+
+		teamResponse := MyTeamResponse{
+			ID:                   team.ID,
+			TeamName:             team.TeamName,
+			About:                team.About,
+			TeamProfilePicture:   team.TeamProfilePicture,
+			CreatedAt:            team.CreatedAt,
+			Members:              memberInfos,
+			MemberCount:          len(memberInfos),
+			RegisteredChallenges: registeredChallenges,
+		}
+		response = append(response, teamResponse)
+	}
+
+	return response, nil
 }
 
 // Get available challenges
@@ -235,6 +208,12 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]Challe
 		return nil, errors.New("access denied: student role required")
 	}
 
+	// Get student profile ID
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	if err != nil {
+		return nil, errors.New("student profile not found")
+	}
+
 	challenges, err := s.repo.GetAllChallenges()
 	if err != nil {
 		return nil, errors.New("failed to fetch challenges")
@@ -242,6 +221,24 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]Challe
 
 	var result []ChallengeListResponse
 	for _, ch := range challenges {
+		// Check if student is already registered for this challenge
+		isRegistered, _ := s.repo.IsStudentInChallengeTeam(*studentProfileID, ch.ID)
+
+		var myTeamID *uuid.UUID
+		if isRegistered {
+			// Find the team ID for this student in this challenge
+			for _, submission := range ch.Submissions {
+				if submission.TeamID != nil {
+					for _, member := range submission.Team.Members {
+						if member.StudentProfileID == *studentProfileID {
+							myTeamID = submission.TeamID
+							break
+						}
+					}
+				}
+			}
+		}
+
 		result = append(result, ChallengeListResponse{
 			ID:                  ch.ID,
 			ThumbnailImage:      ch.ThumbnailImage,
@@ -251,9 +248,11 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]Challe
 			Prize:               ch.Prize,
 			MaxParticipants:     ch.MaxParticipants,
 			CurrentParticipants: ch.CurrentParticipants,
-			CanRegister:         ch.CanRegister(),
+			CanRegister:         ch.CanRegister() && !isRegistered,
 			IsActive:            ch.IsActive(),
 			OrganizerName:       ch.GetOrganizerName(),
+			IsRegistered:        isRegistered,
+			MyTeamID:            myTeamID,
 		})
 	}
 
@@ -273,26 +272,13 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *Reg
 	}
 
 	// Get student profile ID
-	var studentProfileID uuid.UUID
-	err = s.userDB.Table("student_profiles").
-		Select("id").
-		Where("user_id = ?", claims.UserID).
-		Scan(&studentProfileID).Error
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
 
 	// Verify team exists and student is a member
-	var team challenge.Team
-	err = s.userDB.
-		Preload("Members").
-		Where(`
-            id = ? AND id IN (
-                SELECT team_id FROM team_members 
-                WHERE student_profile_id = ?
-            )
-        `, req.TeamID, studentProfileID).
-		First(&team).Error
+	team, err := s.repo.GetTeamByIDAndMember(req.TeamID, *studentProfileID)
 	if err != nil {
 		return nil, errors.New("team not found or you're not a member")
 	}
@@ -313,9 +299,7 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *Reg
 	}
 
 	// Check if team already registered for this challenge
-	var existingSubmission challenge.Submission
-	err = s.userDB.Where("challenge_id = ? AND team_id = ?", req.ChallengeID, req.TeamID).
-		First(&existingSubmission).Error
+	_, err = s.repo.GetSubmissionByTeamAndChallenge(req.TeamID, req.ChallengeID)
 	if err == nil {
 		return nil, errors.New("team already registered for this challenge")
 	}
@@ -328,27 +312,15 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *Reg
 		SubmittedAt: time.Now(),
 	}
 
-	// Start transaction
-	tx := s.userDB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Create submission
-	if err := tx.Create(submission).Error; err != nil {
-		tx.Rollback()
+	// Create submission in repository
+	if err := s.repo.CreateSubmission(submission); err != nil {
 		return nil, errors.New("failed to register team")
 	}
 
 	// Update challenge participant count
 	if err := s.repo.UpdateChallengeParticipants(req.ChallengeID, true); err != nil {
-		tx.Rollback()
 		return nil, errors.New("failed to update participant count")
 	}
-
-	tx.Commit()
 
 	return &RegisterChallengeResponse{
 		Message:             "Team successfully registered for challenge",
