@@ -105,20 +105,15 @@ func (q *QuestionGenerationTemplate) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TargetRole represents available target roles for questionnaire generation
-type TargetRole struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	Name        string    `gorm:"not null;uniqueIndex"`
-	Description string    `gorm:"not null"`
-	Category    string    `gorm:"not null"` // e.g., "Technology", "Business", "Creative"
-	Active      bool      `gorm:"default:true"`
-	CreatedAt   time.Time `gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
-}
+// type TargetRole struct {
+// 	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+// 	Name        string    `gorm:"not null;uniqueIndex" json:"name"`
+// 	Description string    `gorm:"not null" json:"description"`
+// 	Category    string    `gorm:"not null" json:"category"` // e.g., "Technology", "Business", "Creative"
+// 	Active      bool      `gorm:"default:true" json:"active"`
+// 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+// 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-func (t *TargetRole) BeforeCreate(tx *gorm.DB) error {
-	if t.ID == uuid.Nil {
-		t.ID = uuid.New()
-	}
-	return nil
-}
+// 	// One-to-many relationship: one TargetRole can have many ProjectContributors
+// 	ProjectContributors []project.ProjectContributor `gorm:"foreignKey:ProfilingRoleID;constraint:OnDelete:SET NULL" json:"project_contributors,omitempty"`
+// }

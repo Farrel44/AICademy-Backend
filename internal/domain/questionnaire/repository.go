@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/google/uuid"
@@ -275,17 +276,17 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponses(questionnaireID uuid
 // New methods for restructured questionnaire system
 
 // Target Role methods
-func (r *QuestionnaireRepository) CreateTargetRole(role *TargetRole) error {
+func (r *QuestionnaireRepository) CreateTargetRole(role *project.TargetRole) error {
 	return r.db.Create(role).Error
 }
 
-func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRole, int64, error) {
+func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]project.TargetRole, int64, error) {
 	log.Printf("*** REPOSITORY: GetTargetRoles called with offset=%d, limit=%d ***", offset, limit)
 
-	var roles []TargetRole
+	var roles []project.TargetRole
 	var total int64
 
-	err := r.db.Model(&TargetRole{}).Count(&total).Error
+	err := r.db.Model(&project.TargetRole{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -299,8 +300,8 @@ func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRol
 	return roles, total, err
 }
 
-func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*TargetRole, error) {
-	var role TargetRole
+func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*project.TargetRole, error) {
+	var role project.TargetRole
 	err := r.db.Where("id = ?", id).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -311,8 +312,8 @@ func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*TargetRole, 
 	return &role, nil
 }
 
-func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*TargetRole, error) {
-	var role TargetRole
+func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*project.TargetRole, error) {
+	var role project.TargetRole
 	err := r.db.Where("name = ?", name).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -323,12 +324,12 @@ func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*TargetRole,
 	return &role, nil
 }
 
-func (r *QuestionnaireRepository) UpdateTargetRole(role *TargetRole) error {
+func (r *QuestionnaireRepository) UpdateTargetRole(role *project.TargetRole) error {
 	return r.db.Save(role).Error
 }
 
 func (r *QuestionnaireRepository) DeleteTargetRole(id uuid.UUID) error {
-	return r.db.Delete(&TargetRole{}, id).Error
+	return r.db.Delete(&project.TargetRole{}, id).Error
 }
 
 // Questionnaire methods for new structure
@@ -364,8 +365,8 @@ func (r *QuestionnaireRepository) LinkQuestionnaireTargetRole(questionnaireID, t
 	return r.db.Create(&link).Error
 }
 
-func (r *QuestionnaireRepository) GetTargetRolesByQuestionnaireID(questionnaireID uuid.UUID) ([]TargetRole, error) {
-	var roles []TargetRole
+func (r *QuestionnaireRepository) GetTargetRolesByQuestionnaireID(questionnaireID uuid.UUID) ([]project.TargetRole, error) {
+	var roles []project.TargetRole
 
 	err := r.db.Table("target_roles").
 		Joins("JOIN questionnaire_target_roles ON target_roles.id = questionnaire_target_roles.target_role_id").
