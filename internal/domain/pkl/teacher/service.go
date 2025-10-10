@@ -386,13 +386,17 @@ func (s *TeacherPklService) GetSubmissionsByInternshipID(internshipID uuid.UUID)
 	var out []SubmissionResponse
 	for _, sub := range submissions {
 		resp := SubmissionResponse{
-			ID:               sub.ID.String(),
-			InternshipID:     sub.InternshipID.String(),
-			StudentProfileID: sub.StudentProfileID.String(),
-			Status:           string(sub.Status),
-			AppliedAt:        sub.AppliedAt,
-			ReviewedAt:       sub.ReviewedAt,
-			Student: StudentSummary{
+			ID:           sub.ID.String(),
+			InternshipID: sub.InternshipID.String(),
+			Status:       string(sub.Status),
+			AppliedAt:    sub.AppliedAt,
+			ReviewedAt:   sub.ReviewedAt,
+		}
+
+		// Handle student applications
+		if sub.StudentProfileID != nil {
+			resp.StudentProfileID = sub.StudentProfileID.String()
+			resp.Student = StudentSummary{
 				ID:             sub.StudentProfile.ID.String(),
 				Name:           sub.StudentProfile.User.Email,
 				Email:          sub.StudentProfile.User.Email,
@@ -403,8 +407,24 @@ func (s *TeacherPklService) GetSubmissionsByInternshipID(internshipID uuid.UUID)
 				Headline:       &sub.StudentProfile.Headline,
 				Bio:            &sub.StudentProfile.Bio,
 				CvFile:         sub.StudentProfile.CVFile,
-			},
+			}
 		}
+
+		// Handle alumni applications
+		if sub.AlumniProfileID != nil {
+			resp.AlumniProfileID = sub.AlumniProfileID.String()
+			resp.Alumni = &AlumniSummary{
+				ID:             sub.AlumniProfile.ID.String(),
+				Name:           sub.AlumniProfile.User.Email,
+				Email:          sub.AlumniProfile.User.Email,
+				Fullname:       sub.AlumniProfile.Fullname,
+				ProfilePicture: &sub.AlumniProfile.ProfilePicture,
+				Headline:       &sub.AlumniProfile.Headline,
+				Bio:            &sub.AlumniProfile.Bio,
+				CvFile:         sub.AlumniProfile.CVFile,
+			}
+		}
+
 		if sub.ApprovedByUserID != nil {
 			idStr := sub.ApprovedByUserID.String()
 			resp.ApprovedByUserID = &idStr
@@ -437,24 +457,11 @@ func (s *TeacherPklService) GetSubmissionByID(submissionID uuid.UUID) (*Submissi
 	}
 
 	resp := &SubmissionResponse{
-		ID:               sub.ID.String(),
-		InternshipID:     sub.InternshipID.String(),
-		StudentProfileID: sub.StudentProfileID.String(),
-		Status:           string(sub.Status),
-		AppliedAt:        sub.AppliedAt,
-		ReviewedAt:       sub.ReviewedAt,
-		Student: StudentSummary{
-			ID:             sub.StudentProfile.ID.String(),
-			Name:           sub.StudentProfile.User.Email,
-			Email:          sub.StudentProfile.User.Email,
-			Fullname:       sub.StudentProfile.Fullname,
-			NIS:            sub.StudentProfile.NIS,
-			Class:          sub.StudentProfile.Class,
-			ProfilePicture: &sub.StudentProfile.ProfilePicture,
-			Headline:       &sub.StudentProfile.Headline,
-			Bio:            &sub.StudentProfile.Bio,
-			CvFile:         sub.StudentProfile.CVFile,
-		},
+		ID:           sub.ID.String(),
+		InternshipID: sub.InternshipID.String(),
+		Status:       string(sub.Status),
+		AppliedAt:    sub.AppliedAt,
+		ReviewedAt:   sub.ReviewedAt,
 		Internship: &InternshipSummary{
 			ID:       sub.Internship.ID.String(),
 			Title:    sub.Internship.Title,
@@ -469,6 +476,38 @@ func (s *TeacherPklService) GetSubmissionByID(submissionID uuid.UUID) (*Submissi
 				Description: sub.Internship.CompanyProfile.Description,
 			},
 		},
+	}
+
+	// Handle student applications
+	if sub.StudentProfileID != nil {
+		resp.StudentProfileID = sub.StudentProfileID.String()
+		resp.Student = StudentSummary{
+			ID:             sub.StudentProfile.ID.String(),
+			Name:           sub.StudentProfile.User.Email,
+			Email:          sub.StudentProfile.User.Email,
+			Fullname:       sub.StudentProfile.Fullname,
+			NIS:            sub.StudentProfile.NIS,
+			Class:          sub.StudentProfile.Class,
+			ProfilePicture: &sub.StudentProfile.ProfilePicture,
+			Headline:       &sub.StudentProfile.Headline,
+			Bio:            &sub.StudentProfile.Bio,
+			CvFile:         sub.StudentProfile.CVFile,
+		}
+	}
+
+	// Handle alumni applications
+	if sub.AlumniProfileID != nil {
+		resp.AlumniProfileID = sub.AlumniProfileID.String()
+		resp.Alumni = &AlumniSummary{
+			ID:             sub.AlumniProfile.ID.String(),
+			Name:           sub.AlumniProfile.User.Email,
+			Email:          sub.AlumniProfile.User.Email,
+			Fullname:       sub.AlumniProfile.Fullname,
+			ProfilePicture: &sub.AlumniProfile.ProfilePicture,
+			Headline:       &sub.AlumniProfile.Headline,
+			Bio:            &sub.AlumniProfile.Bio,
+			CvFile:         sub.AlumniProfile.CVFile,
+		}
 	}
 
 	if sub.ApprovedByUserID != nil {

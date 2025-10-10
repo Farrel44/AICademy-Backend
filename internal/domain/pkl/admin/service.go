@@ -453,8 +453,8 @@ func (s *AdminPklService) GetSubmissionByID(submissionID uuid.UUID) (*Submission
 			Class:          sub.StudentProfile.Class,
 			ProfilePicture: &sub.StudentProfile.ProfilePicture,
 			Headline:       &sub.StudentProfile.Headline,
-			Bio:            &sub.StudentProfile.Bio,
 			CvFile:         sub.StudentProfile.CVFile,
+			Bio:            &sub.StudentProfile.Bio,
 		},
 		Internship: &InternshipSummary{
 			ID:       sub.Internship.ID.String(),
