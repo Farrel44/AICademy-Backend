@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
@@ -300,6 +301,38 @@ func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]project.T
 	return roles, total, err
 }
 
+// GetTargetRolesOptimized with search functionality and Phase 1 optimizations
+func (r *QuestionnaireRepository) GetTargetRolesOptimized(offset, limit int, search string) ([]project.TargetRole, int64, error) {
+	var roles []project.TargetRole
+	var total int64
+
+	// Separate count query for optimization
+	countQuery := r.db.Model(&project.TargetRole{})
+	dataQuery := r.db.Model(&project.TargetRole{})
+
+	// Apply search filter with case-insensitive search
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&roles).Error
+
+	return roles, total, err
+}
+
 func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*project.TargetRole, error) {
 	var role project.TargetRole
 	err := r.db.Where("id = ?", id).First(&role).Error
@@ -347,6 +380,25 @@ func (r *QuestionnaireRepository) GetQuestionnairesNew(offset, limit int) ([]Pro
 	}
 
 	err = r.db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&questionnaires).Error
+	return questionnaires, total, err
+}
+
+func (r *QuestionnaireRepository) GetQuestionnairesOptimized(offset, limit int, search string) ([]ProfilingQuestionnaire, int64, error) {
+	var questionnaires []ProfilingQuestionnaire
+	var total int64
+
+	query := r.db.Model(&ProfilingQuestionnaire{})
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		query = query.Where("name ILIKE ? OR version::text ILIKE ?", searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&questionnaires).Error
 	return questionnaires, total, err
 }
 
@@ -479,6 +531,48 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponsesNew(offset, limit int
 	}
 
 	err = query.Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&responses).Error
+	return responses, total, err
+}
+
+func (r *QuestionnaireRepository) GetQuestionnaireResponsesOptimized(offset, limit int, search string, questionnaireID *uuid.UUID) ([]QuestionnaireResponse, int64, error) {
+	var responses []QuestionnaireResponse
+	var total int64
+
+	// Separate count query for optimization
+	countQuery := r.db.Model(&QuestionnaireResponse{}).
+		Joins("LEFT JOIN student_profiles sp ON questionnaire_responses.student_profile_id::uuid = sp.id").
+		Joins("LEFT JOIN users u ON sp.user_id = u.id")
+
+	// Data query
+	dataQuery := r.db.Model(&QuestionnaireResponse{}).
+		Joins("LEFT JOIN student_profiles sp ON questionnaire_responses.student_profile_id::uuid = sp.id").
+		Joins("LEFT JOIN users u ON sp.user_id = u.id")
+
+	if questionnaireID != nil {
+		countQuery = countQuery.Where("questionnaire_responses.questionnaire_id = ?", questionnaireID.String())
+		dataQuery = dataQuery.Where("questionnaire_responses.questionnaire_id = ?", questionnaireID.String())
+	}
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(sp.fullname) LIKE ? OR LOWER(u.email) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm)
+		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Select("questionnaire_responses.*").
+		Order("questionnaire_responses.submitted_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&responses).Error
+
 	return responses, total, err
 }
 

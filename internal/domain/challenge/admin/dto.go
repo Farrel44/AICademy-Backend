@@ -32,3 +32,23 @@ type ScoreSubmissionRequest struct {
 type LeaderboardRequest struct {
 	ChallengeID *uuid.UUID `json:"challenge_id,omitempty"`
 }
+
+type PaginatedSubmissionsResponse struct {
+	Data       []SubmissionResponse `json:"data"`
+	Total      int64                `json:"total"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalPages int                  `json:"total_pages"`
+}
+
+type SubmissionResponse struct {
+	ID            uuid.UUID `json:"id"`
+	ChallengeID   uuid.UUID `json:"challenge_id"`
+	ChallengeName string    `json:"challenge_name"`
+	TeamName      string    `json:"team_name"`
+	GitHubURL     string    `json:"github_url"`
+	LiveURL       *string   `json:"live_url"`
+	Description   string    `json:"description"`
+	Points        *int      `json:"points"`
+	SubmittedAt   time.Time `json:"submitted_at"`
+}

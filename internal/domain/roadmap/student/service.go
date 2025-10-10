@@ -2,6 +2,7 @@ package student
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/google/uuid"
@@ -15,86 +16,183 @@ func NewStudentRoadmapService(repo *roadmap.RoadmapRepository) *StudentRoadmapSe
 	return &StudentRoadmapService{repo: repo}
 }
 
-func (s *StudentRoadmapService) GetAvailableRoadmaps(studentProfileID uuid.UUID, page, limit int) (*PaginatedRoadmapsResponse, error) {
-	offset := (page - 1) * limit
-	roadmaps, total, err := s.repo.GetAvailableRoadmaps(studentProfileID, offset, limit)
+func (s *StudentRoadmapService) GetMyRoadmap(studentProfileID uuid.UUID) (*MyRoadmapResponse, error) {
+	// Get the assigned roadmap for this student
+	roadmap, err := s.repo.GetStudentAssignedRoadmap(studentProfileID)
 	if err != nil {
-		return nil, errors.New("failed to get available roadmaps")
+		if err.Error() == "no recommended role found for student" {
+			return &MyRoadmapResponse{
+				Message: "Silakan lengkapi questionnaire profiling karir terlebih dahulu untuk melihat roadmap yang sesuai dengan minat dan kemampuan Anda",
+			}, nil
+		}
+		if err.Error() == "no active roadmap found for student's recommended role" {
+			return &MyRoadmapResponse{
+				Message: "Belum ada roadmap yang tersedia untuk role yang direkomendasikan",
+			}, nil
+		}
+		return nil, errors.New("gagal mendapatkan roadmap")
 	}
 
-	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	// Get role information
+	roleInfo, err := s.repo.GetProfilingRole(roadmap.ProfilingRoleID)
+	if err != nil {
+		return nil, errors.New("gagal mendapatkan informasi role")
+	}
 
-	roadmapResponses := make([]AvailableRoadmapResponse, len(roadmaps))
-	for i, rm := range roadmaps {
-		isStarted := false
-		progressPercent := float64(0)
+	roleName := "Role Tidak Diketahui"
+	if roleInfo != nil {
+		if name, exists := roleInfo["name"].(string); exists {
+			roleName = name
+		}
+	}
 
-		if len(rm.StudentProgress) > 0 {
-			isStarted = true
-			progressPercent = rm.StudentProgress[0].ProgressPercent
+	// Get student's progress for this roadmap
+	roadmapProgress, err := s.repo.GetStudentRoadmapProgress(roadmap.ID, studentProfileID)
+
+	var progressInfo *RoadmapProgressInfo
+	var steps []StudentStepResponse
+
+	if roadmapProgress != nil {
+		// Student has started this roadmap - get progress details using existing method approach
+		progressInfo = &RoadmapProgressInfo{
+			ID:              roadmapProgress.ID,
+			TotalSteps:      roadmapProgress.TotalSteps,
+			CompletedSteps:  roadmapProgress.CompletedSteps,
+			ProgressPercent: roadmapProgress.ProgressPercent,
+			IsFinished:      roadmapProgress.CompletedAt != nil,
+			StartedAt:       roadmapProgress.StartedAt,
+			CompletedAt:     roadmapProgress.CompletedAt,
+			LastActivityAt:  roadmapProgress.LastActivityAt,
 		}
 
-		totalDuration := 0
-		difficultyLevel := "beginner"
-		for _, step := range rm.Steps {
-			totalDuration += step.EstimatedDuration
-			if step.DifficultyLevel == "advanced" {
-				difficultyLevel = "advanced"
-			} else if step.DifficultyLevel == "intermediate" && difficultyLevel != "advanced" {
-				difficultyLevel = "intermediate"
+		// Build steps with progress - use roadmap steps
+		steps = make([]StudentStepResponse, len(roadmap.Steps))
+		for i, step := range roadmap.Steps {
+			stepResponse := StudentStepResponse{
+				ID:                   step.ID,
+				StepOrder:            step.StepOrder,
+				Title:                step.Title,
+				Description:          step.Description,
+				LearningObjectives:   step.LearningObjectives,
+				SubmissionGuidelines: step.SubmissionGuidelines,
+				ResourceLinks:        step.ResourceLinks,
+				EstimatedDuration:    step.EstimatedDuration,
+				DifficultyLevel:      step.DifficultyLevel,
 			}
-		}
 
-		roleInfo, _ := s.repo.GetProfilingRole(rm.ProfilingRoleID)
-		roleName := "Unknown Role"
-		if roleInfo != nil {
-			if role, ok := roleInfo.(map[string]interface{}); ok {
-				if name, exists := role["name"].(string); exists {
-					roleName = name
+			// Get step progress if exists
+			stepProgress, err := s.repo.GetStudentStepProgress(roadmapProgress.ID, step.ID)
+			if err == nil && stepProgress != nil {
+				// Step has progress
+				stepResponse.Status = string(stepProgress.Status)
+				stepResponse.EvidenceLink = stepProgress.EvidenceLink
+				stepResponse.EvidenceType = stepProgress.EvidenceType
+				stepResponse.SubmissionNotes = stepProgress.SubmissionNotes
+				stepResponse.ValidationNotes = stepProgress.ValidationNotes
+				stepResponse.ValidationScore = stepProgress.ValidationScore
+				stepResponse.SubmittedAt = stepProgress.SubmittedAt
+				stepResponse.CompletedAt = stepProgress.CompletedAt
+				stepResponse.StartedAt = stepProgress.StartedAt
+
+				// Set helper flags based on status
+				stepResponse.CanStart = stepProgress.Status == "unlocked"
+				stepResponse.CanSubmit = stepProgress.Status == "in_progress"
+				stepResponse.IsLocked = stepProgress.Status == "locked"
+			} else {
+				// No progress yet, determine status based on position
+				if step.StepOrder == 1 {
+					stepResponse.Status = "unlocked"
+					stepResponse.CanStart = true
+					stepResponse.IsLocked = false
+				} else {
+					stepResponse.Status = "locked"
+					stepResponse.CanStart = false
+					stepResponse.IsLocked = true
 				}
+				stepResponse.CanSubmit = false
 			}
-		}
 
-		roadmapResponses[i] = AvailableRoadmapResponse{
-			ID:                rm.ID,
-			RoadmapName:       rm.RoadmapName,
-			Description:       rm.Description,
+			steps[i] = stepResponse
+		}
+	} else {
+		// Student hasn't started this roadmap yet - show basic step info
+		steps = make([]StudentStepResponse, len(roadmap.Steps))
+		for i, step := range roadmap.Steps {
+			stepResponse := StudentStepResponse{
+				ID:                   step.ID,
+				StepOrder:            step.StepOrder,
+				Title:                step.Title,
+				Description:          step.Description,
+				LearningObjectives:   step.LearningObjectives,
+				SubmissionGuidelines: step.SubmissionGuidelines,
+				ResourceLinks:        step.ResourceLinks,
+				EstimatedDuration:    step.EstimatedDuration,
+				DifficultyLevel:      step.DifficultyLevel,
+			}
+
+			// Set status and helper flags for non-started roadmap
+			if step.StepOrder == 1 {
+				stepResponse.Status = "unlocked"
+				stepResponse.CanStart = true
+				stepResponse.IsLocked = false
+			} else {
+				stepResponse.Status = "locked"
+				stepResponse.CanStart = false
+				stepResponse.IsLocked = true
+			}
+			stepResponse.CanSubmit = false
+
+			steps[i] = stepResponse
+		}
+	}
+
+	// Calculate total duration and difficulty
+	totalDuration := 0
+	difficultyLevel := "beginner"
+	for _, step := range roadmap.Steps {
+		totalDuration += step.EstimatedDuration
+		if step.DifficultyLevel == "advanced" {
+			difficultyLevel = "advanced"
+		} else if step.DifficultyLevel == "intermediate" && difficultyLevel != "advanced" {
+			difficultyLevel = "intermediate"
+		}
+	}
+
+	response := &MyRoadmapResponse{
+		Message: "Roadmap berhasil diambil",
+		Roadmap: &RoadmapDetailResponse{
+			ID:                roadmap.ID,
+			RoadmapName:       roadmap.RoadmapName,
+			Description:       roadmap.Description,
 			RoleName:          roleName,
-			TotalSteps:        len(rm.Steps),
+			TotalSteps:        len(roadmap.Steps),
 			EstimatedDuration: totalDuration,
 			DifficultyLevel:   difficultyLevel,
-			IsStarted:         isStarted,
-			ProgressPercent:   progressPercent,
-		}
+			Progress:          progressInfo,
+			Steps:             steps,
+		},
 	}
 
-	return &PaginatedRoadmapsResponse{
-		Data:       roadmapResponses,
-		Total:      total,
-		Page:       page,
-		Limit:      limit,
-		TotalPages: totalPages,
-	}, nil
+	return response, nil
 }
-
 func (s *StudentRoadmapService) StartRoadmap(roadmapID, studentProfileID uuid.UUID) (*StartRoadmapResponse, error) {
 	existingProgress, _ := s.repo.GetStudentRoadmapProgress(roadmapID, studentProfileID)
 	if existingProgress != nil {
-		return nil, errors.New("roadmap already started")
+		return nil, errors.New("roadmap sudah pernah dimulai")
 	}
 
 	progress, err := s.repo.StartRoadmap(roadmapID, studentProfileID)
 	if err != nil {
-		return nil, errors.New("failed to start roadmap")
+		return nil, errors.New("gagal memulai roadmap")
 	}
 
 	roadmapData, err := s.repo.GetRoadmapByID(roadmapID)
 	if err != nil {
-		return nil, errors.New("failed to get roadmap details")
+		return nil, errors.New("gagal mengambil detail roadmap")
 	}
 
 	return &StartRoadmapResponse{
-		Message: "Roadmap started successfully",
+		Message: "Roadmap berhasil dimulai",
 		RoadmapProgress: RoadmapProgressResponse{
 			ID:              progress.ID,
 			RoadmapID:       progress.RoadmapID,
@@ -108,19 +206,41 @@ func (s *StudentRoadmapService) StartRoadmap(roadmapID, studentProfileID uuid.UU
 }
 
 func (s *StudentRoadmapService) GetRoadmapProgress(roadmapID, studentProfileID uuid.UUID) (*RoadmapProgressResponse, error) {
-	roadmapData, progress, stepProgress, err := s.repo.GetStudentRoadmapWithProgress(roadmapID, studentProfileID)
+	// Get the assigned roadmap for this student
+	assignedRoadmap, err := s.repo.GetStudentAssignedRoadmap(studentProfileID)
 	if err != nil {
-		return nil, errors.New("roadmap progress not found")
+		return nil, errors.New("belum ada roadmap yang tersedia untuk siswa")
 	}
 
-	roleInfo, _ := s.repo.GetProfilingRole(roadmapData.ProfilingRoleID)
-	roleName := "Unknown Role"
+	// Check if the requested roadmap matches the assigned roadmap
+	if assignedRoadmap.ID != roadmapID {
+		return nil, errors.New("roadmap tidak dapat diakses oleh siswa")
+	}
+
+	// Get progress for the assigned roadmap - if not started yet, return basic roadmap info
+	progress, err := s.repo.GetStudentRoadmapProgress(roadmapID, studentProfileID)
+	if err != nil {
+		// Student hasn't started the roadmap yet - return roadmap with all steps locked
+		return s.buildUnstartedRoadmapResponse(assignedRoadmap, studentProfileID)
+	}
+
+	// Get all step progress
+	stepProgress, err := s.repo.GetStudentStepProgressList(progress.ID)
+	if err != nil {
+		return nil, errors.New("gagal mengambil progress step")
+	}
+
+	roleInfo, _ := s.repo.GetProfilingRole(assignedRoadmap.ProfilingRoleID)
+	roleName := "Role Tidak Diketahui"
 	if roleInfo != nil {
-		if role, ok := roleInfo.(map[string]interface{}); ok {
-			if name, exists := role["name"].(string); exists {
-				roleName = name
-			}
+		if name, exists := roleInfo["name"].(string); exists {
+			roleName = name
 		}
+	}
+
+	// If no step progress found, build from roadmap steps
+	if len(stepProgress) == 0 {
+		return s.buildProgressFromRoadmapSteps(assignedRoadmap, progress, roleName)
 	}
 
 	steps := make([]StudentStepResponse, len(stepProgress))
@@ -157,12 +277,13 @@ func (s *StudentRoadmapService) GetRoadmapProgress(roadmapID, studentProfileID u
 	return &RoadmapProgressResponse{
 		ID:                 progress.ID,
 		RoadmapID:          progress.RoadmapID,
-		RoadmapName:        roadmapData.RoadmapName,
-		RoadmapDescription: roadmapData.Description,
+		RoadmapName:        assignedRoadmap.RoadmapName,
+		RoadmapDescription: assignedRoadmap.Description,
 		RoleName:           roleName,
 		TotalSteps:         progress.TotalSteps,
 		CompletedSteps:     progress.CompletedSteps,
 		ProgressPercent:    progress.ProgressPercent,
+		IsFinished:         progress.CompletedAt != nil,
 		StartedAt:          progress.StartedAt,
 		LastActivityAt:     progress.LastActivityAt,
 		CompletedAt:        progress.CompletedAt,
@@ -173,7 +294,7 @@ func (s *StudentRoadmapService) GetRoadmapProgress(roadmapID, studentProfileID u
 func (s *StudentRoadmapService) StartStep(stepID, studentProfileID uuid.UUID) (*StartStepResponse, error) {
 	progress, step, err := s.getStepProgress(stepID, studentProfileID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gagal mengambil data step: %w", err)
 	}
 
 	stepOrder := 1
@@ -186,22 +307,33 @@ func (s *StudentRoadmapService) StartStep(stepID, studentProfileID uuid.UUID) (*
 
 	if stepOrder > 1 {
 		prevApproved, err := s.repo.IsPreviousStepApproved(stepID, studentProfileID)
-		if err != nil || !prevApproved {
-			return nil, errors.New("previous step must be approved by teacher first")
+		if err != nil {
+			return nil, fmt.Errorf("gagal memeriksa step sebelumnya: %w", err)
+		}
+		if !prevApproved {
+			return nil, errors.New("step sebelumnya harus disetujui oleh pengajar terlebih dahulu")
 		}
 	}
 
-	if progress.Status != roadmap.RoadmapProgressStatusUnlocked && progress.Status != roadmap.RoadmapProgressStatusRejected {
-		return nil, errors.New("step is not available to start")
+	switch progress.Status {
+	case roadmap.RoadmapProgressStatusUnlocked, roadmap.RoadmapProgressStatusRejected:
+		// boleh mulai
+	case roadmap.RoadmapProgressStatusInProgress:
+		return nil, errors.New("step sudah sedang dikerjakan")
+	case roadmap.RoadmapProgressStatusCompleted:
+		return nil, errors.New("step ini sudah selesai dikerjakan")
+	case roadmap.RoadmapProgressStatusApproved:
+		return nil, errors.New("step ini sudah disetujui, tidak bisa dimulai ulang")
+	default:
+		return nil, fmt.Errorf("status step tidak dikenali: %s", progress.Status)
 	}
 
-	err = s.repo.StartStep(progress.ID)
-	if err != nil {
-		return nil, errors.New("failed to start step")
+	if err := s.repo.StartStep(progress.ID); err != nil {
+		return nil, fmt.Errorf("gagal memulai step: %w", err)
 	}
 
 	return &StartStepResponse{
-		Message:    "Step started successfully",
+		Message:    "Step berhasil dimulai",
 		StepStatus: string(roadmap.RoadmapProgressStatusInProgress),
 		StartedAt:  step.UpdatedAt,
 	}, nil
@@ -237,70 +369,118 @@ func (s *StudentRoadmapService) SubmitEvidence(req SubmitEvidenceRequest, studen
 	}, nil
 }
 
-func (s *StudentRoadmapService) GetMyProgress(studentProfileID uuid.UUID) (*MyProgressResponse, error) {
-	progressList, err := s.repo.GetMyProgress(studentProfileID)
+func (s *StudentRoadmapService) GetStepProgress(stepID, studentProfileID uuid.UUID) (*StudentStepResponse, error) {
+	// Get the assigned roadmap for this student
+	assignedRoadmap, err := s.repo.GetStudentAssignedRoadmap(studentProfileID)
 	if err != nil {
-		return nil, errors.New("failed to get progress")
+		return nil, errors.New("no roadmap assigned to student")
 	}
 
-	var activeRoadmaps []ActiveRoadmapSummary
-	var completedRoadmaps []CompletedRoadmapSummary
-	totalStarted := 0
-	totalCompleted := 0
-	totalStepsCompleted := 0
+	// Get step details
+	step, err := s.repo.GetRoadmapStepByID(stepID)
+	if err != nil {
+		return nil, errors.New("step not found")
+	}
 
-	for _, progress := range progressList {
-		totalStarted++
-		totalStepsCompleted += progress.CompletedSteps
+	// Check if step belongs to assigned roadmap
+	if step.RoadmapID != assignedRoadmap.ID {
+		return nil, errors.New("step not accessible to student")
+	}
 
-		roleInfo, _ := s.repo.GetProfilingRole(progress.Roadmap.ProfilingRoleID)
-		roleName := "Unknown Role"
-		if roleInfo != nil {
-			if role, ok := roleInfo.(map[string]interface{}); ok {
-				if name, exists := role["name"].(string); exists {
-					roleName = name
-				}
-			}
+	// Get roadmap progress
+	roadmapProgress, err := s.repo.GetStudentRoadmapProgress(assignedRoadmap.ID, studentProfileID)
+	if err != nil {
+		return nil, errors.New("roadmap not started")
+	}
+
+	// Get step progress
+	stepProgress, err := s.repo.GetStudentStepProgress(roadmapProgress.ID, stepID)
+	if err != nil {
+		return nil, errors.New("step progress not found")
+	}
+
+	canStart := stepProgress.Status == roadmap.RoadmapProgressStatusUnlocked
+	canSubmit := stepProgress.Status == roadmap.RoadmapProgressStatusInProgress && stepProgress.SubmittedAt == nil
+	isLocked := stepProgress.Status == roadmap.RoadmapProgressStatusLocked
+
+	return &StudentStepResponse{
+		ID:                   step.ID,
+		StepOrder:            step.StepOrder,
+		Title:                step.Title,
+		Description:          step.Description,
+		LearningObjectives:   step.LearningObjectives,
+		SubmissionGuidelines: step.SubmissionGuidelines,
+		ResourceLinks:        step.ResourceLinks,
+		EstimatedDuration:    step.EstimatedDuration,
+		DifficultyLevel:      step.DifficultyLevel,
+		Status:               string(stepProgress.Status),
+		EvidenceLink:         stepProgress.EvidenceLink,
+		EvidenceType:         stepProgress.EvidenceType,
+		SubmissionNotes:      stepProgress.SubmissionNotes,
+		ValidationNotes:      stepProgress.ValidationNotes,
+		ValidationScore:      stepProgress.ValidationScore,
+		StartedAt:            stepProgress.StartedAt,
+		SubmittedAt:          stepProgress.SubmittedAt,
+		CompletedAt:          stepProgress.CompletedAt,
+		CanStart:             canStart,
+		CanSubmit:            canSubmit,
+		IsLocked:             isLocked,
+	}, nil
+}
+
+func (s *StudentRoadmapService) buildProgressFromRoadmapSteps(assignedRoadmap *roadmap.FeatureRoadmap, progress *roadmap.StudentRoadmapProgress, roleName string) (*RoadmapProgressResponse, error) {
+	// Get roadmap steps
+	steps, err := s.repo.GetRoadmapSteps(assignedRoadmap.ID)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data step roadmap")
+	}
+
+	// Build step responses based on roadmap steps
+	stepResponses := make([]StudentStepResponse, len(steps))
+	for i, step := range steps {
+		status := roadmap.RoadmapProgressStatusLocked
+		canStart := false
+		canSubmit := false
+		isLocked := true
+
+		// First step should be unlocked for starting
+		if i == 0 {
+			status = roadmap.RoadmapProgressStatusUnlocked
+			canStart = true
+			isLocked = false
 		}
 
-		if progress.CompletedAt != nil {
-			totalCompleted++
-			completedRoadmaps = append(completedRoadmaps, CompletedRoadmapSummary{
-				ID:            progress.ID,
-				RoadmapName:   progress.Roadmap.RoadmapName,
-				RoleName:      roleName,
-				TotalSteps:    progress.TotalSteps,
-				CompletedAt:   *progress.CompletedAt,
-				TotalDuration: 0,
-			})
-		} else {
-			activeRoadmaps = append(activeRoadmaps, ActiveRoadmapSummary{
-				ID:              progress.ID,
-				RoadmapName:     progress.Roadmap.RoadmapName,
-				RoleName:        roleName,
-				TotalSteps:      progress.TotalSteps,
-				CompletedSteps:  progress.CompletedSteps,
-				ProgressPercent: progress.ProgressPercent,
-				StartedAt:       progress.StartedAt,
-				LastActivityAt:  progress.LastActivityAt,
-			})
+		stepResponses[i] = StudentStepResponse{
+			ID:                   step.ID,
+			StepOrder:            step.StepOrder,
+			Title:                step.Title,
+			Description:          step.Description,
+			LearningObjectives:   step.LearningObjectives,
+			SubmissionGuidelines: step.SubmissionGuidelines,
+			ResourceLinks:        step.ResourceLinks,
+			EstimatedDuration:    step.EstimatedDuration,
+			DifficultyLevel:      step.DifficultyLevel,
+			Status:               string(status),
+			CanStart:             canStart,
+			CanSubmit:            canSubmit,
+			IsLocked:             isLocked,
 		}
 	}
 
-	avgCompletion := float64(0)
-	if totalStarted > 0 {
-		avgCompletion = (float64(totalCompleted) / float64(totalStarted)) * 100
-	}
-
-	return &MyProgressResponse{
-		ActiveRoadmaps:    activeRoadmaps,
-		CompletedRoadmaps: completedRoadmaps,
-		OverallStats: StudentStatistics{
-			TotalRoadmapsStarted:   totalStarted,
-			TotalRoadmapsCompleted: totalCompleted,
-			TotalStepsCompleted:    totalStepsCompleted,
-			AverageCompletionRate:  avgCompletion,
-		},
+	return &RoadmapProgressResponse{
+		ID:                 progress.ID,
+		RoadmapID:          progress.RoadmapID,
+		RoadmapName:        assignedRoadmap.RoadmapName,
+		RoadmapDescription: assignedRoadmap.Description,
+		RoleName:           roleName,
+		TotalSteps:         progress.TotalSteps,
+		CompletedSteps:     progress.CompletedSteps,
+		ProgressPercent:    progress.ProgressPercent,
+		IsFinished:         progress.CompletedAt != nil,
+		StartedAt:          progress.StartedAt,
+		LastActivityAt:     progress.LastActivityAt,
+		CompletedAt:        progress.CompletedAt,
+		Steps:              stepResponses,
 	}, nil
 }
 
@@ -321,4 +501,68 @@ func (s *StudentRoadmapService) getStepProgress(stepID, studentProfileID uuid.UU
 	}
 
 	return stepProgress, step, nil
+}
+
+func (s *StudentRoadmapService) buildUnstartedRoadmapResponse(assignedRoadmap *roadmap.FeatureRoadmap, studentProfileID uuid.UUID) (*RoadmapProgressResponse, error) {
+	roleInfo, _ := s.repo.GetProfilingRole(assignedRoadmap.ProfilingRoleID)
+	roleName := "Role Tidak Diketahui"
+	if roleInfo != nil {
+		if name, exists := roleInfo["name"].(string); exists {
+			roleName = name
+		}
+	}
+
+	// Get roadmap steps
+	steps, err := s.repo.GetRoadmapSteps(assignedRoadmap.ID)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data step roadmap")
+	}
+
+	// Build step responses with all steps locked except the first one
+	stepResponses := make([]StudentStepResponse, len(steps))
+	for i, step := range steps {
+		status := roadmap.RoadmapProgressStatusLocked
+		canStart := false
+		canSubmit := false
+		isLocked := true
+
+		// First step should be unlocked for starting
+		if i == 0 {
+			status = roadmap.RoadmapProgressStatusUnlocked
+			canStart = true
+			isLocked = false
+		}
+
+		stepResponses[i] = StudentStepResponse{
+			ID:                   step.ID,
+			StepOrder:            step.StepOrder,
+			Title:                step.Title,
+			Description:          step.Description,
+			LearningObjectives:   step.LearningObjectives,
+			SubmissionGuidelines: step.SubmissionGuidelines,
+			ResourceLinks:        step.ResourceLinks,
+			EstimatedDuration:    step.EstimatedDuration,
+			DifficultyLevel:      step.DifficultyLevel,
+			Status:               string(status),
+			CanStart:             canStart,
+			CanSubmit:            canSubmit,
+			IsLocked:             isLocked,
+		}
+	}
+
+	return &RoadmapProgressResponse{
+		ID:                 uuid.Nil,
+		RoadmapID:          assignedRoadmap.ID,
+		RoadmapName:        assignedRoadmap.RoadmapName,
+		RoadmapDescription: assignedRoadmap.Description,
+		RoleName:           roleName,
+		TotalSteps:         len(steps),
+		CompletedSteps:     0,
+		ProgressPercent:    0,
+		IsFinished:         false,
+		StartedAt:          nil,
+		LastActivityAt:     nil,
+		CompletedAt:        nil,
+		Steps:              stepResponses,
+	}, nil
 }

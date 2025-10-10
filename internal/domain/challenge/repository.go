@@ -1,6 +1,7 @@
 package challenge
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -144,6 +145,57 @@ func (r *ChallengeRepository) GetAllChallenges() ([]Challenge, error) {
 	return challenges, err
 }
 
+func (r *ChallengeRepository) GetAllChallengesWithSearch(offset, limit int, search string) ([]Challenge, int64, error) {
+	var challenges []Challenge
+	var total int64
+
+	query := r.db.Model(&Challenge{}).
+		Preload("Submissions").
+		Preload("Submissions.Team").
+		Preload("Submissions.Team.Members").
+		Preload("WinnerTeam")
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("created_at DESC").Find(&challenges).Error
+	return challenges, total, err
+}
+
+// Optimized methods for search performance
+func (r *ChallengeRepository) CountChallenges(search string) (int64, error) {
+	var total int64
+	query := r.db.Model(&Challenge{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func (r *ChallengeRepository) GetChallengesOptimized(offset, limit int, search string) ([]Challenge, error) {
+	var challenges []Challenge
+	query := r.db.Select("challenges.*").
+		Model(&Challenge{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(challenges.title) LIKE ? OR LOWER(challenges.description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("challenges.created_at DESC").Find(&challenges).Error
+	return challenges, err
+}
+
 func (r *ChallengeRepository) GetChallengeByID(id uuid.UUID) (*Challenge, error) {
 	var challenge Challenge
 	err := r.db.
@@ -184,6 +236,46 @@ func (r *ChallengeRepository) GetAllSubmissions() ([]Submission, error) {
 	return submissions, err
 }
 
+func (r *ChallengeRepository) GetAllSubmissionsOptimized(offset, limit int, search string) ([]Submission, int64, error) {
+	var submissions []Submission
+	var total int64
+
+	// Separate count and data queries for optimization
+	countQuery := r.db.Model(&Submission{})
+	dataQuery := r.db.Model(&Submission{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(submissions.title) LIKE ? OR LOWER(c.title) LIKE ? OR LOWER(t.team_name) LIKE ?"
+
+		countQuery = countQuery.
+			Joins("LEFT JOIN challenges c ON submissions.challenge_id = c.id").
+			Joins("LEFT JOIN teams t ON submissions.team_id = t.id").
+			Where(searchCondition, searchTerm, searchTerm, searchTerm)
+
+		dataQuery = dataQuery.
+			Joins("LEFT JOIN challenges c ON submissions.challenge_id = c.id").
+			Joins("LEFT JOIN teams t ON submissions.team_id = t.id").
+			Where(searchCondition, searchTerm, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Preload("Challenge").
+		Preload("Team").
+		Order("submissions.submitted_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&submissions).Error
+
+	return submissions, total, err
+}
+
 func (r *ChallengeRepository) GetSubmissionsByChallenge(challengeID uuid.UUID) ([]Submission, error) {
 	var submissions []Submission
 	err := r.db.
@@ -222,6 +314,30 @@ func (r *ChallengeRepository) GetChallengesByTeacher(teacherID uuid.UUID) ([]Cha
 		Where("created_by_teacher_id = ?", teacherID).
 		Find(&challenges).Error
 	return challenges, err
+}
+
+func (r *ChallengeRepository) GetChallengesByTeacherOptimized(teacherID uuid.UUID, offset, limit int, search string) ([]Challenge, int64, error) {
+	var challenges []Challenge
+	var total int64
+
+	query := r.db.Model(&Challenge{}).Where("created_by_teacher_id = ?", teacherID)
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		query = query.Where("title ILIKE ? OR description ILIKE ?", searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Preload("WinnerTeam").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&challenges).Error
+
+	return challenges, total, err
 }
 
 func (r *ChallengeRepository) GetTeacherChallengeByID(challengeID, teacherID uuid.UUID) (*Challenge, error) {
@@ -296,6 +412,50 @@ func (r *ChallengeRepository) GetGlobalLeaderboard() ([]LeaderboardEntry, error)
 
 	err := r.db.Raw(query).Scan(&entries).Error
 	return entries, err
+}
+
+func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UUID, offset, limit int, search string, challengeID *uuid.UUID) ([]Submission, int64, error) {
+	var submissions []Submission
+	var total int64
+
+	// Separate count query for optimization
+	countQuery := r.db.Model(&Submission{}).
+		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
+		Where("c.created_by = ?", teacherID)
+
+	// Data query
+	dataQuery := r.db.Model(&Submission{}).
+		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
+		Where("c.created_by = ?", teacherID)
+
+	// Apply challenge filter
+	if challengeID != nil {
+		countQuery = countQuery.Where("submissions.challenge_id = ?", *challengeID)
+		dataQuery = dataQuery.Where("submissions.challenge_id = ?", *challengeID)
+	}
+
+	// Apply search filter with case-insensitive search
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(c.title) LIKE ? OR LOWER(c.description) LIKE ? OR LOWER(submissions.description) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data with preloading
+	err := dataQuery.
+		Preload("Challenge", "id, title, description, created_by").
+		Order("submissions.submitted_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&submissions).Error
+
+	return submissions, total, err
 }
 
 func (r *ChallengeRepository) UpdateChallengeParticipants(challengeID uuid.UUID, increment bool) error {

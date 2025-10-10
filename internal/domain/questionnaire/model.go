@@ -104,16 +104,3 @@ func (q *QuestionGenerationTemplate) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
-
-// type TargetRole struct {
-// 	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-// 	Name        string    `gorm:"not null;uniqueIndex" json:"name"`
-// 	Description string    `gorm:"not null" json:"description"`
-// 	Category    string    `gorm:"not null" json:"category"` // e.g., "Technology", "Business", "Creative"
-// 	Active      bool      `gorm:"default:true" json:"active"`
-// 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
-// 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-
-// 	// One-to-many relationship: one TargetRole can have many ProjectContributors
-// 	ProjectContributors []project.ProjectContributor `gorm:"foreignKey:ProfilingRoleID;constraint:OnDelete:SET NULL" json:"project_contributors,omitempty"`
-// }

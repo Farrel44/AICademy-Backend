@@ -1,6 +1,7 @@
 package project
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +42,60 @@ func (r *ProjectRepository) GetProjectByID(id uuid.UUID) (*Project, error) {
 func (r *ProjectRepository) GetProjectsByOwnerID(ownerID uuid.UUID) ([]Project, error) {
 	var projects []Project
 	err := r.db.Preload("Contributors").Preload("Photos").Where("owner_student_profile_id = ?", ownerID).Find(&projects).Error
+	return projects, err
+}
+
+func (r *ProjectRepository) GetProjectsByOwnerIDWithSearch(ownerID uuid.UUID, offset, limit int, search string) ([]Project, int64, error) {
+	var projects []Project
+	var total int64
+
+	query := r.db.Model(&Project{}).
+		Preload("Contributors").
+		Preload("Photos").
+		Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(tech_stack) LIKE ?",
+			searchTerm, searchTerm, searchTerm)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("created_at DESC").Find(&projects).Error
+	return projects, total, err
+}
+
+// Optimized methods for search performance
+func (r *ProjectRepository) CountProjectsByOwnerID(ownerID uuid.UUID, search string) (int64, error) {
+	var total int64
+	query := r.db.Model(&Project{}).Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(tech_stack) LIKE ?",
+			searchTerm, searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func (r *ProjectRepository) GetProjectsByOwnerIDOptimized(ownerID uuid.UUID, offset, limit int, search string) ([]Project, error) {
+	var projects []Project
+	query := r.db.Select("projects.*").
+		Model(&Project{}).
+		Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(projects.project_name) LIKE ? OR LOWER(projects.description) LIKE ? OR LOWER(projects.tech_stack) LIKE ?",
+			searchTerm, searchTerm, searchTerm)
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("projects.created_at DESC").Find(&projects).Error
 	return projects, err
 }
 

@@ -64,6 +64,36 @@ func (r *PklRepository) GetAllInternships(offset, limit int, search string) ([]I
 	return internships, total, err
 }
 
+// Optimized methods for search performance
+func (r *PklRepository) CountInternships(search string) (int64, error) {
+	var total int64
+	query := r.db.Model(&Internship{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(position) LIKE ? OR LOWER(location) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func (r *PklRepository) GetInternshipsOptimized(offset, limit int, search string) ([]Internship, error) {
+	var internships []Internship
+	query := r.db.Select("internships.*, company_profiles.company_name, users.name as company_user_name").
+		Joins("LEFT JOIN company_profiles ON internships.company_profile_id = company_profiles.id").
+		Joins("LEFT JOIN users ON company_profiles.user_id = users.id").
+		Model(&Internship{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(internships.position) LIKE ? OR LOWER(internships.location) LIKE ? OR LOWER(internships.description) LIKE ?", searchTerm, searchTerm, searchTerm)
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("internships.posted_at DESC").Find(&internships).Error
+	return internships, err
+}
+
 func (r *PklRepository) UpdateInternshipPosition(internship *Internship) error {
 	return r.db.Save(internship).Error
 }

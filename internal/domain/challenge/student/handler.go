@@ -66,12 +66,16 @@ func (h *StudentChallengeHandler) GetMyTeams(c *fiber.Ctx) error {
 }
 
 func (h *StudentChallengeHandler) GetAvailableChallenges(c *fiber.Ctx) error {
-	challenges, err := h.service.GetAvailableChallenges(c)
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	search := c.Query("search", "")
+
+	challenges, err := h.service.GetAvailableChallenges(c, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Challenges retrieved successfully", challenges)
+	return utils.SendSuccess(c, "Data tantangan berhasil diambil", challenges)
 }
 
 func (h *StudentChallengeHandler) RegisterTeamToChallenge(c *fiber.Ctx) error {

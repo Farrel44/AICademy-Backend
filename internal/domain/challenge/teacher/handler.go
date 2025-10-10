@@ -68,7 +68,18 @@ func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
-	challenges, err := h.service.GetMyChallenges(c)
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	challenges, err := h.service.GetMyChallenges(c, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -91,8 +102,18 @@ func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
-	var challengeID *uuid.UUID
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	search := c.Query("search", "")
 
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	var challengeID *uuid.UUID
 	if challengeIDStr := c.Query("challenge_id"); challengeIDStr != "" {
 		id, err := uuid.Parse(challengeIDStr)
 		if err != nil {
@@ -101,7 +122,7 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 		challengeID = &id
 	}
 
-	submissions, err := h.service.GetMySubmissions(c, challengeID)
+	submissions, err := h.service.GetMySubmissions(c, page, limit, search, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

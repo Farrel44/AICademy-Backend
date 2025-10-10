@@ -6,18 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type AvailableRoadmapResponse struct {
-	ID                uuid.UUID `json:"id"`
-	RoadmapName       string    `json:"roadmap_name"`
-	Description       *string   `json:"description"`
-	RoleName          string    `json:"role_name"`
-	TotalSteps        int       `json:"total_steps"`
-	EstimatedDuration int       `json:"estimated_duration"`
-	DifficultyLevel   string    `json:"difficulty_level"`
-	IsStarted         bool      `json:"is_started"`
-	ProgressPercent   float64   `json:"progress_percent"`
-}
-
 type StartRoadmapRequest struct {
 	RoadmapID uuid.UUID `json:"roadmap_id" validate:"required"`
 }
@@ -37,6 +25,7 @@ type RoadmapProgressResponse struct {
 	TotalSteps         int                   `json:"total_steps"`
 	CompletedSteps     int                   `json:"completed_steps"`
 	ProgressPercent    float64               `json:"progress_percent"`
+	IsFinished         bool                  `json:"is_finished"`
 	StartedAt          *time.Time            `json:"started_at"`
 	LastActivityAt     *time.Time            `json:"last_activity_at"`
 	CompletedAt        *time.Time            `json:"completed_at"`
@@ -95,51 +84,12 @@ type SubmitEvidenceResponse struct {
 	SubmittedAt time.Time `json:"submitted_at"`
 }
 
-// My Progress DTOs
-type MyProgressResponse struct {
-	ActiveRoadmaps    []ActiveRoadmapSummary    `json:"active_roadmaps"`
-	CompletedRoadmaps []CompletedRoadmapSummary `json:"completed_roadmaps"`
-	OverallStats      StudentStatistics         `json:"overall_stats"`
-}
-
-type ActiveRoadmapSummary struct {
-	ID                  uuid.UUID  `json:"id"`
-	RoadmapName         string     `json:"roadmap_name"`
-	RoleName            string     `json:"role_name"`
-	TotalSteps          int        `json:"total_steps"`
-	CompletedSteps      int        `json:"completed_steps"`
-	ProgressPercent     float64    `json:"progress_percent"`
-	CurrentStep         *StepInfo  `json:"current_step"`
-	StartedAt           *time.Time `json:"started_at"`
-	LastActivityAt      *time.Time `json:"last_activity_at"`
-	EstimatedCompletion *time.Time `json:"estimated_completion"`
-}
-
-type CompletedRoadmapSummary struct {
-	ID            uuid.UUID `json:"id"`
-	RoadmapName   string    `json:"roadmap_name"`
-	RoleName      string    `json:"role_name"`
-	TotalSteps    int       `json:"total_steps"`
-	CompletedAt   time.Time `json:"completed_at"`
-	TotalDuration int       `json:"total_duration"`
-	AverageScore  *float64  `json:"average_score"`
-}
-
 type StepInfo struct {
 	ID              uuid.UUID `json:"id"`
 	Order           int       `json:"order"`
 	Title           string    `json:"title"`
 	Status          string    `json:"status"`
 	DifficultyLevel string    `json:"difficulty_level"`
-}
-
-type StudentStatistics struct {
-	TotalRoadmapsStarted   int     `json:"total_roadmaps_started"`
-	TotalRoadmapsCompleted int     `json:"total_roadmaps_completed"`
-	TotalStepsCompleted    int     `json:"total_steps_completed"`
-	TotalHoursSpent        int     `json:"total_hours_spent"`
-	AverageCompletionRate  float64 `json:"average_completion_rate"`
-	StreakDays             int     `json:"streak_days"`
 }
 
 // Detailed Step View DTOs
@@ -171,13 +121,33 @@ type ResourceInfo struct {
 	Description string `json:"description"`
 }
 
-// Response wrapper DTOs
-type PaginatedRoadmapsResponse struct {
-	Data       []AvailableRoadmapResponse `json:"data"`
-	Total      int64                      `json:"total"`
-	Page       int                        `json:"page"`
-	Limit      int                        `json:"limit"`
-	TotalPages int                        `json:"total_pages"`
+type MyRoadmapResponse struct {
+	HasRoadmap bool                   `json:"has_roadmap"`
+	Roadmap    *RoadmapDetailResponse `json:"roadmap,omitempty"`
+	Message    string                 `json:"message,omitempty"`
+}
+
+type RoadmapDetailResponse struct {
+	ID                uuid.UUID             `json:"id"`
+	RoadmapName       string                `json:"roadmap_name"`
+	Description       *string               `json:"description"`
+	RoleName          string                `json:"role_name"`
+	TotalSteps        int                   `json:"total_steps"`
+	EstimatedDuration int                   `json:"estimated_duration"`
+	DifficultyLevel   string                `json:"difficulty_level"`
+	Progress          *RoadmapProgressInfo  `json:"progress,omitempty"`
+	Steps             []StudentStepResponse `json:"steps"`
+}
+
+type RoadmapProgressInfo struct {
+	ID              uuid.UUID  `json:"id"`
+	TotalSteps      int        `json:"total_steps"`
+	CompletedSteps  int        `json:"completed_steps"`
+	ProgressPercent float64    `json:"progress_percent"`
+	IsFinished      bool       `json:"is_finished"`
+	StartedAt       *time.Time `json:"started_at"`
+	LastActivityAt  *time.Time `json:"last_activity_at"`
+	CompletedAt     *time.Time `json:"completed_at"`
 }
 
 // Achievement/Badge DTOs (Future enhancement)

@@ -51,17 +51,22 @@ func (s *AdminQuestionnaireService) CreateTargetRole(req CreateTargetRoleRequest
 	return s.mapTargetRoleToResponse(targetRole), nil
 }
 
-func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int) (*PaginatedTargetRolesResponse, error) {
-	log.Printf("DEBUG: Service GetTargetRoles called with page=%d, limit=%d", page, limit)
+func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int, search string) (*PaginatedTargetRolesResponse, error) {
+	// Phase 1 optimization: Redis caching
+	cacheKey := fmt.Sprintf("admin_target_roles:%d:%d:%s", page, limit, search)
 
-	offset := (page - 1) * limit
-	roles, total, err := s.repo.GetTargetRoles(offset, limit)
-	if err != nil {
-		log.Printf("DEBUG: Repository error: %v", err)
-		return nil, err
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedTargetRolesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
 	}
 
-	log.Printf("DEBUG: Service received %d roles, total=%d", len(roles), total)
+	offset := (page - 1) * limit
+	roles, total, err := s.repo.GetTargetRolesOptimized(offset, limit, search)
+	if err != nil {
+		return nil, err
+	}
 
 	roleResponses := make([]TargetRoleResponse, len(roles))
 	for i, role := range roles {
@@ -70,13 +75,20 @@ func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int) (*PaginatedT
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	return &PaginatedTargetRolesResponse{
+	result := &PaginatedTargetRolesResponse{
 		Data:       roleResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	// Cache the result for 5 minutes
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminQuestionnaireService) GetTargetRoleByID(id uuid.UUID) (*TargetRoleResponse, error) {
@@ -170,9 +182,18 @@ func (s *AdminQuestionnaireService) GenerateQuestionnaire(req GenerateQuestionna
 	}, nil
 }
 
-func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int) (*PaginatedQuestionnairesResponse, error) {
+func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int, search string) (*PaginatedQuestionnairesResponse, error) {
+	cacheKey := fmt.Sprintf("admin_questionnaires:%d:%d:%s", page, limit, search)
+
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedQuestionnairesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
-	questionnaires, total, err := s.repo.GetQuestionnairesNew(offset, limit)
+	questionnaires, total, err := s.repo.GetQuestionnairesOptimized(offset, limit, search)
 	if err != nil {
 		return nil, err
 	}
@@ -203,13 +224,19 @@ func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int) (*Paginat
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	return &PaginatedQuestionnairesResponse{
+	result := &PaginatedQuestionnairesResponse{
 		Data:       questionnaireResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminQuestionnaireService) GetQuestionnaireDetail(id uuid.UUID) (*QuestionnaireDetailResponse, error) {
@@ -297,12 +324,18 @@ func (s *AdminQuestionnaireService) ActivateQuestionnaire(id uuid.UUID, active b
 	}
 }
 
-func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, questionnaireID *uuid.UUID) (*PaginatedResponsesResponse, error) {
-	// Calculate offset for pagination
-	offset := (page - 1) * limit
+func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, search string, questionnaireID *uuid.UUID) (*PaginatedResponsesResponse, error) {
+	cacheKey := fmt.Sprintf("admin_responses:%d:%d:%s:%v", page, limit, search, questionnaireID)
 
-	// Get responses from repository
-	responses, total, err := s.repo.GetQuestionnaireResponsesNew(offset, limit, questionnaireID)
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedResponsesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
+	offset := (page - 1) * limit
+	responses, total, err := s.repo.GetQuestionnaireResponsesOptimized(offset, limit, search, questionnaireID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get questionnaire responses: %w", err)
 	}
@@ -382,13 +415,19 @@ func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, q
 		}
 	}
 
-	return &PaginatedResponsesResponse{
+	result := &PaginatedResponsesResponse{
 		Data:       responseOverviews,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 // Helper method to calculate max score from questions

@@ -20,12 +20,13 @@ import (
 
 type ProjectService struct {
 	repo     *ProjectRepository
+	redis    *utils.RedisClient
 	s3Client *s3.Client
 	bucket   string
 	baseURL  string
 }
 
-func NewProjectService(repo *ProjectRepository) *ProjectService {
+func NewProjectService(repo *ProjectRepository, redis *utils.RedisClient) *ProjectService {
 	bucketName := os.Getenv("R2_BUCKET_NAME")
 	accountId := os.Getenv("R2_ACCOUNT_ID")
 	accessKeyId := os.Getenv("R2_KEY_ID")
@@ -46,6 +47,7 @@ func NewProjectService(repo *ProjectRepository) *ProjectService {
 
 	return &ProjectService{
 		repo:     repo,
+		redis:    redis,
 		s3Client: client,
 		bucket:   bucketName,
 		baseURL:  baseURL,
@@ -138,20 +140,69 @@ func (s *ProjectService) GetProjectByID(id uuid.UUID) (*ProjectResponse, error) 
 	return s.projectToResponse(project), nil
 }
 
-func (s *ProjectService) GetMyProjects(c *fiber.Ctx) ([]ProjectResponse, error) {
+func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return nil, errors.New("failed to get user id from token")
+		return nil, errors.New("gagal mengambil data user")
 	}
 
 	studentProfileID, err := s.repo.GetStudentProfileIDByUserID(userID)
 	if err != nil {
-		return nil, errors.New("failed to get student profile")
+		return nil, errors.New("gagal mengambil profil siswa")
 	}
 
-	projects, err := s.repo.GetProjectsByOwnerID(studentProfileID)
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
 	if err != nil {
 		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
+	// Check rate limit
+	allowed, err := utils.CheckSearchRateLimit(s.redis, userID.String(), "projects")
+	if err == nil && !allowed {
+		return nil, errors.New("terlalu banyak permintaan pencarian, coba lagi nanti")
+	}
+
+	// Generate cache keys
+	userCachePrefix := fmt.Sprintf("projects_%s", studentProfileID.String())
+	cacheKey := utils.GenerateSearchCacheKey(userCachePrefix, search, page, limit)
+	countKey := utils.GenerateCountCacheKey(userCachePrefix, search)
+
+	// Try to get from cache first
+	if cachedResult, err := utils.GetCachedSearchResult(s.redis, cacheKey); err == nil {
+		return &utils.PaginationResponse{
+			Data:       cachedResult.Data,
+			Total:      cachedResult.TotalCount,
+			Page:       cachedResult.Page,
+			Limit:      cachedResult.Limit,
+			TotalPages: int((cachedResult.TotalCount + int64(limit) - 1) / int64(limit)),
+		}, nil
+	}
+
+	offset := (page - 1) * limit
+
+	// Get cached count first to avoid expensive COUNT query
+	var total int64
+	if cachedCount, err := utils.GetCachedCount(s.redis, countKey); err == nil {
+		total = cachedCount
+	} else {
+		// Only count if not in cache
+		total, err = s.repo.CountProjectsByOwnerID(studentProfileID, search)
+		if err != nil {
+			return nil, errors.New("gagal mengambil jumlah data proyek")
+		}
+		// Cache the count
+		utils.CacheCount(s.redis, countKey, total)
+	}
+
+	// Get projects data
+	projects, err := s.repo.GetProjectsByOwnerIDOptimized(studentProfileID, offset, limit, search)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data proyek")
 	}
 
 	var responses []ProjectResponse
@@ -159,7 +210,18 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx) ([]ProjectResponse, error) 
 		responses = append(responses, *s.projectToResponse(&project))
 	}
 
-	return responses, nil
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	// Cache the results
+	utils.CacheSearchResult(s.redis, cacheKey, responses, total, page, limit)
+
+	return &utils.PaginationResponse{
+		Data:       responses,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (s *ProjectService) UpdateProject(id uuid.UUID, req *UpdateProjectRequest) (*ProjectResponse, error) {

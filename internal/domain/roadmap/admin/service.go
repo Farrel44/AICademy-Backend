@@ -1,21 +1,41 @@
 package admin
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type AdminRoadmapService struct {
-	repo *roadmap.RoadmapRepository
+	repo        *roadmap.RoadmapRepository
+	redisClient *redis.Client
 }
 
-func NewAdminRoadmapService(repo *roadmap.RoadmapRepository) *AdminRoadmapService {
-	return &AdminRoadmapService{repo: repo}
+func NewAdminRoadmapService(repo *roadmap.RoadmapRepository, redisClient *redis.Client) *AdminRoadmapService {
+	return &AdminRoadmapService{
+		repo:        repo,
+		redisClient: redisClient,
+	}
 }
 
 func (s *AdminRoadmapService) CreateRoadmap(req CreateRoadmapRequest, adminID uuid.UUID) (*RoadmapResponse, error) {
+	// Check if roadmap already exists for this profiling role
+	existingRoadmap, err := s.repo.GetRoadmapByProfilingRoleID(req.ProfilingRoleID)
+	if err != nil {
+		return nil, errors.New("failed to check existing roadmap")
+	}
+
+	if existingRoadmap != nil {
+		return nil, errors.New("roadmap already exists for this profiling role. Only one roadmap per role is allowed")
+	}
+
 	newRoadmap := &roadmap.FeatureRoadmap{
 		ProfilingRoleID: req.ProfilingRoleID,
 		RoadmapName:     req.RoadmapName,
@@ -24,7 +44,7 @@ func (s *AdminRoadmapService) CreateRoadmap(req CreateRoadmapRequest, adminID uu
 		CreatedBy:       adminID,
 	}
 
-	err := s.repo.CreateRoadmap(newRoadmap)
+	err = s.repo.CreateRoadmap(newRoadmap)
 	if err != nil {
 		return nil, errors.New("failed to create roadmap")
 	}
@@ -32,7 +52,26 @@ func (s *AdminRoadmapService) CreateRoadmap(req CreateRoadmapRequest, adminID uu
 	return s.mapRoadmapToResponse(newRoadmap), nil
 }
 
-func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid.UUID, status *string) (*PaginatedRoadmapsResponse, error) {
+func (s *AdminRoadmapService) GetRoadmaps(page, limit int, search string, profilingRoleID *uuid.UUID, status *string) (*PaginatedRoadmapsResponse, error) {
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
+	cacheKey := fmt.Sprintf("admin_roadmaps:%d:%d:%s:%v:%v", page, limit, search, profilingRoleID, status)
+
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedRoadmapsResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
 
 	var roadmapStatus *roadmap.RoadmapStatus
@@ -41,9 +80,14 @@ func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid
 		roadmapStatus = &rs
 	}
 
-	roadmaps, total, err := s.repo.GetRoadmaps(offset, limit, profilingRoleID, roadmapStatus)
+	total, err := s.repo.CountRoadmaps(search, profilingRoleID, roadmapStatus)
 	if err != nil {
-		return nil, errors.New("failed to get roadmaps")
+		return nil, errors.New("gagal mengambil jumlah data roadmap")
+	}
+
+	roadmaps, err := s.repo.GetRoadmapsOptimized(offset, limit, search, profilingRoleID, roadmapStatus)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data roadmap")
 	}
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
@@ -53,13 +97,19 @@ func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid
 		roadmapResponses[i] = *s.mapRoadmapToResponse(&rm)
 	}
 
-	return &PaginatedRoadmapsResponse{
+	result := &PaginatedRoadmapsResponse{
 		Data:       roadmapResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminRoadmapService) GetRoadmapByID(id uuid.UUID) (*RoadmapResponse, error) {
@@ -243,9 +293,18 @@ func (s *AdminRoadmapService) GetAllStudentProgress(roadmapID uuid.UUID, page, l
 	}, nil
 }
 
-func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, teacherID *uuid.UUID) (*PaginatedSubmissionsResponse, error) {
+func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, search string, teacherID *uuid.UUID) (*PaginatedSubmissionsResponse, error) {
+	cacheKey := fmt.Sprintf("admin_roadmap_submissions:%d:%d:%s:%v", page, limit, search, teacherID)
+
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedSubmissionsResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
-	submissions, total, err := s.repo.GetPendingSubmissions(teacherID, offset, limit)
+	submissions, total, err := s.repo.GetPendingSubmissionsOptimized(teacherID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get pending submissions")
 	}
@@ -285,13 +344,19 @@ func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, teacherID *
 		}
 	}
 
-	return &PaginatedSubmissionsResponse{
+	result := &PaginatedSubmissionsResponse{
 		Data:       submissionResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminRoadmapService) GetStatistics() (map[string]interface{}, error) {

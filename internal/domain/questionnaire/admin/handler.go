@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"log"
 	"strconv"
 
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -40,7 +39,9 @@ func (h *AdminQuestionnaireHandler) CreateTargetRole(c *fiber.Ctx) error {
 func (h *AdminQuestionnaireHandler) GetTargetRoles(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
 
+	// Validate page and limit
 	if page < 1 {
 		page = 1
 	}
@@ -48,15 +49,15 @@ func (h *AdminQuestionnaireHandler) GetTargetRoles(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	log.Printf("DEBUG: Handler calling service with page=%d, limit=%d", page, limit)
-
-	result, err := h.service.GetTargetRoles(page, limit)
-	if err != nil {
-		log.Printf("DEBUG: Handler service error: %v", err)
-		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	// Validate search parameter length
+	if len(search) > 100 {
+		return utils.SendError(c, fiber.StatusBadRequest, "Search parameter too long")
 	}
 
-	log.Printf("DEBUG: Handler got result: %+v", result)
+	result, err := h.service.GetTargetRoles(page, limit, search)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
+	}
 
 	return utils.SendSuccess(c, "Data target role berhasil diambil", result)
 }
@@ -165,6 +166,7 @@ func (h *AdminQuestionnaireHandler) GetGenerationStatus(c *fiber.Ctx) error {
 func (h *AdminQuestionnaireHandler) GetQuestionnaires(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
 
 	if page < 1 {
 		page = 1
@@ -173,7 +175,7 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaires(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	result, err := h.service.GetQuestionnaires(page, limit)
+	result, err := h.service.GetQuestionnaires(page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -225,6 +227,7 @@ func (h *AdminQuestionnaireHandler) ActivateQuestionnaire(c *fiber.Ctx) error {
 func (h *AdminQuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
 
 	if page < 1 {
 		page = 1
@@ -233,7 +236,6 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) erro
 		limit = 10
 	}
 
-	// Optional filter by questionnaire ID
 	var questionnaireID *uuid.UUID
 	if qIDStr := c.Query("questionnaire_id"); qIDStr != "" {
 		if id, err := uuid.Parse(qIDStr); err == nil {
@@ -241,7 +243,7 @@ func (h *AdminQuestionnaireHandler) GetQuestionnaireResponses(c *fiber.Ctx) erro
 		}
 	}
 
-	result, err := h.service.GetQuestionnaireResponses(page, limit, questionnaireID)
+	result, err := h.service.GetQuestionnaireResponses(page, limit, search, questionnaireID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

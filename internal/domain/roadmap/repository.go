@@ -1,6 +1,8 @@
 package roadmap
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
@@ -33,6 +35,7 @@ func (r *RoadmapRepository) GetRoadmapByID(id uuid.UUID) (*FeatureRoadmap, error
 	return &roadmap, nil
 }
 
+// ini dipakai admin
 func (r *RoadmapRepository) GetRoadmaps(offset, limit int, profilingRoleID *uuid.UUID, status *RoadmapStatus) ([]FeatureRoadmap, int64, error) {
 	var roadmaps []FeatureRoadmap
 	var total int64
@@ -61,6 +64,53 @@ func (r *RoadmapRepository) GetRoadmaps(offset, limit int, profilingRoleID *uuid
 	return roadmaps, total, err
 }
 
+// Optimized methods for search performance
+func (r *RoadmapRepository) CountRoadmaps(search string, profilingRoleID *uuid.UUID, status *RoadmapStatus) (int64, error) {
+	var total int64
+	query := r.db.Model(&FeatureRoadmap{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(roadmap_name) LIKE ? OR LOWER(description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	if profilingRoleID != nil {
+		query = query.Where("profiling_role_id = ?", *profilingRoleID)
+	}
+
+	if status != nil {
+		query = query.Where("status = ?", *status)
+	}
+
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func (r *RoadmapRepository) GetRoadmapsOptimized(offset, limit int, search string, profilingRoleID *uuid.UUID, status *RoadmapStatus) ([]FeatureRoadmap, error) {
+	var roadmaps []FeatureRoadmap
+	query := r.db.Select("feature_roadmaps.*").Model(&FeatureRoadmap{})
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(feature_roadmaps.roadmap_name) LIKE ? OR LOWER(feature_roadmaps.description) LIKE ?", searchTerm, searchTerm)
+	}
+
+	if profilingRoleID != nil {
+		query = query.Where("profiling_role_id = ?", *profilingRoleID)
+	}
+
+	if status != nil {
+		query = query.Where("status = ?", *status)
+	}
+
+	err := query.Order("feature_roadmaps.created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&roadmaps).Error
+
+	return roadmaps, err
+}
+
 func (r *RoadmapRepository) UpdateRoadmap(roadmap *FeatureRoadmap) error {
 	return r.db.Save(roadmap).Error
 }
@@ -72,6 +122,18 @@ func (r *RoadmapRepository) DeleteRoadmap(id uuid.UUID) error {
 		}
 		return tx.Delete(&FeatureRoadmap{}, id).Error
 	})
+}
+
+func (r *RoadmapRepository) GetRoadmapByProfilingRoleID(profilingRoleID uuid.UUID) (*FeatureRoadmap, error) {
+	var roadmap FeatureRoadmap
+	err := r.db.Where("profiling_role_id = ?", profilingRoleID).First(&roadmap).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // Return nil without error if not found
+		}
+		return nil, err
+	}
+	return &roadmap, nil
 }
 
 func (r *RoadmapRepository) CreateRoadmapStep(step *RoadmapStep) error {
@@ -123,6 +185,16 @@ func (r *RoadmapRepository) GetStudentStepProgress(roadmapProgressID, stepID uui
 	return &progress, nil
 }
 
+func (r *RoadmapRepository) GetStudentStepProgressList(roadmapProgressID uuid.UUID) ([]StudentStepProgress, error) {
+	var stepProgress []StudentStepProgress
+	err := r.db.Where("student_roadmap_progress_id = ?", roadmapProgressID).
+		Preload("RoadmapStep").
+		Joins("JOIN roadmap_steps ON student_step_progress.roadmap_step_id = roadmap_steps.id").
+		Order("roadmap_steps.step_order ASC").
+		Find(&stepProgress).Error
+	return stepProgress, err
+}
+
 func (r *RoadmapRepository) GetAllStudentProgress(roadmapID uuid.UUID, offset, limit int) ([]StudentRoadmapProgress, int64, error) {
 	var progressList []StudentRoadmapProgress
 	var total int64
@@ -170,45 +242,71 @@ func (r *RoadmapRepository) GetPendingSubmissions(teacherID *uuid.UUID, offset, 
 	return submissions, total, err
 }
 
+func (r *RoadmapRepository) GetPendingSubmissionsOptimized(teacherID *uuid.UUID, offset, limit int, search string) ([]StudentStepProgress, int64, error) {
+	var submissions []StudentStepProgress
+	var total int64
+
+	// Base condition for both count and data queries
+	baseCondition := "student_step_progress.status = ? AND student_step_progress.submitted_at IS NOT NULL"
+	args := []interface{}{string(RoadmapProgressStatusSubmitted)}
+
+	// Separate count query
+	countQuery := r.db.Model(&StudentStepProgress{}).
+		Joins("LEFT JOIN student_roadmap_progress srp ON student_step_progress.student_roadmap_progress_id = srp.id").
+		Joins("LEFT JOIN student_profiles sp ON srp.student_profile_id = sp.id").
+		Joins("LEFT JOIN users u ON sp.user_id = u.id").
+		Joins("LEFT JOIN feature_roadmaps fr ON srp.roadmap_id = fr.id").
+		Where(baseCondition, args...)
+
+	// Data query
+	dataQuery := r.db.Model(&StudentStepProgress{}).
+		Where(baseCondition, args...)
+
+	// Apply teacher filter
+	if teacherID != nil {
+		teacherCondition := "(student_step_progress.validated_by_teacher_id = ? OR student_step_progress.validated_by_teacher_id IS NULL)"
+		countQuery = countQuery.Where(teacherCondition, *teacherID)
+		dataQuery = dataQuery.Where(teacherCondition, *teacherID)
+	}
+
+	// Apply search filter
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(sp.fullname) LIKE ? OR LOWER(u.email) LIKE ? OR LOWER(fr.roadmap_name) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+
+		// For data query, add the joins needed for search
+		dataQuery = dataQuery.
+			Joins("LEFT JOIN student_roadmap_progress srp ON student_step_progress.student_roadmap_progress_id = srp.id").
+			Joins("LEFT JOIN student_profiles sp ON srp.student_profile_id = sp.id").
+			Joins("LEFT JOIN users u ON sp.user_id = u.id").
+			Joins("LEFT JOIN feature_roadmaps fr ON srp.roadmap_id = fr.id").
+			Where(searchCondition, searchTerm, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Preload("StudentRoadmapProgress.StudentProfile.User").
+		Preload("StudentRoadmapProgress.Roadmap").
+		Preload("RoadmapStep").
+		Order("student_step_progress.submitted_at ASC").
+		Offset(offset).
+		Limit(limit).
+		Find(&submissions).Error
+
+	return submissions, total, err
+}
+
 func (r *RoadmapRepository) UpdateStepProgress(progress *StudentStepProgress) error {
 	return r.db.Save(progress).Error
 }
 
 // Student Repository Methods
-
-func (r *RoadmapRepository) GetAvailableRoadmaps(studentProfileID uuid.UUID, offset, limit int) ([]FeatureRoadmap, int64, error) {
-	var roadmaps []FeatureRoadmap
-	var total int64
-
-	recommendedRoleID, _ := r.GetStudentRecommendedRole(studentProfileID)
-
-	query := r.db.Model(&FeatureRoadmap{}).Where("status = ?", RoadmapStatusActive)
-
-	if recommendedRoleID != nil {
-		query = query.Where("profiling_role_id = ?", *recommendedRoleID)
-	}
-
-	err := query.Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	err = query.Preload("Steps", func(db *gorm.DB) *gorm.DB {
-		return db.Order("step_order ASC")
-	}).Order("created_at DESC").
-		Offset(offset).
-		Limit(limit).
-		Find(&roadmaps).Error
-
-	for i := range roadmaps {
-		progress, _ := r.GetStudentRoadmapProgress(roadmaps[i].ID, studentProfileID)
-		if progress != nil {
-			roadmaps[i].StudentProgress = []StudentRoadmapProgress{*progress}
-		}
-	}
-
-	return roadmaps, total, err
-}
 
 func (r *RoadmapRepository) StartRoadmap(roadmapID, studentProfileID uuid.UUID) (*StudentRoadmapProgress, error) {
 	steps, err := r.GetRoadmapSteps(roadmapID)
@@ -376,13 +474,33 @@ func (r *RoadmapRepository) RejectStep(stepProgressID, teacherID uuid.UUID, note
 		Updates(updates).Error
 }
 
-func (r *RoadmapRepository) GetMyProgress(studentProfileID uuid.UUID) ([]StudentRoadmapProgress, error) {
-	var progressList []StudentRoadmapProgress
-	err := r.db.Where("student_profile_id = ?", studentProfileID).
-		Preload("Roadmap").
-		Order("created_at DESC").
-		Find(&progressList).Error
-	return progressList, err
+// GetStudentAssignedRoadmap retrieves the single roadmap assigned to a student based on their questionnaire profile
+func (r *RoadmapRepository) GetStudentAssignedRoadmap(studentProfileID uuid.UUID) (*FeatureRoadmap, error) {
+	// Get student's recommended role from questionnaire
+	recommendedRoleID, err := r.GetStudentRecommendedRole(studentProfileID)
+	if err != nil {
+		return nil, err
+	}
+
+	if recommendedRoleID == nil {
+		return nil, errors.New("no recommended role found for student")
+	}
+
+	// Get the roadmap for this role
+	var roadmap FeatureRoadmap
+	err = r.db.Preload("Steps", func(db *gorm.DB) *gorm.DB {
+		return db.Order("step_order ASC")
+	}).Where("profiling_role_id = ? AND status = ?", *recommendedRoleID, RoadmapStatusActive).
+		First(&roadmap).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, errors.New("no active roadmap found for student's recommended role")
+		}
+		return nil, err
+	}
+
+	return &roadmap, nil
 }
 
 // Helper Methods
@@ -417,14 +535,16 @@ func (r *RoadmapRepository) GetStudentRecommendedRole(studentProfileID uuid.UUID
 		Limit(1).
 		First(&result).Error
 
-	if err == gorm.ErrRecordNotFound || result.RecommendedProfilingRoleID == nil {
-		return nil, nil
-	}
-
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 
+	if err == gorm.ErrRecordNotFound || result.RecommendedProfilingRoleID == nil {
+		return nil, nil
+	}
 	roleID, err := uuid.Parse(*result.RecommendedProfilingRoleID)
 	if err != nil {
 		return nil, err
@@ -447,7 +567,7 @@ func (r *RoadmapRepository) GetNextStepOrder(roadmapID uuid.UUID) (int, error) {
 	return maxOrder + 1, nil
 }
 
-func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (interface{}, error) {
+func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (map[string]interface{}, error) {
 	var role struct {
 		ID          uuid.UUID `json:"id"`
 		Name        string    `json:"name"`
@@ -462,7 +582,12 @@ func (r *RoadmapRepository) GetProfilingRole(roleID uuid.UUID) (interface{}, err
 	if err != nil {
 		return nil, err
 	}
-	return role, nil
+
+	return map[string]interface{}{
+		"id":          role.ID,
+		"name":        role.Name,
+		"description": role.Description,
+	}, nil
 }
 
 func (r *RoadmapRepository) updateRoadmapProgress(tx *gorm.DB, roadmapProgressID uuid.UUID) error {

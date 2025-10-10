@@ -20,6 +20,14 @@ func NewTeacherHandler(service *TeacherService) *TeacherHandler {
 func (h *TeacherHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 
 	teacherClaims := c.Locals("user")
 	if teacherClaims == nil {
@@ -35,7 +43,7 @@ func (h *TeacherHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Invalid teacher ID")
 	}
 
-	result, err := h.service.GetPendingSubmissions(teacherID, page, limit)
+	result, err := h.service.GetPendingSubmissions(teacherID, page, limit, search)
 	if err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}

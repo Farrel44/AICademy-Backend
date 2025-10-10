@@ -29,6 +29,10 @@ import (
 	adminRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/admin"
 	studentRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/student"
 	teacherRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/teacher"
+
+	// "github.com/Farrel44/AICademy-Backend/internal/domain/trend"
+	// trendAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/trend/admin"
+	// trendStudent "github.com/Farrel44/AICademy-Backend/internal/domain/trend/student"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
@@ -254,7 +258,7 @@ func main() {
 	roadmapRepo := roadmap.NewRoadmapRepository(db)
 
 	// Admin roadmap service and handler
-	adminRoadmapService := adminRoadmap.NewAdminRoadmapService(roadmapRepo)
+	adminRoadmapService := adminRoadmap.NewAdminRoadmapService(roadmapRepo, rdb.Client)
 	adminRoadmapHandler := adminRoadmap.NewAdminRoadmapHandler(adminRoadmapService)
 
 	// Student roadmap service and handler
@@ -262,7 +266,7 @@ func main() {
 	studentRoadmapHandler := studentRoadmap.NewStudentRoadmapHandler(studentRoadmapService)
 
 	// Teacher service and handler
-	teacherService := teacherRoadmap.NewTeacherService(roadmapRepo)
+	teacherService := teacherRoadmap.NewTeacherService(roadmapRepo, rdb.Client)
 	teacherHandler := teacherRoadmap.NewTeacherHandler(teacherService)
 
 	userRepo := user.NewUserRepository(db, rdb.Client)
@@ -271,7 +275,7 @@ func main() {
 
 	// Project services and handlers
 	projectRepo := project.NewProjectRepository(db, rdb.Client)
-	projectService := project.NewProjectService(projectRepo)
+	projectService := project.NewProjectService(projectRepo, rdb)
 	projectHandler := project.NewProjectHandler(projectService)
 
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
@@ -294,15 +298,23 @@ func main() {
 	challengeRepository := challengeRepo.NewChallengeRepository(db, rdb.Client)
 
 	// Admin challenge
-	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository)
+	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository, rdb.Client)
 	adminChallengeHandler := adminChallenge.NewAdminChallengeHandler(adminChallengeService)
 
+	// // Trend services and handlers
+	// trendRepo := trend.NewTrendRepository(db, rdb.Client)
+	// adminTrendService := trendAdmin.NewAdminTrendService(trendRepo, rdb.Client, aiService)
+	// adminTrendHandler := trendAdmin.NewAdminTrendHandler(adminTrendService)
+
+	// studentTrendService := trendStudent.NewTrendService(trendRepo, rdb.Client)
+	// studentTrendHandler := trendStudent.NewTrendHandler(studentTrendService)
+
 	// Teacher challenge
-	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository)
+	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository, rdb.Client)
 	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
 
 	// Student challenge
-	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository)
+	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository, rdb)
 	studentChallengeHandler := studentChallenge.NewStudentChallengeHandler(studentChallengeService)
 
 	app := fiber.New(fiber.Config{
@@ -335,6 +347,13 @@ func main() {
 		return c.JSON(fiber.Map{
 			"message": "AICademy API v1.0",
 			"status":  "OK",
+		})
+	})
+
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"status":  "OK",
+			"message": "AICademy API is healthy",
 		})
 	})
 
@@ -432,12 +451,17 @@ func main() {
 	// Admin Challenge Routes
 	adminAuth.Post("/challenges", adminChallengeHandler.CreateChallenge)
 	adminAuth.Get("/challenges", adminChallengeHandler.GetAllChallenges)
+	adminAuth.Get("/challenges/submissions", adminChallengeHandler.GetAllSubmissions)
+	adminAuth.Post("/challenges/submissions/score", adminChallengeHandler.ScoreSubmission)
 	adminAuth.Get("/challenges/:id", adminChallengeHandler.GetChallengeByID)
 	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
 	adminAuth.Delete("/challenges/:id", adminChallengeHandler.DeleteChallenge)
-	adminAuth.Get("/challenges/submissions", adminChallengeHandler.GetAllSubmissions)
-	adminAuth.Post("/challenges/submissions/score", adminChallengeHandler.ScoreSubmission)
-	adminAuth.Get("/challenges/leaderboard", adminChallengeHandler.GetLeaderboard)
+
+	// Admin Trend Routes
+	// adminAuth.Post("/trends/collect", adminTrendHandler.TriggerDataCollection)
+	// adminAuth.Get("/trends/status", adminTrendHandler.GetCollectionStatus)
+	// adminAuth.Get("/trends/data", adminTrendHandler.GetAllTrendData)
+	// adminAuth.Get("/challenges/leaderboard", adminChallengeHandler.GetLeaderboard)
 
 	// Teacher Routes (for reviewing submissions)
 	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
@@ -469,12 +493,12 @@ func main() {
 	studentRoutes.Get("/role", studentQuestionnaireHandler.GetStudentRole)
 
 	// Student Roadmap Routes
-	studentRoutes.Get("/roadmaps", studentRoadmapHandler.GetAvailableRoadmaps)
+	studentRoutes.Get("/my-roadmap", studentRoadmapHandler.GetMyRoadmap)
 	studentRoutes.Post("/roadmaps/start", studentRoadmapHandler.StartRoadmap)
 	studentRoutes.Get("/roadmaps/:roadmapId/progress", studentRoadmapHandler.GetRoadmapProgress)
+	studentRoutes.Get("/roadmaps/steps/:stepId/progress", studentRoadmapHandler.GetStepProgress)
 	studentRoutes.Post("/roadmaps/steps/start", studentRoadmapHandler.StartStep)
 	studentRoutes.Post("/roadmaps/steps/submit", studentRoadmapHandler.SubmitEvidence)
-	studentRoutes.Get("/roadmaps/my-progress", studentRoadmapHandler.GetMyProgress)
 
 	studentRoutes.Get("/me", userHandler.GetUserByToken)
 	studentRoutes.Put("/profile", userHandler.UpdateUserProfile)
@@ -494,10 +518,9 @@ func main() {
 	studentRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	studentRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
+	// Student PKL Routes
+	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
-
-	studentRoutes.Get("/users/internships", pklAdminHandler.GetInternshipPositions)
-	studentRoutes.Get("/users/internships/:id", pklAdminHandler.GetInternshipByID)
 
 	// Student Challenge Routes
 	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
@@ -505,6 +528,10 @@ func main() {
 	studentRoutes.Get("/challenges", studentChallengeHandler.GetAvailableChallenges)
 	studentRoutes.Post("/challenges/register", studentChallengeHandler.RegisterTeamToChallenge)
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
+
+	// Student Trend Routes
+	// studentRoutes.Get("/trends/dashboard", studentTrendHandler.GetTrendDashboard)
+	// studentRoutes.Get("/trends", studentTrendHandler.GetCareerTrends)
 
 	// Alumni Routes
 	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())

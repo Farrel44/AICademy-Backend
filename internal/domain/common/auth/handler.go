@@ -44,6 +44,7 @@ func (h *CommonAuthHandler) Login(c *fiber.Ctx) error {
 	h.setAuthCookies(c, result.AccessToken, result.User.Role)
 
 	return utils.SuccessResponse(c, result, "Login successful")
+
 }
 
 func (h *CommonAuthHandler) GetMe(c *fiber.Ctx) error {
@@ -184,6 +185,9 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 	}, "Password reset successful")
 } // Helper methods
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role string) {
+	if token == "" || role == "" {
+		return
+	}
 	c.Cookie(&fiber.Cookie{
 		Name:     "token",
 		Value:    token,

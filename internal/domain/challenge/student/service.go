@@ -13,12 +13,14 @@ import (
 )
 
 type StudentChallengeService struct {
-	repo *challenge.ChallengeRepository
+	repo  *challenge.ChallengeRepository
+	redis *utils.RedisClient
 }
 
-func NewStudentChallengeService(repo *challenge.ChallengeRepository) *StudentChallengeService {
+func NewStudentChallengeService(repo *challenge.ChallengeRepository, redis *utils.RedisClient) *StudentChallengeService {
 	return &StudentChallengeService{
-		repo: repo,
+		repo:  repo,
+		redis: redis,
 	}
 }
 
@@ -197,7 +199,7 @@ func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, er
 }
 
 // Get available challenges
-func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]ChallengeListResponse, error) {
+func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
 	// Verify student access
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
@@ -205,18 +207,44 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]Challe
 	}
 
 	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
+		return nil, errors.New("akses ditolak: diperlukan role siswa")
 	}
+
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
 
 	// Get student profile ID
 	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
 	if err != nil {
-		return nil, errors.New("student profile not found")
+		return nil, errors.New("profil siswa tidak ditemukan")
 	}
 
-	challenges, err := s.repo.GetAllChallenges()
+	offset := (page - 1) * limit
+
+	// Get cached count first
+	countKey := utils.GenerateCountCacheKey("student_challenges", search)
+	var total int64
+	if cachedCount, err := utils.GetCachedCount(s.redis, countKey); err == nil {
+		total = cachedCount
+	} else {
+		total, err = s.repo.CountChallenges(search)
+		if err != nil {
+			return nil, errors.New("gagal mengambil jumlah data tantangan")
+		}
+		utils.CacheCount(s.redis, countKey, total)
+	}
+
+	// Get challenges data
+	challenges, err := s.repo.GetChallengesOptimized(offset, limit, search)
 	if err != nil {
-		return nil, errors.New("failed to fetch challenges")
+		return nil, errors.New("gagal mengambil data tantangan")
 	}
 
 	var result []ChallengeListResponse
@@ -256,7 +284,15 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx) ([]Challe
 		})
 	}
 
-	return result, nil
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	return &utils.PaginationResponse{
+		Data:       result,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }
 
 // Register team to challenge

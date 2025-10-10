@@ -6,9 +6,9 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	pkl_model "github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
-
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
@@ -93,6 +93,18 @@ func InitDatabase() (*gorm.DB, error) {
 		&project.ProjectPhoto{},
 		&project.Certification{},
 		&project.CertificationPhoto{},
+
+		// Challenge models
+		&challenge.Team{},
+		&challenge.TeamMember{},
+		&challenge.Challenge{},
+		&challenge.ChallengeWinner{},
+		&challenge.Submission{},
+		&challenge.ChallengeJudge{},
+
+		// // Trend models
+		// &trend.TechJobTrend{},
+		// &trend.MarketInsight{},
 	)
 
 	if err != nil {
@@ -217,6 +229,37 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_certification_photos_is_primary ON certification_photos(is_primary)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_certification_photos_created_at ON certification_photos(created_at)")
 
+	// Challenge indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_title ON challenges(title)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_deadline ON challenges(deadline)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_created_by_admin ON challenges(created_by_admin_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_created_by_teacher ON challenges(created_by_teacher_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_winner_team ON challenges(winner_team_id)")
+
+	// Team indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_teams_team_name ON teams(team_name)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_teams_created_by ON teams(created_by_student_profile_id)")
+
+	// Team member indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_team_members_student_id ON team_members(student_profile_id)")
+
+	// Submission indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_submissions_challenge_id ON submissions(challenge_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_submissions_team_id ON submissions(team_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_submissions_student_id ON submissions(student_profile_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_submissions_title ON submissions(title)")
+
+	// Search-optimized indexes for text fields (case-insensitive)
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_name_lower ON users(LOWER(name))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_company_profiles_company_name_lower ON company_profiles(LOWER(company_name))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_position_lower ON internships(LOWER(position))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_location_lower ON internships(LOWER(location))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_projects_project_name_lower ON projects(LOWER(project_name))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_projects_tech_stack_lower ON projects(LOWER(tech_stack))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_title_lower ON challenges(LOWER(title))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_teams_team_name_lower ON teams(LOWER(team_name))")
+
 	// Composite indexes untuk query yang sering digunakan
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_student_status ON internship_applications(student_profile_id, status)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_internship_applications_internship_status ON internship_applications(internship_id, status)")
@@ -228,6 +271,11 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_project_contributors_student_project ON project_contributors(student_profile_id, project_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_certifications_student_date ON certifications(student_profile_id, issue_date)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_certifications_expiring ON certifications(expiration_date) WHERE expiration_date IS NOT NULL")
+
+	// Search performance composite indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_internships_search ON internships(company_profile_id, LOWER(position), LOWER(location), deadline)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_projects_search ON projects(owner_student_profile_id, LOWER(project_name), LOWER(tech_stack))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_search ON challenges(LOWER(title), deadline, created_at)")
 
 	log.Println("Database indexes created successfully")
 }

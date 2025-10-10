@@ -1,22 +1,28 @@
 package teacher_challenge
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type TeacherChallengeService struct {
-	repo *challenge.ChallengeRepository
+	repo        *challenge.ChallengeRepository
+	redisClient *redis.Client
 }
 
-func NewTeacherChallengeService(repo *challenge.ChallengeRepository) *TeacherChallengeService {
+func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient *redis.Client) *TeacherChallengeService {
 	return &TeacherChallengeService{
-		repo: repo,
+		repo:        repo,
+		redisClient: redisClient,
 	}
 }
 
@@ -125,8 +131,7 @@ func (s *TeacherChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid
 	return nil
 }
 
-func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx) ([]challenge.Challenge, error) {
-	// Verify teacher access
+func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
 		return nil, errors.New("unauthorized")
@@ -138,12 +143,36 @@ func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx) ([]challenge.Cha
 
 	teacherID := claims.UserID
 
-	challenges, err := s.repo.GetChallengesByTeacher(teacherID)
+	cacheKey := fmt.Sprintf("teacher_challenges:%s:%d:%d:%s", teacherID.String(), page, limit, search)
+
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result utils.PaginationResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
+	offset := (page - 1) * limit
+	challenges, total, err := s.repo.GetChallengesByTeacherOptimized(teacherID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to fetch challenges")
 	}
 
-	return challenges, nil
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	result := &utils.PaginationResponse{
+		Data:       challenges,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *TeacherChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {
@@ -167,8 +196,7 @@ func (s *TeacherChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uui
 	return challengeData, nil
 }
 
-func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, challengeID *uuid.UUID) ([]challenge.Submission, error) {
-	// Verify teacher access
+func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int, search string, challengeID *uuid.UUID) (*utils.PaginationResponse, error) {
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
 		return nil, errors.New("unauthorized")
@@ -178,37 +206,38 @@ func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, challengeID *uu
 		return nil, errors.New("access denied: teacher role required")
 	}
 
-	var submissions []challenge.Submission
+	teacherID := claims.UserID
 
-	if challengeID != nil {
-		// Verify teacher owns this challenge
-		_, err = s.GetChallengeByID(c, *challengeID)
-		if err != nil {
-			return nil, err
-		}
+	cacheKey := fmt.Sprintf("teacher_challenge_submissions:%s:%d:%d:%s:%v", teacherID.String(), page, limit, search, challengeID)
 
-		submissions, err = s.repo.GetSubmissionsByChallenge(*challengeID)
-	} else {
-		// Get submissions for all teacher's challenges
-		teacherChallenges, err := s.GetMyChallenges(c)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ch := range teacherChallenges {
-			challengeSubmissions, err := s.repo.GetSubmissionsByChallenge(ch.ID)
-			if err != nil {
-				continue
-			}
-			submissions = append(submissions, challengeSubmissions...)
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result utils.PaginationResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
 		}
 	}
 
+	offset := (page - 1) * limit
+	submissions, total, err := s.repo.GetSubmissionsByTeacherOptimized(teacherID, offset, limit, search, challengeID)
 	if err != nil {
 		return nil, errors.New("failed to fetch submissions")
 	}
 
-	return submissions, nil
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	result := &utils.PaginationResponse{
+		Data:       submissions,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *TeacherChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmissionRequest) error {

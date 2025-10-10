@@ -1,6 +1,8 @@
 package project
 
 import (
+	"strconv"
+
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -58,12 +60,23 @@ func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 }
 
 func (h *ProjectHandler) GetMyProjects(c *fiber.Ctx) error {
-	projects, err := h.service.GetMyProjects(c)
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	projects, err := h.service.GetMyProjects(c, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Projects berhasil diambil", projects)
+	return utils.SendSuccess(c, "Data proyek berhasil diambil", projects)
 }
 
 func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {

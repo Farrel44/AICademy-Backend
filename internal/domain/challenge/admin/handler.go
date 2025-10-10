@@ -1,6 +1,8 @@
 package admin_challenge
 
 import (
+	"strconv"
+
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -68,12 +70,23 @@ func (h *AdminChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
 }
 
 func (h *AdminChallengeHandler) GetAllChallenges(c *fiber.Ctx) error {
-	challenges, err := h.service.GetAllChallenges(c)
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	challenges, err := h.service.GetAllChallenges(c, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Challenges retrieved successfully", challenges)
+	return utils.SendSuccess(c, "Data tantangan berhasil diambil", challenges)
 }
 
 func (h *AdminChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
@@ -91,7 +104,18 @@ func (h *AdminChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 }
 
 func (h *AdminChallengeHandler) GetAllSubmissions(c *fiber.Ctx) error {
-	submissions, err := h.service.GetAllSubmissions(c)
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	submissions, err := h.service.GetAllSubmissions(c, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
