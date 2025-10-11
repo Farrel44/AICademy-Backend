@@ -103,7 +103,12 @@ func (h *AdminChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, "Challenge retrieved successfully", challenge)
 }
 
-func (h *AdminChallengeHandler) GetAllSubmissions(c *fiber.Ctx) error {
+func (h *AdminChallengeHandler) GetSubmissionsByChallengeID(c *fiber.Ctx) error {
+	challengeID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
+	}
+
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
 	search := c.Query("search", "")
@@ -115,7 +120,7 @@ func (h *AdminChallengeHandler) GetAllSubmissions(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	submissions, err := h.service.GetAllSubmissions(c, page, limit, search)
+	submissions, err := h.service.GetSubmissionsByChallengeID(c, challengeID, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

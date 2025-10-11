@@ -40,7 +40,6 @@ func (s *TeacherChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChall
 	teacherID := claims.UserID
 
 	newChallenge := &challenge.Challenge{
-		ThumbnailImage:     req.ThumbnailImage,
 		Title:              req.Title,
 		Description:        req.Description,
 		Deadline:           req.Deadline,
@@ -76,10 +75,6 @@ func (s *TeacherChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid
 		return nil, errors.New("challenge not found or access denied")
 	}
 
-	// Update fields
-	if req.ThumbnailImage != nil {
-		existingChallenge.ThumbnailImage = *req.ThumbnailImage
-	}
 	if req.Title != nil {
 		existingChallenge.Title = *req.Title
 	}
@@ -143,6 +138,19 @@ func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int,
 
 	teacherID := claims.UserID
 
+	// Check and auto announce winners before getting challenges
+	s.repo.CheckAndAutoAnnounceWinners()
+
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
 	cacheKey := fmt.Sprintf("teacher_challenges:%s:%d:%d:%s", teacherID.String(), page, limit, search)
 
 	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
@@ -188,9 +196,15 @@ func (s *TeacherChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uui
 
 	teacherID := claims.UserID
 
-	challengeData, err := s.repo.GetTeacherChallengeByID(challengeID, teacherID)
+	// Use the new method with auto winner check instead of direct repository call
+	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
-		return nil, errors.New("challenge not found or access denied")
+		return nil, errors.New("challenge not found")
+	}
+
+	// Verify teacher ownership after getting challenge
+	if challengeData.CreatedByTeacherID == nil || *challengeData.CreatedByTeacherID != teacherID {
+		return nil, errors.New("access denied: challenge not owned by teacher")
 	}
 
 	return challengeData, nil
@@ -207,6 +221,19 @@ func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int
 	}
 
 	teacherID := claims.UserID
+
+	// Check and auto announce winners before getting submissions
+	s.repo.CheckAndAutoAnnounceWinners()
+
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
 
 	cacheKey := fmt.Sprintf("teacher_challenge_submissions:%s:%d:%d:%s:%v", teacherID.String(), page, limit, search, challengeID)
 
@@ -264,35 +291,4 @@ func (s *TeacherChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmis
 	return nil
 }
 
-func (s *TeacherChallengeService) GetLeaderboard(c *fiber.Ctx, challengeID *uuid.UUID) ([]challenge.LeaderboardEntry, error) {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
 
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
-	var leaderboard []challenge.LeaderboardEntry
-
-	if challengeID != nil {
-		// Verify teacher owns this challenge
-		_, err = s.GetChallengeByID(c, *challengeID)
-		if err != nil {
-			return nil, err
-		}
-
-		leaderboard, err = s.repo.GetLeaderboard(*challengeID)
-	} else {
-		// For now, return error as global leaderboard should be admin-only
-		return nil, errors.New("challenge_id is required for teacher leaderboard")
-	}
-
-	if err != nil {
-		return nil, errors.New("failed to fetch leaderboard")
-	}
-
-	return leaderboard, nil
-}

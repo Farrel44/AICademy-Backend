@@ -40,7 +40,6 @@ func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallen
 	adminID := claims.UserID
 
 	newChallenge := &challenge.Challenge{
-		ThumbnailImage:   req.ThumbnailImage,
 		Title:            req.Title,
 		Description:      req.Description,
 		Deadline:         req.Deadline,
@@ -76,10 +75,6 @@ func (s *AdminChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid.U
 		return nil, errors.New("challenge not found or access denied")
 	}
 
-	// Update fields
-	if req.ThumbnailImage != nil {
-		existingChallenge.ThumbnailImage = *req.ThumbnailImage
-	}
 	if req.Title != nil {
 		existingChallenge.Title = *req.Title
 	}
@@ -141,6 +136,9 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 		return nil, errors.New("akses ditolak: diperlukan role admin")
 	}
 
+	// Check and auto announce winners before getting challenges
+	s.repo.CheckAndAutoAnnounceWinners()
+
 	// Validate search parameters
 	validation, err := utils.ValidateSearchParams(search, page, limit)
 	if err != nil {
@@ -200,7 +198,8 @@ func (s *AdminChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.
 		return nil, errors.New("access denied: admin role required")
 	}
 
-	challengeData, err := s.repo.GetChallengeByID(challengeID)
+	// Use the new method with auto winner check
+	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
 		return nil, errors.New("challenge not found")
 	}
@@ -208,7 +207,7 @@ func (s *AdminChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.
 	return challengeData, nil
 }
 
-func (s *AdminChallengeService) GetAllSubmissions(c *fiber.Ctx, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
+func (s *AdminChallengeService) GetSubmissionsByChallengeID(c *fiber.Ctx, challengeID uuid.UUID, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
 		return nil, errors.New("unauthorized")
@@ -218,7 +217,17 @@ func (s *AdminChallengeService) GetAllSubmissions(c *fiber.Ctx, page, limit int,
 		return nil, errors.New("access denied: admin role required")
 	}
 
-	cacheKey := fmt.Sprintf("admin_challenge_submissions:%d:%d:%s", page, limit, search)
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
+	cacheKey := fmt.Sprintf("admin_challenge_submissions:%s:%d:%d:%s", challengeID.String(), page, limit, search)
 
 	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
 		var result PaginatedSubmissionsResponse
@@ -228,7 +237,7 @@ func (s *AdminChallengeService) GetAllSubmissions(c *fiber.Ctx, page, limit int,
 	}
 
 	offset := (page - 1) * limit
-	submissions, total, err := s.repo.GetAllSubmissionsOptimized(offset, limit, search)
+	submissions, total, err := s.repo.GetSubmissionsByChallengeOptimized(challengeID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to fetch submissions")
 	}

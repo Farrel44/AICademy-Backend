@@ -84,7 +84,7 @@ func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Challenges retrieved successfully", challenges)
+	return utils.SendSuccess(c, "Data tantangan berhasil diambil", challenges)
 }
 
 func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
@@ -127,7 +127,7 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Submissions retrieved successfully", submissions)
+	return utils.SendSuccess(c, "Data submission berhasil diambil", submissions)
 }
 
 func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
@@ -146,23 +146,4 @@ func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
 	}
 
 	return utils.SendSuccess(c, "Submission scored successfully", nil)
-}
-
-func (h *TeacherChallengeHandler) GetLeaderboard(c *fiber.Ctx) error {
-	challengeIDStr := c.Query("challenge_id")
-	if challengeIDStr == "" {
-		return utils.SendError(c, fiber.StatusBadRequest, "challenge_id is required")
-	}
-
-	challengeID, err := uuid.Parse(challengeIDStr)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
-	}
-
-	leaderboard, err := h.service.GetLeaderboard(c, &challengeID)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SendSuccess(c, "Leaderboard retrieved successfully", leaderboard)
 }

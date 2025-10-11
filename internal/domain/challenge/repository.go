@@ -16,6 +16,13 @@ type ChallengeRepository struct {
 	cacheTTL     time.Duration
 }
 
+type TeamMemberInfo struct {
+	StudentProfileID uuid.UUID `json:"student_profile_id"`
+	MemberRole       *string   `json:"member_role"`
+	FullName         string    `json:"full_name"`
+	NIS              string    `json:"nis"`
+}
+
 type StudentSearchResult struct {
 	ID             uuid.UUID `json:"id"`
 	NIS            string    `json:"nis"`
@@ -36,15 +43,18 @@ func NewChallengeRepository(db *gorm.DB, rdb *redis.Client) *ChallengeRepository
 
 // Student Profile operations
 func (r *ChallengeRepository) GetStudentProfileByUserID(userID uuid.UUID) (*uuid.UUID, error) {
-	var studentProfileID uuid.UUID
+	var studentProfile struct {
+		ID uuid.UUID `gorm:"column:id"`
+	}
+
 	err := r.db.Table("student_profiles").
 		Select("id").
 		Where("user_id = ?", userID).
-		Scan(&studentProfileID).Error
+		First(&studentProfile).Error
 	if err != nil {
 		return nil, err
 	}
-	return &studentProfileID, nil
+	return &studentProfile.ID, nil
 }
 
 func (r *ChallengeRepository) SearchStudents(query string, limit int, excludeUserID uuid.UUID) ([]StudentSearchResult, error) {
@@ -102,6 +112,28 @@ func (r *ChallengeRepository) GetTeamsByStudentProfileID(studentProfileID uuid.U
         `, studentProfileID).
 		Find(&teams).Error
 	return teams, err
+}
+
+// Add this method to get team members with user details
+func (r *ChallengeRepository) GetTeamMembersWithDetails(teamID uuid.UUID) ([]TeamMemberInfo, error) {
+	var memberInfos []TeamMemberInfo
+
+	query := `
+        SELECT 
+            tm.student_profile_id,
+            tm.member_role,
+            sp.fullname as full_name,
+            sp.nis
+        FROM team_members tm
+        JOIN student_profiles sp ON tm.student_profile_id = sp.id
+        WHERE tm.team_id = ?
+        ORDER BY 
+            CASE WHEN tm.member_role = 'Leader' THEN 0 ELSE 1 END,
+            tm.joined_at
+    `
+
+	err := r.db.Raw(query, teamID).Scan(&memberInfos).Error
+	return memberInfos, err
 }
 
 func (r *ChallengeRepository) GetTeamByIDAndMember(teamID, studentProfileID uuid.UUID) (*Team, error) {
@@ -423,23 +455,15 @@ func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UU
 		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
 		Where("c.created_by = ?", teacherID)
 
-	// Data query
-	dataQuery := r.db.Model(&Submission{}).
-		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
-		Where("c.created_by = ?", teacherID)
-
 	// Apply challenge filter
 	if challengeID != nil {
 		countQuery = countQuery.Where("submissions.challenge_id = ?", *challengeID)
-		dataQuery = dataQuery.Where("submissions.challenge_id = ?", *challengeID)
 	}
 
 	// Apply search filter with case-insensitive search
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
-		searchCondition := "LOWER(c.title) LIKE ? OR LOWER(c.description) LIKE ? OR LOWER(submissions.description) LIKE ?"
-		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
-		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+		countQuery = countQuery.Where("LOWER(c.title) LIKE ? OR LOWER(c.description) LIKE ? OR LOWER(submissions.description) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
 	// Get count
@@ -447,9 +471,226 @@ func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UU
 		return nil, 0, err
 	}
 
+	// Data query with preloading
+	dataQuery := r.db.
+		Preload("Challenge", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, title").Preload("WinnerTeam", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id, team_name")
+			})
+		}).
+		Preload("Team", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, team_name").Preload("Members", func(db *gorm.DB) *gorm.DB {
+				return db.Select("team_id, student_profile_id, member_role")
+			})
+		}).
+		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
+		Where("c.created_by = ?", teacherID)
+
+	// Apply challenge filter
+	if challengeID != nil {
+		dataQuery = dataQuery.Where("submissions.challenge_id = ?", *challengeID)
+	}
+
+	// Apply search filter
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		dataQuery = dataQuery.Where("LOWER(submissions.title) LIKE ?", searchTerm)
+	}
+
+	err := dataQuery.Offset(offset).Limit(limit).Order("submissions.submitted_at DESC").Find(&submissions).Error
+	return submissions, total, err
+}
+
+// Auto announce winner for challenges that passed 7 days after deadline
+func (r *ChallengeRepository) AutoAnnounceWinner(challengeID uuid.UUID) error {
+	tx := r.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get top team by points for this challenge
+	var topSubmission struct {
+		TeamID uuid.UUID `gorm:"column:team_id"`
+		Points int       `gorm:"column:points"`
+	}
+
+	err := tx.Table("submissions").
+		Select("team_id, points").
+		Where("challenge_id = ? AND team_id IS NOT NULL AND points IS NOT NULL", challengeID).
+		Order("points DESC").
+		First(&topSubmission).Error
+
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Update challenge with winner
+	err = tx.Model(&Challenge{}).
+		Where("id = ?", challengeID).
+		Update("winner_team_id", topSubmission.TeamID).Error
+
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Create challenge winner record
+	challengeWinner := ChallengeWinner{
+		ChallengeID: challengeID,
+		TeamID:      topSubmission.TeamID,
+		Position:    1,
+	}
+
+	err = tx.Create(&challengeWinner).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+// Check and auto announce winners for eligible challenges
+func (r *ChallengeRepository) CheckAndAutoAnnounceWinners() error {
+	sevenDaysAgo := time.Now().Add(-7 * 24 * time.Hour)
+
+	var eligibleChallenges []Challenge
+	err := r.db.Where("deadline < ? AND winner_team_id IS NULL", sevenDaysAgo).
+		Find(&eligibleChallenges).Error
+
+	if err != nil {
+		return err
+	}
+
+	for _, challenge := range eligibleChallenges {
+		// Skip if no submissions with points
+		var submissionCount int64
+		r.db.Model(&Submission{}).
+			Where("challenge_id = ? AND team_id IS NOT NULL AND points IS NOT NULL AND points > 0", challenge.ID).
+			Count(&submissionCount)
+
+		if submissionCount > 0 {
+			r.AutoAnnounceWinner(challenge.ID)
+		}
+	}
+
+	return nil
+}
+
+// Get challenge by ID with auto winner check
+func (r *ChallengeRepository) GetChallengeByIDWithWinnerCheck(id uuid.UUID) (*Challenge, error) {
+	var challenge Challenge
+	err := r.db.
+		Preload("Submissions").
+		Preload("Submissions.Team").
+		Preload("Submissions.Team.Members").
+		Preload("WinnerTeam").
+		Preload("ChallengeWinners").
+		First(&challenge, "id = ?", id).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if this challenge needs winner announcement
+	if challenge.NeedsWinnerAnnouncement() {
+		r.AutoAnnounceWinner(challenge.ID)
+		// Reload challenge to get updated winner info
+		r.db.
+			Preload("Submissions").
+			Preload("Submissions.Team").
+			Preload("Submissions.Team.Members").
+			Preload("WinnerTeam").
+			Preload("ChallengeWinners").
+			First(&challenge, "id = ?", id)
+	}
+
+	return &challenge, nil
+}
+
+// Add missing method for student
+func (r *ChallengeRepository) GetActiveTeamByStudentID(studentProfileID uuid.UUID) (*Team, error) {
+	var team Team
+	err := r.db.
+		Preload("Members").
+		Where(`
+            id IN (
+                SELECT team_id FROM team_members 
+                WHERE student_profile_id = ?
+            )
+        `, studentProfileID).
+		Order("created_at DESC").
+		First(&team).Error
+	if err != nil {
+		return nil, err
+	}
+	return &team, nil
+}
+
+func (r *ChallengeRepository) UpdateSubmission(submission *Submission) error {
+	return r.db.Save(submission).Error
+}
+
+func (r *ChallengeRepository) CountSubmissionsByStudentID(studentProfileID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.Model(&Submission{}).
+		Joins("JOIN team_members ON submissions.team_id = team_members.team_id").
+		Where("team_members.student_profile_id = ?", studentProfileID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *ChallengeRepository) GetSubmissionsByStudentID(studentProfileID uuid.UUID, offset, limit int) ([]Submission, error) {
+	var submissions []Submission
+	err := r.db.
+		Preload("Challenge").
+		Preload("Team").
+		Joins("JOIN team_members ON submissions.team_id = team_members.team_id").
+		Where("team_members.student_profile_id = ?", studentProfileID).
+		Offset(offset).
+		Limit(limit).
+		Order("submissions.submitted_at DESC").
+		Find(&submissions).Error
+	return submissions, err
+}
+
+func (r *ChallengeRepository) GetSubmissionsByChallengeOptimized(challengeID uuid.UUID, offset, limit int, search string) ([]Submission, int64, error) {
+	var submissions []Submission
+	var total int64
+
+	// Base query for the challenge
+	baseQuery := r.db.Model(&Submission{}).Where("challenge_id = ?", challengeID)
+
+	// Apply search filter if provided
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		baseQuery = baseQuery.
+			Joins("LEFT JOIN teams t ON submissions.team_id = t.id").
+			Where("LOWER(submissions.title) LIKE ? OR LOWER(t.team_name) LIKE ?", searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
 	// Get data with preloading
+	dataQuery := r.db.Model(&Submission{}).
+		Preload("Challenge").
+		Preload("Team").
+		Where("challenge_id = ?", challengeID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		dataQuery = dataQuery.
+			Joins("LEFT JOIN teams t ON submissions.team_id = t.id").
+			Where("LOWER(submissions.title) LIKE ? OR LOWER(t.team_name) LIKE ?", searchTerm, searchTerm)
+	}
+
 	err := dataQuery.
-		Preload("Challenge", "id, title, description, created_by").
 		Order("submissions.submitted_at DESC").
 		Offset(offset).
 		Limit(limit).
@@ -459,24 +700,27 @@ func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UU
 }
 
 func (r *ChallengeRepository) UpdateChallengeParticipants(challengeID uuid.UUID, increment bool) error {
-	var change int
 	if increment {
-		change = 1
+		return r.db.Model(&Challenge{}).
+			Where("id = ?", challengeID).
+			Update("current_participants", gorm.Expr("current_participants + 1")).Error
 	} else {
-		change = -1
+		return r.db.Model(&Challenge{}).
+			Where("id = ?", challengeID).
+			Update("current_participants", gorm.Expr("current_participants - 1")).Error
 	}
-
-	return r.db.Model(&Challenge{}).
-		Where("id = ?", challengeID).
-		Update("current_participants", gorm.Expr("current_participants + ?", change)).Error
 }
 
-// Check if student is already in a team for a specific challenge
 func (r *ChallengeRepository) IsStudentInChallengeTeam(studentProfileID, challengeID uuid.UUID) (bool, error) {
 	var count int64
-	err := r.db.Table("submissions s").
-		Joins("JOIN team_members tm ON s.team_id = tm.team_id").
-		Where("s.challenge_id = ? AND tm.student_profile_id = ?", challengeID, studentProfileID).
+	err := r.db.Model(&Submission{}).
+		Joins("JOIN team_members tm ON submissions.team_id = tm.team_id").
+		Where("submissions.challenge_id = ? AND tm.student_profile_id = ?", challengeID, studentProfileID).
 		Count(&count).Error
-	return count > 0, err
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
 }

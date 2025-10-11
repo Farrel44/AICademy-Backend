@@ -1,6 +1,7 @@
 package student_challenge
 
 import (
+	"mime/multipart"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,12 +13,10 @@ type SearchStudentRequest struct {
 	Limit int    `json:"limit"`
 }
 
-// Team creation DTOs
 type CreateTeamRequest struct {
-	TeamName           string      `json:"team_name" validate:"required,min=3,max=100"`
-	About              *string     `json:"about"`
-	TeamProfilePicture *string     `json:"team_profile_picture"`
-	MemberIDs          []uuid.UUID `json:"member_ids" validate:"required,len=2"`
+	TeamName  string      `json:"team_name" validate:"required,min=3,max=100"`
+	About     *string     `json:"about"`
+	MemberIDs []uuid.UUID `json:"member_ids" validate:"required,min=2"`
 }
 
 type TeamMemberInfo struct {
@@ -25,17 +24,15 @@ type TeamMemberInfo struct {
 	MemberRole       *string   `json:"member_role"`
 	FullName         string    `json:"full_name"`
 	NIS              string    `json:"nis"`
-	ProfilePicture   *string   `json:"profile_picture"`
 }
 
 type CreateTeamResponse struct {
-	ID                 uuid.UUID        `json:"id"`
-	TeamName           string           `json:"team_name"`
-	About              *string          `json:"about"`
-	TeamProfilePicture *string          `json:"team_profile_picture"`
-	CreatedAt          time.Time        `json:"created_at"`
-	Members            []TeamMemberInfo `json:"members"`
-	MemberCount        int              `json:"member_count"`
+	ID          uuid.UUID        `json:"id"`
+	TeamName    string           `json:"team_name"`
+	About       *string          `json:"about"`
+	CreatedAt   time.Time        `json:"created_at"`
+	Members     []TeamMemberInfo `json:"members"`
+	MemberCount int              `json:"member_count"`
 }
 
 // Challenge registration DTOs
@@ -55,7 +52,6 @@ type RegisterChallengeResponse struct {
 // Get available challenges
 type ChallengeListResponse struct {
 	ID                  uuid.UUID  `json:"id"`
-	ThumbnailImage      string     `json:"thumbnail_image"`
 	Title               string     `json:"title"`
 	Description         string     `json:"description"`
 	Deadline            time.Time  `json:"deadline"`
@@ -67,13 +63,16 @@ type ChallengeListResponse struct {
 	OrganizerName       string     `json:"organizer_name"`
 	IsRegistered        bool       `json:"is_registered"`
 	MyTeamID            *uuid.UUID `json:"my_team_id,omitempty"`
+	// New fields for winner info
+	WinnerTeamID      *uuid.UUID `json:"winner_team_id,omitempty"`
+	WinnerTeamName    *string    `json:"winner_team_name,omitempty"`
+	IsWinnerAnnounced bool       `json:"is_winner_announced"`
 }
 
 type MyTeamResponse struct {
 	ID                   uuid.UUID                 `json:"id"`
 	TeamName             string                    `json:"team_name"`
 	About                *string                   `json:"about"`
-	TeamProfilePicture   *string                   `json:"team_profile_picture"`
 	CreatedAt            time.Time                 `json:"created_at"`
 	Members              []TeamMemberInfo          `json:"members"`
 	MemberCount          int                       `json:"member_count"`
@@ -85,4 +84,39 @@ type RegisteredChallengeInfo struct {
 	ChallengeTitle string    `json:"challenge_title"`
 	Deadline       time.Time `json:"deadline"`
 	IsActive       bool      `json:"is_active"`
+}
+
+// Submit challenge DTOs
+type SubmitChallengeRequest struct {
+	ChallengeID uuid.UUID             `form:"challenge_id" validate:"required"`
+	Title       string                `form:"title" validate:"required,min=3,max=200"`
+	RepoURL     *string               `form:"repo_url"`
+	DocsFile    *multipart.FileHeader `form:"docs_file"`
+	ImageFile   *multipart.FileHeader `form:"image_file"`
+}
+
+type SubmitChallengeResponse struct {
+	ID          uuid.UUID `json:"id"`
+	ChallengeID uuid.UUID `json:"challenge_id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	Title       string    `json:"title"`
+	RepoURL     *string   `json:"repo_url"`
+	DocsURL     *string   `json:"docs_url"`
+	ImageURL    *string   `json:"image_url"`
+	SubmittedAt time.Time `json:"submitted_at"`
+	Message     string    `json:"message"`
+}
+
+// Auto register team to challenge (no team_id needed)
+type AutoRegisterChallengeRequest struct {
+	ChallengeID uuid.UUID `json:"challenge_id" validate:"required"`
+}
+
+type AutoRegisterChallengeResponse struct {
+	Message             string    `json:"message"`
+	ChallengeID         uuid.UUID `json:"challenge_id"`
+	TeamID              uuid.UUID `json:"team_id"`
+	TeamName            string    `json:"team_name"`
+	RegistrationDate    time.Time `json:"registration_date"`
+	CurrentParticipants int       `json:"current_participants"`
 }

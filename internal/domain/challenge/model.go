@@ -49,7 +49,6 @@ func (TeamMember) TableName() string {
 
 type Challenge struct {
 	ID                  uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	ThumbnailImage      string     `gorm:"type:text;not null" json:"thumbnail_image"`
 	Title               string     `gorm:"type:varchar;not null" json:"title"`
 	Description         string     `gorm:"type:text;not null" json:"description"`
 	Deadline            time.Time  `gorm:"type:timestamptz;not null" json:"deadline"`
@@ -86,6 +85,16 @@ func (c *Challenge) IsExpired() bool {
 
 func (c *Challenge) CanRegister() bool {
 	return c.IsActive() && c.CurrentParticipants < c.MaxParticipants
+}
+
+// New methods for winner announcement
+func (c *Challenge) IsWinnerAnnouncementTime() bool {
+	sevenDaysAfterDeadline := c.Deadline.Add(7 * 24 * time.Hour)
+	return time.Now().After(sevenDaysAfterDeadline)
+}
+
+func (c *Challenge) NeedsWinnerAnnouncement() bool {
+	return c.IsWinnerAnnouncementTime() && c.WinnerTeamID == nil
 }
 
 func (c *Challenge) GetOrganizerName() string {

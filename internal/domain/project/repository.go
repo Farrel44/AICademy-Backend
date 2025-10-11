@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -32,7 +33,10 @@ func (r *ProjectRepository) CreateProject(project *Project) error {
 
 func (r *ProjectRepository) GetProjectByID(id uuid.UUID) (*Project, error) {
 	var project Project
-	err := r.db.Preload("Contributors").Preload("Photos").First(&project, "id = ?", id).Error
+	err := r.db.Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
+		Preload("Photos").
+		First(&project, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +45,10 @@ func (r *ProjectRepository) GetProjectByID(id uuid.UUID) (*Project, error) {
 
 func (r *ProjectRepository) GetProjectsByOwnerID(ownerID uuid.UUID) ([]Project, error) {
 	var projects []Project
-	err := r.db.Preload("Contributors").Preload("Photos").Where("owner_student_profile_id = ?", ownerID).Find(&projects).Error
+	err := r.db.Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
+		Preload("Photos").
+		Where("owner_student_profile_id = ?", ownerID).Find(&projects).Error
 	return projects, err
 }
 
@@ -50,14 +57,15 @@ func (r *ProjectRepository) GetProjectsByOwnerIDWithSearch(ownerID uuid.UUID, of
 	var total int64
 
 	query := r.db.Model(&Project{}).
-		Preload("Contributors").
+		Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
 		Preload("Photos").
 		Where("owner_student_profile_id = ?", ownerID)
 
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(tech_stack) LIKE ?",
-			searchTerm, searchTerm, searchTerm)
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ?",
+			searchTerm, searchTerm)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -75,8 +83,8 @@ func (r *ProjectRepository) CountProjectsByOwnerID(ownerID uuid.UUID, search str
 
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(tech_stack) LIKE ?",
-			searchTerm, searchTerm, searchTerm)
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ?",
+			searchTerm, searchTerm)
 	}
 
 	err := query.Count(&total).Error
@@ -91,8 +99,8 @@ func (r *ProjectRepository) GetProjectsByOwnerIDOptimized(ownerID uuid.UUID, off
 
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(projects.project_name) LIKE ? OR LOWER(projects.description) LIKE ? OR LOWER(projects.tech_stack) LIKE ?",
-			searchTerm, searchTerm, searchTerm)
+		query = query.Where("LOWER(projects.project_name) LIKE ? OR LOWER(projects.description) LIKE ?",
+			searchTerm, searchTerm)
 	}
 
 	err := query.Offset(offset).Limit(limit).Order("projects.created_at DESC").Find(&projects).Error
@@ -121,6 +129,39 @@ func (r *ProjectRepository) AddProjectContributor(contributor *ProjectContributo
 
 func (r *ProjectRepository) RemoveProjectContributor(projectID, studentProfileID uuid.UUID) error {
 	return r.db.Delete(&ProjectContributor{}, "project_id = ? AND student_profile_id = ?", projectID, studentProfileID).Error
+}
+
+// Get student profile by NIS
+func (r *ProjectRepository) GetStudentProfileByNIS(nis string) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").Where("nis = ?", nis).First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
+}
+
+// Alternative method if you want to search by email
+func (r *ProjectRepository) GetStudentProfileByEmail(email string) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").
+		Joins("JOIN users ON student_profiles.user_id = users.id").
+		Where("users.email = ?", email).
+		First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
+}
+
+// Get student profile by ID
+func (r *ProjectRepository) GetStudentProfileByID(id uuid.UUID) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").Where("id = ?", id).First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
 }
 
 // Certification methods
@@ -160,11 +201,22 @@ func (r *ProjectRepository) DeleteCertificationPhoto(id uuid.UUID) error {
 }
 
 func (r *ProjectRepository) GetStudentProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error) {
-	var studentProfileID uuid.UUID
+	var studentProfileID string
 	err := r.db.Table("users").
 		Select("student_profiles.id").
 		Joins("JOIN student_profiles ON users.id = student_profiles.user_id").
 		Where("users.id = ?", userID).
 		Scan(&studentProfileID).Error
-	return studentProfileID, err
+
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	// Parse the string to UUID
+	parsedUUID, err := uuid.Parse(studentProfileID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return parsedUUID, nil
 }

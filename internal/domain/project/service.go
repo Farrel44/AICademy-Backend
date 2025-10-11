@@ -104,6 +104,15 @@ func (s *ProjectService) CreateProject(c *fiber.Ctx, req *CreateProjectRequest) 
 		return nil, err
 	}
 
+	// Add contributors if provided
+	for _, contributorReq := range req.Contributors {
+		if err := s.addContributorToProject(project.ID, &contributorReq); err != nil {
+			// Log error but continue (don't fail the whole project creation)
+			fmt.Printf("Failed to add contributor %s: %v\n", contributorReq.StudentID, err)
+			continue
+		}
+	}
+
 	// Upload photos if provided
 	for _, photo := range req.Photos {
 		if photo == nil {
@@ -130,6 +139,26 @@ func (s *ProjectService) CreateProject(c *fiber.Ctx, req *CreateProjectRequest) 
 	}
 
 	return s.projectToResponse(createdProject), nil
+}
+
+func (s *ProjectService) addContributorToProject(projectID uuid.UUID, req *CreateContributorRequest) error {
+	// Get student profile by NIS or other identifier
+	studentProfile, err := s.repo.GetStudentProfileByNIS(req.StudentID)
+	if err != nil {
+		// Try by email if NIS fails
+		studentProfile, err = s.repo.GetStudentProfileByEmail(req.StudentID)
+		if err != nil {
+			return fmt.Errorf("student with ID %s not found", req.StudentID)
+		}
+	}
+
+	contributor := &ProjectContributor{
+		ProjectID:        projectID,
+		StudentProfileID: studentProfile.ID,
+		RoleID:           req.RoleID,
+	}
+
+	return s.repo.AddProjectContributor(contributor)
 }
 
 func (s *ProjectService) GetProjectByID(id uuid.UUID) (*ProjectResponse, error) {
@@ -302,12 +331,20 @@ func (s *ProjectService) AddProjectContributor(c *fiber.Ctx, projectID uuid.UUID
 		return errors.New("unauthorized to add contributors to this project")
 	}
 
+	// Get student profile by NIS or other identifier
+	studentProfile, err := s.repo.GetStudentProfileByNIS(req.StudentID)
+	if err != nil {
+		// Try by email if NIS fails
+		studentProfile, err = s.repo.GetStudentProfileByEmail(req.StudentID)
+		if err != nil {
+			return fmt.Errorf("student with ID %s not found", req.StudentID)
+		}
+	}
+
 	contributor := &ProjectContributor{
 		ProjectID:        projectID,
-		StudentProfileID: req.StudentProfileID,
-		ProjectRole:      req.ProjectRole,
-		ProfilingRoleID:  req.ProfilingRoleID,
-		Description:      req.Description,
+		StudentProfileID: studentProfile.ID,
+		RoleID:           req.RoleID,
 	}
 
 	return s.repo.AddProjectContributor(contributor)
@@ -461,6 +498,31 @@ func (s *ProjectService) DeleteCertification(id uuid.UUID) error {
 
 // Helper methods
 func (s *ProjectService) projectToResponse(project *Project) *ProjectResponse {
+	var contributors []ProjectContributorResponse
+	for _, contributor := range project.Contributors {
+		contributorResp := ProjectContributorResponse{
+			StudentProfileID: contributor.StudentProfileID,
+			RoleID:           contributor.RoleID,
+		}
+
+		if contributor.StudentProfile != nil {
+			contributorResp.StudentName = contributor.StudentProfile.Fullname
+			contributorResp.StudentNIS = contributor.StudentProfile.NIS
+			contributorResp.StudentClass = contributor.StudentProfile.Class
+		}
+
+		if contributor.TargetRole != nil {
+			contributorResp.Role = &TargetRoleResponse{
+				ID:          contributor.TargetRole.ID,
+				Name:        contributor.TargetRole.Name,
+				Description: contributor.TargetRole.Description,
+				Category:    contributor.TargetRole.Category,
+			}
+		}
+
+		contributors = append(contributors, contributorResp)
+	}
+
 	return &ProjectResponse{
 		ID:                    project.ID,
 		OwnerStudentProfileID: project.OwnerStudentProfileID,
@@ -470,7 +532,7 @@ func (s *ProjectService) projectToResponse(project *Project) *ProjectResponse {
 		StartDate:             project.StartDate,
 		EndDate:               project.EndDate,
 		CreatedAt:             project.CreatedAt,
-		Contributors:          project.Contributors,
+		Contributors:          contributors,
 		Photos:                project.Photos,
 	}
 }

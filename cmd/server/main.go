@@ -451,7 +451,7 @@ func main() {
 	// Admin Challenge Routes
 	adminAuth.Post("/challenges", adminChallengeHandler.CreateChallenge)
 	adminAuth.Get("/challenges", adminChallengeHandler.GetAllChallenges)
-	adminAuth.Get("/challenges/submissions", adminChallengeHandler.GetAllSubmissions)
+	adminAuth.Get("/challenges/:id/submissions", adminChallengeHandler.GetSubmissionsByChallengeID)
 	adminAuth.Post("/challenges/submissions/score", adminChallengeHandler.ScoreSubmission)
 	adminAuth.Get("/challenges/:id", adminChallengeHandler.GetChallengeByID)
 	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
@@ -482,7 +482,6 @@ func main() {
 	teacherAuth.Delete("/challenges/:id", teacherChallengeHandler.DeleteChallenge)
 	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
 	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
-	teacherAuth.Get("/challenges/leaderboard", teacherChallengeHandler.GetLeaderboard)
 
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
@@ -526,8 +525,11 @@ func main() {
 	// Student Challenge Routes
 	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
 	studentRoutes.Get("/challenges/teams", studentChallengeHandler.GetMyTeams)
+	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
 	studentRoutes.Get("/challenges", studentChallengeHandler.GetAvailableChallenges)
-	studentRoutes.Post("/challenges/register", studentChallengeHandler.RegisterTeamToChallenge)
+	studentRoutes.Post("/challenges/register", studentChallengeHandler.AutoRegisterToChallenge) // Changed to auto register
+	studentRoutes.Post("/challenges/submit", studentChallengeHandler.SubmitChallenge)           // Added submit route
+	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
 
 	// Student Trend Routes

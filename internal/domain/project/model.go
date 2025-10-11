@@ -3,6 +3,7 @@ package project
 import (
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -29,14 +30,13 @@ func (p *Project) BeforeCreate(tx *gorm.DB) error {
 }
 
 type ProjectContributor struct {
-	ProjectID        uuid.UUID  `gorm:"type:uuid;not null;primaryKey" json:"project_id"`
-	StudentProfileID uuid.UUID  `gorm:"type:uuid;not null;primaryKey" json:"student_profile_id"`
-	ProjectRole      *string    `gorm:"type:varchar" json:"project_role"`
-	ProfilingRoleID  *uuid.UUID `gorm:"type:uuid;index" json:"profiling_role_id"`
-	Description      *string    `gorm:"type:text" json:"description"`
+	ProjectID        uuid.UUID `gorm:"type:uuid;not null;primaryKey" json:"project_id"`
+	StudentProfileID uuid.UUID `gorm:"type:uuid;not null;primaryKey" json:"student_profile_id"`
+	RoleID           uuid.UUID `gorm:"type:uuid;not null;index" json:"role_id"`
 
-	Project    *Project    `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
-	TargetRole *TargetRole `gorm:"foreignKey:ProfilingRoleID;references:ID" json:"target_role,omitempty"`
+	Project        *Project             `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+	StudentProfile *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
+	TargetRole     *TargetRole          `gorm:"foreignKey:RoleID;references:ID" json:"target_role,omitempty"`
 }
 
 func (ProjectContributor) TableName() string {
@@ -52,8 +52,7 @@ type TargetRole struct {
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-	// Remove the circular reference to challenge.TeamMember
-	ProjectContributors []ProjectContributor `gorm:"foreignKey:ProfilingRoleID;constraint:OnDelete:SET NULL" json:"project_contributors,omitempty"`
+	ProjectContributors []ProjectContributor `gorm:"foreignKey:RoleID;constraint:OnDelete:CASCADE" json:"project_contributors,omitempty"`
 }
 
 func (t *TargetRole) BeforeCreate(tx *gorm.DB) error {
