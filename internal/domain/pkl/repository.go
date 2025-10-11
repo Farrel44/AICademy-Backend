@@ -80,17 +80,38 @@ func (r *PklRepository) CountInternships(search string) (int64, error) {
 
 func (r *PklRepository) GetInternshipsOptimized(offset, limit int, search string) ([]Internship, error) {
 	var internships []Internship
-	query := r.db.Select("internships.*, company_profiles.company_name, users.name as company_user_name").
-		Joins("LEFT JOIN company_profiles ON internships.company_profile_id = company_profiles.id").
-		Joins("LEFT JOIN users ON company_profiles.user_id = users.id").
-		Model(&Internship{})
+
+	q := r.db.
+		Model(&Internship{}).
+		Select("internships.*").
+		Joins("LEFT JOIN company_profiles ON company_profiles.id = internships.company_profile_id").
+		Preload("CompanyProfile", func(db *gorm.DB) *gorm.DB {
+			// pilih kolom yang mau dipulangin saja
+			return db.Select(
+				"id",
+				"company_name",
+				"company_logo",
+				"company_location",
+				"description",
+				"created_at",
+			)
+		})
 
 	if search != "" {
-		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(internships.position) LIKE ? OR LOWER(internships.location) LIKE ? OR LOWER(internships.description) LIKE ?", searchTerm, searchTerm, searchTerm)
+		term := "%" + strings.ToLower(search) + "%"
+		q = q.Where(`
+			LOWER(internships.title) LIKE ? OR
+			LOWER(internships.description) LIKE ? OR
+			LOWER(internships.type) LIKE ? OR
+			LOWER(company_profiles.company_name) LIKE ? OR
+			LOWER(company_profiles.company_location) LIKE ?
+		`, term, term, term, term, term)
 	}
 
-	err := query.Offset(offset).Limit(limit).Order("internships.posted_at DESC").Find(&internships).Error
+	err := q.Order("internships.posted_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&internships).Error
 	return internships, err
 }
 

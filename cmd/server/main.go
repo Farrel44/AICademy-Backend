@@ -520,6 +520,7 @@ func main() {
 
 	// Student PKL Routes
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
+	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
 
 	// Student Challenge Routes

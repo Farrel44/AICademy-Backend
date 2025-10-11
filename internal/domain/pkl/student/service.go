@@ -3,6 +3,7 @@ package pkl
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
@@ -73,14 +74,13 @@ func (s *StudentPklService) GetAvailableInternships(page, limit int, search stri
 
 	offset := (page - 1) * limit
 
-	// Get cached count first to avoid expensive COUNT query
 	var total int64
 	if cachedCount, err := utils.GetCachedCount(s.redis, countKey); err == nil {
 		total = cachedCount
 	} else {
-		// Only count if not in cache
 		total, err = s.repo.CountInternships(search)
 		if err != nil {
+			log.Printf("error CountInternships: %v", err)
 			return nil, errors.New("gagal mengambil jumlah data magang")
 		}
 		// Cache the count
