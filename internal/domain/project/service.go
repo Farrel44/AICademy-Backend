@@ -19,11 +19,12 @@ import (
 )
 
 type ProjectService struct {
-	repo     *ProjectRepository
-	redis    *utils.RedisClient
-	s3Client *s3.Client
-	bucket   string
-	baseURL  string
+	repo         *ProjectRepository
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
+	s3Client     *s3.Client
+	bucket       string
+	baseURL      string
 }
 
 func NewProjectService(repo *ProjectRepository, redis *utils.RedisClient) *ProjectService {
@@ -46,11 +47,12 @@ func NewProjectService(repo *ProjectRepository, redis *utils.RedisClient) *Proje
 	})
 
 	return &ProjectService{
-		repo:     repo,
-		redis:    redis,
-		s3Client: client,
-		bucket:   bucketName,
-		baseURL:  baseURL,
+		repo:         repo,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
+		s3Client:     client,
+		bucket:       bucketName,
+		baseURL:      baseURL,
 	}
 }
 
@@ -76,6 +78,23 @@ func (s *ProjectService) uploadFile(file *multipart.FileHeader, folder string) (
 	}
 
 	return fmt.Sprintf("%s/%s", s.baseURL, filename), nil
+}
+
+// Cache invalidation functions
+func (s *ProjectService) invalidateProjectCache(projectID uuid.UUID) {
+	itemKey := fmt.Sprintf("project:%s", projectID.String())
+	s.redis.Delete(itemKey)
+
+	s.redis.Delete("project:statistics")
+	s.cacheManager.InvalidateByPattern("projects:*")
+}
+
+func (s *ProjectService) invalidateCertificationCache(certificationID uuid.UUID) {
+	itemKey := fmt.Sprintf("certification:%s", certificationID.String())
+	s.redis.Delete(itemKey)
+
+	s.redis.Delete("certification:statistics")
+	s.cacheManager.InvalidateByPattern("certifications:*")
 }
 
 // Project methods
@@ -132,6 +151,9 @@ func (s *ProjectService) CreateProject(c *fiber.Ctx, req *CreateProjectRequest) 
 		s.repo.AddProjectPhoto(projectPhoto)
 	}
 
+	// Invalidate cache after successful creation
+	s.invalidateProjectCache(project.ID)
+
 	// Fetch the complete project with relations
 	createdProject, err := s.repo.GetProjectByID(project.ID)
 	if err != nil {
@@ -170,14 +192,9 @@ func (s *ProjectService) GetProjectByID(id uuid.UUID) (*ProjectResponse, error) 
 }
 
 func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
-	userID, err := utils.GetUserIDFromToken(c)
+	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
-		return nil, errors.New("gagal mengambil data user")
-	}
-
-	studentProfileID, err := s.repo.GetStudentProfileIDByUserID(userID)
-	if err != nil {
-		return nil, errors.New("gagal mengambil profil siswa")
+		return nil, errors.New("unauthorized")
 	}
 
 	// Validate search parameters
@@ -190,62 +207,75 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 	limit = validation.Limit
 	search = validation.Query
 
-	// Check rate limit
-	allowed, err := utils.CheckSearchRateLimit(s.redis, userID.String(), "projects")
-	if err == nil && !allowed {
-		return nil, errors.New("terlalu banyak permintaan pencarian, coba lagi nanti")
+	if err != nil {
+		return nil, errors.New("rate limit check failed")
+	}
+
+	// Limit pagination for caching
+	if page > 10 || limit > 100 {
+		return s.getProjectsFromDB(claims.UserID, page, limit, search)
 	}
 
 	// Generate cache keys
-	userCachePrefix := fmt.Sprintf("projects_%s", studentProfileID.String())
-	cacheKey := utils.GenerateSearchCacheKey(userCachePrefix, search, page, limit)
-	countKey := utils.GenerateCountCacheKey(userCachePrefix, search)
+	cacheKey := s.cacheManager.GenerateCacheKey("user_projects", claims.UserID, page, limit, search)
+	countKey := s.cacheManager.GenerateCacheKey("user_projects_count", claims.UserID, search)
 
 	// Try to get from cache first
-	if cachedResult, err := utils.GetCachedSearchResult(s.redis, cacheKey); err == nil {
-		return &utils.PaginationResponse{
-			Data:       cachedResult.Data,
-			Total:      cachedResult.TotalCount,
-			Page:       cachedResult.Page,
-			Limit:      cachedResult.Limit,
-			TotalPages: int((cachedResult.TotalCount + int64(limit) - 1) / int64(limit)),
-		}, nil
+	var cachedResult utils.PaginationResponse
+	if err := s.redis.GetJSON(cacheKey, &cachedResult); err == nil {
+		return &cachedResult, nil
+	}
+
+	// Get cached count first to avoid expensive COUNT query
+	var total int64
+	if err := s.redis.GetJSON(countKey, &total); err != nil {
+		total, err = s.repo.CountProjectsByOwnerID(claims.UserID, search)
+		if err != nil {
+			return nil, errors.New("failed to count projects")
+		}
+		s.cacheManager.SetWithSmartTTL(countKey, total, "short")
 	}
 
 	offset := (page - 1) * limit
 
-	// Get cached count first to avoid expensive COUNT query
-	var total int64
-	if cachedCount, err := utils.GetCachedCount(s.redis, countKey); err == nil {
-		total = cachedCount
-	} else {
-		// Only count if not in cache
-		total, err = s.repo.CountProjectsByOwnerID(studentProfileID, search)
-		if err != nil {
-			return nil, errors.New("gagal mengambil jumlah data proyek")
-		}
-		// Cache the count
-		utils.CacheCount(s.redis, countKey, total)
-	}
-
 	// Get projects data
-	projects, err := s.repo.GetProjectsByOwnerIDOptimized(studentProfileID, offset, limit, search)
+	projects, err := s.repo.GetProjectsByOwnerIDOptimized(claims.UserID, offset, limit, search)
 	if err != nil {
-		return nil, errors.New("gagal mengambil data proyek")
-	}
-
-	var responses []ProjectResponse
-	for _, project := range projects {
-		responses = append(responses, *s.projectToResponse(&project))
+		return nil, errors.New("failed to get projects")
 	}
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	// Cache the results
-	utils.CacheSearchResult(s.redis, cacheKey, responses, total, page, limit)
+	result := &utils.PaginationResponse{
+		Data:       projects,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}
+
+	// Cache the results with smart TTL
+	s.cacheManager.SetWithSmartTTL(cacheKey, result, "medium")
+
+	return result, nil
+}
+
+func (s *ProjectService) getProjectsFromDB(userID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
+	total, err := s.repo.CountProjectsByOwnerID(userID, search)
+	if err != nil {
+		return nil, errors.New("failed to count projects")
+	}
+
+	offset := (page - 1) * limit
+	projects, err := s.repo.GetProjectsByOwnerIDOptimized(userID, offset, limit, search)
+	if err != nil {
+		return nil, errors.New("failed to get projects")
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
 	return &utils.PaginationResponse{
-		Data:       responses,
+		Data:       projects,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
@@ -297,6 +327,9 @@ func (s *ProjectService) UpdateProject(id uuid.UUID, req *UpdateProjectRequest) 
 		}
 		s.repo.AddProjectPhoto(projectPhoto)
 	}
+
+	// Invalidate cache after update
+	s.invalidateProjectCache(project.ID)
 
 	updatedProject, err := s.repo.GetProjectByID(id)
 	if err != nil {
@@ -396,6 +429,9 @@ func (s *ProjectService) CreateCertification(c *fiber.Ctx, req *CreateCertificat
 		s.repo.AddCertificationPhoto(certPhoto)
 	}
 
+	// Invalidate cache after successful creation
+	s.invalidateCertificationCache(certification.ID)
+
 	createdCertification, err := s.repo.GetCertificationByID(certification.ID)
 	if err != nil {
 		return nil, err
@@ -483,6 +519,9 @@ func (s *ProjectService) UpdateCertification(id uuid.UUID, req *UpdateCertificat
 		}
 		s.repo.AddCertificationPhoto(certPhoto)
 	}
+
+	// Invalidate cache after update
+	s.invalidateCertificationCache(certification.ID)
 
 	updatedCertification, err := s.repo.GetCertificationByID(id)
 	if err != nil {

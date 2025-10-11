@@ -15,17 +15,44 @@ import (
 )
 
 type AdminChallengeService struct {
-	repo        *challenge.ChallengeRepository
-	redisClient *redis.Client
+	repo         *challenge.ChallengeRepository
+	redisClient  *redis.Client
+	cacheManager *utils.CacheManager
 }
 
 func NewAdminChallengeService(repo *challenge.ChallengeRepository, redisClient *redis.Client) *AdminChallengeService {
 	return &AdminChallengeService{
-		repo:        repo,
-		redisClient: redisClient,
+		repo:         repo,
+		redisClient:  redisClient,
+		cacheManager: utils.NewCacheManager(&utils.RedisClient{Client: redisClient}),
 	}
 }
 
+// Optimized cache invalidation
+func (s *AdminChallengeService) invalidateChallengeCache(challengeID uuid.UUID) {
+	// Individual item
+	itemKey := fmt.Sprintf("challenge:%s", challengeID.String())
+	s.redisClient.Del(context.Background(), itemKey)
+
+	// Statistics
+	s.redisClient.Del(context.Background(), "challenge:statistics")
+
+	// Pattern-based invalidation
+	s.cacheManager.InvalidateByPattern("challenges:*")
+	s.cacheManager.InvalidateByPattern("admin_challenges:*")
+	s.cacheManager.InvalidateByPattern("teacher_challenges:*")
+	s.cacheManager.InvalidateByPattern("student_challenges:*")
+}
+
+func (s *AdminChallengeService) invalidateSubmissionCache(submissionID uuid.UUID) {
+	itemKey := fmt.Sprintf("challenge_submission:%s", submissionID.String())
+	s.redisClient.Del(context.Background(), itemKey)
+
+	s.cacheManager.InvalidateByPattern("challenge_submissions:*")
+	s.cacheManager.InvalidateByPattern("admin_challenge_submissions:*")
+}
+
+// Update CreateChallenge
 func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallengeRequest) (*challenge.Challenge, error) {
 	// Verify admin access
 	claims, err := utils.GetClaimsFromHeader(c)
@@ -54,6 +81,9 @@ func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallen
 	if err != nil {
 		return nil, errors.New("failed to create challenge")
 	}
+
+	// Invalidate all challenge-related caches
+	s.invalidateChallengeCache(newChallenge.ID)
 
 	return newChallenge, nil
 }
@@ -126,6 +156,7 @@ func (s *AdminChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid.U
 	return nil
 }
 
+// Optimized GetAllChallenges
 func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
 	claims, err := utils.GetClaimsFromHeader(c)
 	if err != nil {
@@ -149,7 +180,13 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 	limit = validation.Limit
 	search = validation.Query
 
-	cacheKey := fmt.Sprintf("admin_challenges:%d:%d:%s", page, limit, search)
+	// Limit pagination for efficient caching
+	if page > 10 || limit > 100 {
+		return s.getChallengesFromDB(page, limit, search)
+	}
+
+	cacheKey := s.cacheManager.GenerateCacheKey("admin_challenges", page, limit, search)
+	frequency, _ := s.cacheManager.TrackRequestFrequency(cacheKey)
 
 	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
 		var result utils.PaginationResponse
@@ -158,13 +195,29 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 		}
 	}
 
+	result, err := s.getChallengesFromDB(page, limit, search)
+	if err != nil {
+		return nil, err
+	}
+
+	// Smart caching
+	dataSize := len(result.Data.([]challenge.Challenge)) * 300 // estimate
+	if s.cacheManager.ShouldCache(dataSize, int(frequency)) {
+		if resultJSON, err := json.Marshal(result); err == nil {
+			s.cacheManager.SetWithSmartTTL(cacheKey, string(resultJSON), "medium")
+		}
+	}
+
+	return result, nil
+}
+
+func (s *AdminChallengeService) getChallengesFromDB(page, limit int, search string) (*utils.PaginationResponse, error) {
 	offset := (page - 1) * limit
 	total, err := s.repo.CountChallenges(search)
 	if err != nil {
 		return nil, errors.New("gagal mengambil jumlah data tantangan")
 	}
 
-	// Get challenges data
 	challenges, err := s.repo.GetChallengesOptimized(offset, limit, search)
 	if err != nil {
 		return nil, errors.New("gagal mengambil data tantangan")
@@ -172,19 +225,13 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	result := &utils.PaginationResponse{
+	return &utils.PaginationResponse{
 		Data:       challenges,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}
-
-	if resultJSON, err := json.Marshal(result); err == nil {
-		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
-	}
-
-	return result, nil
+	}, nil
 }
 
 func (s *AdminChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {

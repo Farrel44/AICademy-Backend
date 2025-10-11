@@ -11,12 +11,17 @@ import (
 )
 
 type AdminPklService struct {
-	repo  *pkl.PklRepository
-	redis *utils.RedisClient
+	repo         *pkl.PklRepository
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
 func NewAdminPklService(repo *pkl.PklRepository, redis *utils.RedisClient) *AdminPklService {
-	return &AdminPklService{repo: repo, redis: redis}
+	return &AdminPklService{
+		repo:         repo,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
+	}
 }
 
 func (s *AdminPklService) CheckRateLimit(userID string, limit int, window time.Duration) (allowed bool, remaining int, resetTime time.Time, err error) {
@@ -63,17 +68,23 @@ func (s *AdminPklService) CreateInternshipPosition(req *CreateInternshipRequest)
 		return nil, errors.New("failed to create intership position")
 	}
 
+	// Invalidate cache after successful creation
 	s.invalidateAllPklCache()
+
 	return &newInternshipPosition, nil
 }
 
 func (s *AdminPklService) invalidateInternshipCache(internshipID uuid.UUID) {
-	internshipKey := fmt.Sprintf("internship:%s", internshipID.String())
-	s.redis.Delete(internshipKey)
+	// Individual item cache
+	itemKey := fmt.Sprintf("internship:%s", internshipID.String())
+	s.redis.Delete(itemKey)
 
-	s.redis.Delete("internship_statistics")
+	// Statistics cache
+	s.redis.Delete("internship:statistics")
 
-	s.invalidateInternshipsListCache()
+	// Pattern-based list cache invalidation
+	s.cacheManager.InvalidateByPattern("internships:list:*")
+	s.cacheManager.InvalidateByPattern("internships:search:*")
 }
 
 func (s *AdminPklService) invalidateInternshipsListCache() {
@@ -134,21 +145,54 @@ func (s *AdminPklService) invalidateReviewsListCache() {
 }
 
 func (s *AdminPklService) invalidateAllPklCache() {
-	s.redis.Delete("internship_statistics")
-	s.invalidateInternshipsListCache()
-	s.invalidateApplicationsListCache()
-	s.invalidateReviewsListCache()
+	patterns := []string{
+		"internship:*",
+		"internships:*",
+		"submissions:*",
+		"applications:*",
+		"reviews:*",
+	}
+
+	for _, pattern := range patterns {
+		s.cacheManager.InvalidateByPattern(pattern)
+	}
 }
 
 func (s *AdminPklService) GetInternshipPositions(page, limit int, search string) (*CleanPaginatedInternshipResponse, error) {
-	cacheKey := fmt.Sprintf("internship:page:%d:limit:%d:search:%s", page, limit, search)
-	var cachedResult CleanPaginatedInternshipResponse
+	// Limit pagination untuk caching yang efektif
+	if page > 10 || limit > 100 {
+		// Jangan cache untuk pagination yang terlalu jauh
+		return s.getInternshipPositionsFromDB(page, limit, search)
+	}
 
+	// Generate cache key dengan hash
+	cacheKey := s.cacheManager.GenerateCacheKey("internships:list", page, limit, search)
+
+	// Track request frequency
+	frequency, _ := s.cacheManager.TrackRequestFrequency(cacheKey)
+
+	// Try cache first
+	var cachedResult CleanPaginatedInternshipResponse
 	if err := s.redis.GetJSON(cacheKey, &cachedResult); err == nil {
-		fmt.Print("cache return")
 		return &cachedResult, nil
 	}
 
+	// Get from database
+	result, err := s.getInternshipPositionsFromDB(page, limit, search)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache with smart TTL based on frequency and data size
+	dataSize := len(result.Data) * 500 // rough estimate
+	if s.cacheManager.ShouldCache(dataSize, int(frequency)) {
+		s.cacheManager.SetWithSmartTTL(cacheKey, result, "medium")
+	}
+
+	return result, nil
+}
+
+func (s *AdminPklService) getInternshipPositionsFromDB(page, limit int, search string) (*CleanPaginatedInternshipResponse, error) {
 	internships, total, err := s.repo.GetAllInternships(page, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get internship positions")
@@ -156,7 +200,6 @@ func (s *AdminPklService) GetInternshipPositions(page, limit int, search string)
 
 	totalPages := int(total+int64(limit)-1) / limit
 
-	// Convert to clean response format
 	var cleanInternships []CleanInternshipResponse
 	for _, internship := range internships {
 		var photosStr *string
@@ -186,21 +229,19 @@ func (s *AdminPklService) GetInternshipPositions(page, limit int, search string)
 		cleanInternships = append(cleanInternships, cleanInternship)
 	}
 
-	result := &CleanPaginatedInternshipResponse{
+	return &CleanPaginatedInternshipResponse{
 		Data:       cleanInternships,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}
-
-	s.redis.SetJSON(cacheKey, result, 5*time.Minute)
-
-	return result, nil
+	}, nil
 }
 
+// Optimized individual item cache
 func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*CleanInternshipResponse, error) {
 	cacheKey := fmt.Sprintf("internship:%s", id.String())
+
 	var cachedInternship CleanInternshipResponse
 	if err := s.redis.GetJSON(cacheKey, &cachedInternship); err == nil {
 		return &cachedInternship, nil
@@ -236,7 +277,8 @@ func (s *AdminPklService) GetInternshipByID(id uuid.UUID) (*CleanInternshipRespo
 		},
 	}
 
-	s.redis.SetJSON(cacheKey, cleanInternship, 5*time.Minute)
+	// Cache individual items longer since they change less frequently
+	s.cacheManager.SetWithSmartTTL(cacheKey, cleanInternship, "long")
 
 	return cleanInternship, nil
 }
@@ -515,12 +557,14 @@ func (s *AdminPklService) UpdateSubmissionStatus(submissionID uuid.UUID, status 
 }
 
 func (s *AdminPklService) invalidateSubmissionCache(submissionID uuid.UUID) {
-	key := fmt.Sprintf("submission:%s", submissionID.String())
-	s.redis.Delete(key)
-	s.redis.Delete("internship_statistics")
-	s.invalidateApplicationsListCache()
+	// Individual submission cache
+	itemKey := fmt.Sprintf("submission:%s", submissionID.String())
+	s.redis.Delete(itemKey)
 
-	// hapus list cache generik (bisa disempurnakan dengan scan pattern jika ada util)
-	s.redis.Delete("submissions:internship:")
-	s.redis.Delete("internships_submissions:company:")
+	// Related caches
+	s.redis.Delete("internship:statistics")
+
+	// Pattern-based invalidation
+	s.cacheManager.InvalidateByPattern("submissions:*")
+	s.cacheManager.InvalidateByPattern("applications:*")
 }
