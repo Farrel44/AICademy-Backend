@@ -429,7 +429,6 @@ func (s *ProjectService) CreateCertification(c *fiber.Ctx, req *CreateCertificat
 		s.repo.AddCertificationPhoto(certPhoto)
 	}
 
-	// Invalidate cache after successful creation
 	s.invalidateCertificationCache(certification.ID)
 
 	createdCertification, err := s.repo.GetCertificationByID(certification.ID)
