@@ -69,11 +69,11 @@ type StudentSummary struct {
 	Email          string  `json:"email"`
 	Fullname       string  `json:"fullname"`
 	NIS            string  `json:"nis"`
-	Class          string  `json:"class"`
 	ProfilePicture *string `json:"profile_picture,omitempty"`
+	Class          string  `json:"class"`
+	CvFile         *string `json:"cv_file,omitempty"`
 	Headline       *string `json:"headline,omitempty"`
 	Bio            *string `json:"bio,omitempty"`
-	CvFile         *string `json:"cv_file,omitempty"`
 }
 
 type InternshipSummary struct {

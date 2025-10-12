@@ -3,6 +3,7 @@ package pkl
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
@@ -43,6 +44,67 @@ func (s *StudentPklService) CheckRateLimit(userID string, limit int, window time
 
 	allowed = count <= int64(limit)
 	return allowed, remaining, resetTime, nil
+}
+
+func (s *StudentPklService) GetAvailableInternships(page, limit int, search string) (*utils.PaginationResponse, error) {
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
+	// Generate cache keys
+	cacheKey := utils.GenerateSearchCacheKey("internships", search, page, limit)
+	countKey := utils.GenerateCountCacheKey("internships", search)
+
+	// Try to get from cache first
+	if cachedResult, err := utils.GetCachedSearchResult(s.redis, cacheKey); err == nil {
+		return &utils.PaginationResponse{
+			Data:       cachedResult.Data,
+			Total:      cachedResult.TotalCount,
+			Page:       cachedResult.Page,
+			Limit:      cachedResult.Limit,
+			TotalPages: int((cachedResult.TotalCount + int64(limit) - 1) / int64(limit)),
+		}, nil
+	}
+
+	offset := (page - 1) * limit
+
+	var total int64
+	if cachedCount, err := utils.GetCachedCount(s.redis, countKey); err == nil {
+		total = cachedCount
+	} else {
+		total, err = s.repo.CountInternships(search)
+		if err != nil {
+			log.Printf("error CountInternships: %v", err)
+			return nil, errors.New("gagal mengambil jumlah data magang")
+		}
+		// Cache the count
+		utils.CacheCount(s.redis, countKey, total)
+	}
+
+	// Get internships data
+	internships, err := s.repo.GetInternshipsOptimized(offset, limit, search)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data magang")
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	// Cache the results
+	utils.CacheSearchResult(s.redis, cacheKey, internships, total, page, limit)
+
+	return &utils.PaginationResponse{
+		Data:       internships,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (s *StudentPklService) ApplyStudentInternshipPosition(c *fiber.Ctx, internshipId uuid.UUID) (*pkl.InternshipApplication, error) {

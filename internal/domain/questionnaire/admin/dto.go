@@ -182,14 +182,14 @@ type OptionDTO struct {
 
 // Questionnaire Management DTOs
 type QuestionnaireListResponse struct {
-	ID          uuid.UUID            `json:"id"`
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Version     string               `json:"version"`
-	TargetRoles []TargetRoleResponse `json:"target_roles"`
-	Active      bool                 `json:"active"`
-	CreatedAt   time.Time            `json:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Version     string    `json:"version"`
+	TargetRoles []string  `json:"target_roles"`
+	Active      bool      `json:"active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type QuestionnaireDetailResponse struct {

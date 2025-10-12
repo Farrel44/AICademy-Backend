@@ -8,31 +8,34 @@ import (
 	"log"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
-	"github.com/redis/go-redis/v9"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	. "github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/google/uuid"
 )
 
 type AdminQuestionnaireService struct {
-	repo        *questionnaire.QuestionnaireRepository
-	aiService   ai.AIService
-	redisClient *redis.Client
+	repo         *questionnaire.QuestionnaireRepository
+	aiService    ai.AIService
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
-func NewAdminQuestionnaireService(repo *questionnaire.QuestionnaireRepository, aiService ai.AIService, redisClient *redis.Client) *AdminQuestionnaireService {
+func NewAdminQuestionnaireService(repo *questionnaire.QuestionnaireRepository, aiService ai.AIService, redis *utils.RedisClient) *AdminQuestionnaireService {
 	return &AdminQuestionnaireService{
-		repo:        repo,
-		aiService:   aiService,
-		redisClient: redisClient,
+		repo:         repo,
+		aiService:    aiService,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
 	}
 }
 
 // Target Role CRUD Operations
 func (s *AdminQuestionnaireService) CreateTargetRole(req CreateTargetRoleRequest) (*TargetRoleResponse, error) {
-	targetRole := &questionnaire.TargetRole{
+	targetRole := &project.TargetRole{
 		ID:          uuid.New(),
 		Name:        req.Name,
 		Description: req.Description,
@@ -47,20 +50,28 @@ func (s *AdminQuestionnaireService) CreateTargetRole(req CreateTargetRoleRequest
 		return nil, errors.New("failed to create target role")
 	}
 
+	// Invalidate cache after successful creation
+	s.invalidateTargetRoleCache(targetRole.ID)
+
 	return s.mapTargetRoleToResponse(targetRole), nil
 }
 
-func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int) (*PaginatedTargetRolesResponse, error) {
-	log.Printf("DEBUG: Service GetTargetRoles called with page=%d, limit=%d", page, limit)
+func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int, search string) (*PaginatedTargetRolesResponse, error) {
+	// Phase 1 optimization: Redis caching
+	cacheKey := fmt.Sprintf("admin_target_roles:%d:%d:%s", page, limit, search)
 
-	offset := (page - 1) * limit
-	roles, total, err := s.repo.GetTargetRoles(offset, limit)
-	if err != nil {
-		log.Printf("DEBUG: Repository error: %v", err)
-		return nil, err
+	if cached, err := s.redis.Get(cacheKey); err == nil && cached != "" {
+		var result PaginatedTargetRolesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
 	}
 
-	log.Printf("DEBUG: Service received %d roles, total=%d", len(roles), total)
+	offset := (page - 1) * limit
+	roles, total, err := s.repo.GetTargetRolesOptimized(offset, limit, search)
+	if err != nil {
+		return nil, err
+	}
 
 	roleResponses := make([]TargetRoleResponse, len(roles))
 	for i, role := range roles {
@@ -69,13 +80,20 @@ func (s *AdminQuestionnaireService) GetTargetRoles(page, limit int) (*PaginatedT
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	return &PaginatedTargetRolesResponse{
+	result := &PaginatedTargetRolesResponse{
 		Data:       roleResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	// Cache the result for 5 minutes
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redis.Set(cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminQuestionnaireService) GetTargetRoleByID(id uuid.UUID) (*TargetRoleResponse, error) {
@@ -112,11 +130,22 @@ func (s *AdminQuestionnaireService) UpdateTargetRole(id uuid.UUID, req UpdateTar
 		return nil, errors.New("failed to update target role")
 	}
 
+	// Invalidate cache after successful update
+	s.invalidateTargetRoleCache(id)
+
 	return s.mapTargetRoleToResponse(role), nil
 }
 
 func (s *AdminQuestionnaireService) DeleteTargetRole(id uuid.UUID) error {
-	return s.repo.DeleteTargetRole(id)
+	err := s.repo.DeleteTargetRole(id)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache after successful deletion
+	s.invalidateTargetRoleCache(id)
+
+	return nil
 }
 
 // AI-powered questionnaire generation
@@ -149,6 +178,17 @@ func (s *AdminQuestionnaireService) GenerateQuestionnaire(req GenerateQuestionna
 		return nil, errors.New("failed to create questionnaire")
 	}
 
+	// Link all active target roles to the questionnaire
+	for _, role := range targetRoles {
+		err = s.repo.LinkQuestionnaireTargetRole(questionnaire.ID, role.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to link target role %s to questionnaire: %w", role.Name, err)
+		}
+	}
+
+	// Invalidate cache after successful creation
+	s.invalidateQuestionnaireCache(questionnaire.ID)
+
 	prompt := s.buildQuestionGenerationPrompt(req, targetRoleNames)
 
 	go s.processQuestionGeneration(questionnaire.ID, prompt, req)
@@ -161,21 +201,40 @@ func (s *AdminQuestionnaireService) GenerateQuestionnaire(req GenerateQuestionna
 	}, nil
 }
 
-func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int) (*PaginatedQuestionnairesResponse, error) {
+func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int, search string) (*PaginatedQuestionnairesResponse, error) {
+	cacheKey := fmt.Sprintf("admin_questionnaires:%d:%d:%s", page, limit, search)
+
+	if cached, err := s.redis.Get(cacheKey); err == nil && cached != "" {
+		var result PaginatedQuestionnairesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
-	questionnaires, total, err := s.repo.GetQuestionnairesNew(offset, limit)
+	questionnaires, total, err := s.repo.GetQuestionnairesOptimized(offset, limit, search)
 	if err != nil {
 		return nil, err
 	}
 
 	questionnaireResponses := make([]QuestionnaireListResponse, len(questionnaires))
 	for i, q := range questionnaires {
+		targetRoles, err := s.repo.GetTargetRolesByQuestionnaireID(q.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		targetRoleNames := make([]string, len(targetRoles))
+		for j, role := range targetRoles {
+			targetRoleNames[j] = role.Name
+		}
+
 		questionnaireResponses[i] = QuestionnaireListResponse{
 			ID:          q.ID,
 			Name:        q.Name,
-			Description: "", // Not available in ProfilingQuestionnaire model
+			Description: "",
 			Version:     fmt.Sprintf("v%d", q.Version),
-			TargetRoles: []TargetRoleResponse{}, // TODO: Load target roles if needed
+			TargetRoles: targetRoleNames,
 			Active:      q.Active,
 			CreatedAt:   q.CreatedAt,
 			UpdatedAt:   q.UpdatedAt,
@@ -184,13 +243,19 @@ func (s *AdminQuestionnaireService) GetQuestionnaires(page, limit int) (*Paginat
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
-	return &PaginatedQuestionnairesResponse{
+	result := &PaginatedQuestionnairesResponse{
 		Data:       questionnaireResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redis.Set(cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminQuestionnaireService) GetQuestionnaireDetail(id uuid.UUID) (*QuestionnaireDetailResponse, error) {
@@ -269,21 +334,35 @@ func (s *AdminQuestionnaireService) GetQuestionnaireDetail(id uuid.UUID) (*Quest
 }
 
 func (s *AdminQuestionnaireService) ActivateQuestionnaire(id uuid.UUID, active bool) error {
+	var err error
 	if active {
 		// Activate the questionnaire (this deactivates all others and activates this one)
-		return s.repo.ActivateQuestionnaire(id)
+		err = s.repo.ActivateQuestionnaire(id)
 	} else {
 		// Deactivate just this questionnaire
-		return s.repo.DeactivateAllQuestionnaires() // For now, deactivate all questionnaires
+		err = s.repo.DeactivateAllQuestionnaires() // For now, deactivate all questionnaires
 	}
+
+	if err == nil {
+		// Invalidate cache after successful activation/deactivation
+		s.invalidateAllQuestionnaireCache() // Affects all questionnaires
+	}
+
+	return err
 }
 
-func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, questionnaireID *uuid.UUID) (*PaginatedResponsesResponse, error) {
-	// Calculate offset for pagination
-	offset := (page - 1) * limit
+func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, search string, questionnaireID *uuid.UUID) (*PaginatedResponsesResponse, error) {
+	cacheKey := fmt.Sprintf("admin_responses:%d:%d:%s:%v", page, limit, search, questionnaireID)
 
-	// Get responses from repository
-	responses, total, err := s.repo.GetQuestionnaireResponsesNew(offset, limit, questionnaireID)
+	if cached, err := s.redis.Get(cacheKey); err == nil && cached != "" {
+		var result PaginatedResponsesResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
+	offset := (page - 1) * limit
+	responses, total, err := s.repo.GetQuestionnaireResponsesOptimized(offset, limit, search, questionnaireID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get questionnaire responses: %w", err)
 	}
@@ -363,13 +442,19 @@ func (s *AdminQuestionnaireService) GetQuestionnaireResponses(page, limit int, q
 		}
 	}
 
-	return &PaginatedResponsesResponse{
+	result := &PaginatedResponsesResponse{
 		Data:       responseOverviews,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redis.Set(cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 // Helper method to calculate max score from questions
@@ -529,7 +614,7 @@ func (s *AdminQuestionnaireService) GetResponseDetail(id uuid.UUID) (*ResponseDe
 }
 
 // Helper methods
-func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *questionnaire.TargetRole) *TargetRoleResponse {
+func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *project.TargetRole) *TargetRoleResponse {
 	return &TargetRoleResponse{
 		ID:          role.ID,
 		Name:        role.Name,
@@ -672,6 +757,9 @@ func (s *AdminQuestionnaireService) processQuestionGeneration(questionnaireID uu
 		return
 	}
 
+	// Invalidate cache after successful questionnaire generation completion
+	s.invalidateQuestionnaireCache(questionnaireID)
+
 	s.setGenerationStatus(ctx, questionnaireID, "completed", 100, fmt.Sprintf("Successfully generated %d questions", len(questions)))
 }
 
@@ -690,7 +778,7 @@ func (s *AdminQuestionnaireService) getMaxScoreForType(questionType questionnair
 	}
 }
 
-func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.TargetRole, error) {
+func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]project.TargetRole, error) {
 	log.Printf("Getting all active target roles from database")
 
 	roles, _, err := s.repo.GetTargetRoles(0, 1000)
@@ -700,7 +788,7 @@ func (s *AdminQuestionnaireService) getAllActiveTargetRoles() ([]questionnaire.T
 	}
 
 	// Filter only active roles
-	var activeRoles []questionnaire.TargetRole
+	var activeRoles []project.TargetRole
 	for _, role := range roles {
 		if role.Active {
 			activeRoles = append(activeRoles, role)
@@ -784,30 +872,24 @@ func (s *AdminQuestionnaireService) setGenerationStatus(ctx context.Context, que
 		return
 	}
 
-	if s.redisClient != nil {
-		statusData := GenerationStatus{
-			Status:   status,
-			Progress: progress,
-			Message:  message,
-		}
-
-		statusJSON, _ := json.Marshal(statusData)
-		key := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
-		s.redisClient.Set(ctx, key, string(statusJSON), 5*time.Minute)
+	statusData := GenerationStatus{
+		Status:   status,
+		Progress: progress,
+		Message:  message,
 	}
+
+	statusJSON, _ := json.Marshal(statusData)
+	key := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
+	s.redis.Set(key, string(statusJSON), 5*time.Minute)
 }
 
 func (s *AdminQuestionnaireService) GetGenerationStatus(questionnaireID uuid.UUID) (*GenerationStatus, error) {
-	ctx := context.Background()
 	key := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
 
-	if s.redisClient != nil {
-		result, err := s.redisClient.Get(ctx, key).Result()
-		if err == nil {
-			var status GenerationStatus
-			if json.Unmarshal([]byte(result), &status) == nil {
-				return &status, nil
-			}
+	if result, err := s.redis.Get(key); err == nil && result != "" {
+		var status GenerationStatus
+		if json.Unmarshal([]byte(result), &status) == nil {
+			return &status, nil
 		}
 	}
 
@@ -826,10 +908,89 @@ func (s *AdminQuestionnaireService) GetGenerationStatus(questionnaireID uuid.UUI
 		Message:  dbQuestionnaire.GenerationMessage,
 	}
 
-	if s.redisClient != nil {
-		statusJSON, _ := json.Marshal(status)
-		s.redisClient.Set(ctx, key, string(statusJSON), 5*time.Minute)
-	}
+	statusJSON, _ := json.Marshal(status)
+	s.redis.Set(key, string(statusJSON), 5*time.Minute)
 
 	return status, nil
+}
+
+// Cache invalidation methods
+func (s *AdminQuestionnaireService) invalidateTargetRoleCache(roleID uuid.UUID) {
+	// Individual target role cache
+	roleKey := fmt.Sprintf("target_role:%s", roleID.String())
+	s.redis.Delete(roleKey)
+
+	// Target roles statistics cache
+	s.redis.Delete("target_role:statistics")
+
+	// Pattern-based list cache invalidation
+	s.cacheManager.InvalidateByPattern("admin_target_roles:*")
+	s.cacheManager.InvalidateByPattern("target_roles:list:*")
+	s.cacheManager.InvalidateByPattern("target_roles:search:*")
+}
+
+func (s *AdminQuestionnaireService) invalidateQuestionnaireCache(questionnaireID uuid.UUID) {
+	// Individual questionnaire cache
+	questionnaireKey := fmt.Sprintf("questionnaire:%s", questionnaireID.String())
+	s.redis.Delete(questionnaireKey)
+
+	// Questionnaire details cache
+	detailsKey := fmt.Sprintf("questionnaire_details:%s", questionnaireID.String())
+	s.redis.Delete(detailsKey)
+
+	// Generation status cache
+	generationKey := fmt.Sprintf("questionnaire:generation:%s", questionnaireID.String())
+	s.redis.Delete(generationKey)
+
+	// Questionnaire statistics cache
+	s.redis.Delete("questionnaire:statistics")
+
+	// Pattern-based list cache invalidation
+	s.cacheManager.InvalidateByPattern("admin_questionnaires:*")
+	s.cacheManager.InvalidateByPattern("questionnaires:list:*")
+	s.cacheManager.InvalidateByPattern("questionnaires:search:*")
+
+	// Response-related cache
+	s.cacheManager.InvalidateByPattern("admin_responses:*")
+	s.cacheManager.InvalidateByPattern("questionnaire_responses:*")
+}
+
+func (s *AdminQuestionnaireService) invalidateResponseCache(responseID uuid.UUID, questionnaireID uuid.UUID) {
+	// Individual response cache
+	responseKey := fmt.Sprintf("questionnaire_response:%s", responseID.String())
+	s.redis.Delete(responseKey)
+
+	// Parent questionnaire cache
+	s.invalidateQuestionnaireCache(questionnaireID)
+
+	// Response statistics cache
+	s.redis.Delete("questionnaire_response:statistics")
+
+	// Pattern-based response list cache invalidation
+	s.cacheManager.InvalidateByPattern("admin_responses:*")
+	s.cacheManager.InvalidateByPattern("questionnaire_responses:*")
+}
+
+func (s *AdminQuestionnaireService) invalidateAllQuestionnaireCache() {
+	patterns := []string{
+		"questionnaire:*",
+		"questionnaires:*",
+		"admin_questionnaires:*",
+		"questionnaire_details:*",
+		"questionnaire_response:*",
+		"questionnaire_responses:*",
+		"admin_responses:*",
+		"target_role:*",
+		"target_roles:*",
+		"admin_target_roles:*",
+	}
+
+	for _, pattern := range patterns {
+		s.cacheManager.InvalidateByPattern(pattern)
+	}
+
+	// Clear statistics cache
+	s.redis.Delete("questionnaire:statistics")
+	s.redis.Delete("target_role:statistics")
+	s.redis.Delete("questionnaire_response:statistics")
 }

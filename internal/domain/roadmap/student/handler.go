@@ -1,8 +1,6 @@
 package student
 
 import (
-	"strconv"
-
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -16,7 +14,7 @@ func NewStudentRoadmapHandler(service *StudentRoadmapService) *StudentRoadmapHan
 	return &StudentRoadmapHandler{service: service}
 }
 
-func (h *StudentRoadmapHandler) GetAvailableRoadmaps(c *fiber.Ctx) error {
+func (h *StudentRoadmapHandler) GetMyRoadmap(c *fiber.Ctx) error {
 	userID, _ := uuid.Parse(c.Locals("user_id").(string))
 
 	studentProfileID, err := h.getStudentProfileID(userID)
@@ -24,22 +22,17 @@ func (h *StudentRoadmapHandler) GetAvailableRoadmaps(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "Profile siswa tidak ditemukan")
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-
-	result, err := h.service.GetAvailableRoadmaps(studentProfileID, page, limit)
+	result, err := h.service.GetMyRoadmap(studentProfileID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Data roadmap tersedia berhasil diambil", result)
+	// If no roadmap found but service returned success with message
+	if result.Roadmap == nil {
+		return utils.SendSuccess(c, result.Message, nil)
+	}
+
+	return utils.SendSuccess(c, result.Message, result.Roadmap)
 }
 
 func (h *StudentRoadmapHandler) StartRoadmap(c *fiber.Ctx) error {
@@ -139,20 +132,24 @@ func (h *StudentRoadmapHandler) SubmitEvidence(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, "Bukti berhasil dikirim", result)
 }
 
-func (h *StudentRoadmapHandler) GetMyProgress(c *fiber.Ctx) error {
+func (h *StudentRoadmapHandler) GetStepProgress(c *fiber.Ctx) error {
 	userID, _ := uuid.Parse(c.Locals("user_id").(string))
+	stepID, err := uuid.Parse(c.Params("stepId"))
+	if err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "ID step tidak valid")
+	}
 
 	studentProfileID, err := h.getStudentProfileID(userID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "Profile siswa tidak ditemukan")
 	}
 
-	result, err := h.service.GetMyProgress(studentProfileID)
+	result, err := h.service.GetStepProgress(stepID, studentProfileID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SendSuccess(c, "Progress saya berhasil diambil", result)
+	return utils.SendSuccess(c, "Step progress berhasil diambil", result)
 }
 
 func (h *StudentRoadmapHandler) getStudentProfileID(userID uuid.UUID) (uuid.UUID, error) {

@@ -33,14 +33,16 @@ type PaginatedApplicationResponse struct {
 type SubmissionResponse struct {
 	ID               string             `json:"id"`
 	InternshipID     string             `json:"internship_id"`
-	StudentProfileID string             `json:"student_profile_id"`
+	StudentProfileID string             `json:"student_profile_id,omitempty"`
+	AlumniProfileID  string             `json:"alumni_profile_id,omitempty"`
 	Status           string             `json:"status"`
 	AppliedAt        time.Time          `json:"applied_at"`
 	ReviewedAt       *time.Time         `json:"reviewed_at"`
 	ApprovedByUserID *string            `json:"approved_by_user_id,omitempty"`
 	ApprovedByRole   *string            `json:"approved_by_role,omitempty"`
 	ApproverEmail    *string            `json:"approver_email,omitempty"`
-	Student          StudentSummary     `json:"student"`
+	Student          StudentSummary     `json:"student,omitempty"`
+	Alumni           *AlumniSummary     `json:"alumni,omitempty"`
 	Internship       *InternshipSummary `json:"internship,omitempty"`
 }
 
@@ -51,6 +53,17 @@ type StudentSummary struct {
 	Fullname       string  `json:"fullname"`
 	NIS            string  `json:"nis"`
 	Class          string  `json:"class"`
+	ProfilePicture *string `json:"profile_picture,omitempty"`
+	Headline       *string `json:"headline,omitempty"`
+	Bio            *string `json:"bio,omitempty"`
+	CvFile         *string `json:"cv_file,omitempty"`
+}
+
+type AlumniSummary struct {
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Email          string  `json:"email"`
+	Fullname       string  `json:"fullname"`
 	ProfilePicture *string `json:"profile_picture,omitempty"`
 	Headline       *string `json:"headline,omitempty"`
 	Bio            *string `json:"bio,omitempty"`

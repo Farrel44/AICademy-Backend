@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -498,7 +499,7 @@ func SeedDefaultQuestionnaires(db *gorm.DB) error {
 	return nil
 }
 func SeedTargetRoles(db *gorm.DB) error {
-	roles := []questionnaire.TargetRole{
+	roles := []project.TargetRole{
 		{
 			Name:        "Backend Developer",
 			Description: "Mengembangkan aplikasi server-side, API, dan sistem database",
@@ -652,7 +653,7 @@ func SeedTargetRoles(db *gorm.DB) error {
 	}
 
 	for _, role := range roles {
-		var existingRole questionnaire.TargetRole
+		var existingRole project.TargetRole
 		err := db.Where("name = ?", role.Name).First(&existingRole).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := db.Create(&role).Error; err != nil {

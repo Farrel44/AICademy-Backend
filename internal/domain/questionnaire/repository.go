@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 
 	"github.com/google/uuid"
@@ -275,17 +277,17 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponses(questionnaireID uuid
 // New methods for restructured questionnaire system
 
 // Target Role methods
-func (r *QuestionnaireRepository) CreateTargetRole(role *TargetRole) error {
+func (r *QuestionnaireRepository) CreateTargetRole(role *project.TargetRole) error {
 	return r.db.Create(role).Error
 }
 
-func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRole, int64, error) {
+func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]project.TargetRole, int64, error) {
 	log.Printf("*** REPOSITORY: GetTargetRoles called with offset=%d, limit=%d ***", offset, limit)
 
-	var roles []TargetRole
+	var roles []project.TargetRole
 	var total int64
 
-	err := r.db.Model(&TargetRole{}).Count(&total).Error
+	err := r.db.Model(&project.TargetRole{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -299,8 +301,40 @@ func (r *QuestionnaireRepository) GetTargetRoles(offset, limit int) ([]TargetRol
 	return roles, total, err
 }
 
-func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*TargetRole, error) {
-	var role TargetRole
+// GetTargetRolesOptimized with search functionality and Phase 1 optimizations
+func (r *QuestionnaireRepository) GetTargetRolesOptimized(offset, limit int, search string) ([]project.TargetRole, int64, error) {
+	var roles []project.TargetRole
+	var total int64
+
+	// Separate count query for optimization
+	countQuery := r.db.Model(&project.TargetRole{})
+	dataQuery := r.db.Model(&project.TargetRole{})
+
+	// Apply search filter with case-insensitive search
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&roles).Error
+
+	return roles, total, err
+}
+
+func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*project.TargetRole, error) {
+	var role project.TargetRole
 	err := r.db.Where("id = ?", id).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -311,8 +345,8 @@ func (r *QuestionnaireRepository) GetTargetRoleByID(id uuid.UUID) (*TargetRole, 
 	return &role, nil
 }
 
-func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*TargetRole, error) {
-	var role TargetRole
+func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*project.TargetRole, error) {
+	var role project.TargetRole
 	err := r.db.Where("name = ?", name).First(&role).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -323,12 +357,12 @@ func (r *QuestionnaireRepository) GetTargetRoleByName(name string) (*TargetRole,
 	return &role, nil
 }
 
-func (r *QuestionnaireRepository) UpdateTargetRole(role *TargetRole) error {
+func (r *QuestionnaireRepository) UpdateTargetRole(role *project.TargetRole) error {
 	return r.db.Save(role).Error
 }
 
 func (r *QuestionnaireRepository) DeleteTargetRole(id uuid.UUID) error {
-	return r.db.Delete(&TargetRole{}, id).Error
+	return r.db.Delete(&project.TargetRole{}, id).Error
 }
 
 // Questionnaire methods for new structure
@@ -349,6 +383,25 @@ func (r *QuestionnaireRepository) GetQuestionnairesNew(offset, limit int) ([]Pro
 	return questionnaires, total, err
 }
 
+func (r *QuestionnaireRepository) GetQuestionnairesOptimized(offset, limit int, search string) ([]ProfilingQuestionnaire, int64, error) {
+	var questionnaires []ProfilingQuestionnaire
+	var total int64
+
+	query := r.db.Model(&ProfilingQuestionnaire{})
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		query = query.Where("name ILIKE ? OR version::text ILIKE ?", searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&questionnaires).Error
+	return questionnaires, total, err
+}
+
 func (r *QuestionnaireRepository) LinkQuestionnaireTargetRole(questionnaireID, targetRoleID uuid.UUID) error {
 	// Create junction table entry
 	type QuestionnaireTargetRole struct {
@@ -364,8 +417,8 @@ func (r *QuestionnaireRepository) LinkQuestionnaireTargetRole(questionnaireID, t
 	return r.db.Create(&link).Error
 }
 
-func (r *QuestionnaireRepository) GetTargetRolesByQuestionnaireID(questionnaireID uuid.UUID) ([]TargetRole, error) {
-	var roles []TargetRole
+func (r *QuestionnaireRepository) GetTargetRolesByQuestionnaireID(questionnaireID uuid.UUID) ([]project.TargetRole, error) {
+	var roles []project.TargetRole
 
 	err := r.db.Table("target_roles").
 		Joins("JOIN questionnaire_target_roles ON target_roles.id = questionnaire_target_roles.target_role_id").
@@ -478,6 +531,48 @@ func (r *QuestionnaireRepository) GetQuestionnaireResponsesNew(offset, limit int
 	}
 
 	err = query.Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&responses).Error
+	return responses, total, err
+}
+
+func (r *QuestionnaireRepository) GetQuestionnaireResponsesOptimized(offset, limit int, search string, questionnaireID *uuid.UUID) ([]QuestionnaireResponse, int64, error) {
+	var responses []QuestionnaireResponse
+	var total int64
+
+	// Separate count query for optimization
+	countQuery := r.db.Model(&QuestionnaireResponse{}).
+		Joins("LEFT JOIN student_profiles sp ON questionnaire_responses.student_profile_id::uuid = sp.id").
+		Joins("LEFT JOIN users u ON sp.user_id = u.id")
+
+	// Data query
+	dataQuery := r.db.Model(&QuestionnaireResponse{}).
+		Joins("LEFT JOIN student_profiles sp ON questionnaire_responses.student_profile_id::uuid = sp.id").
+		Joins("LEFT JOIN users u ON sp.user_id = u.id")
+
+	if questionnaireID != nil {
+		countQuery = countQuery.Where("questionnaire_responses.questionnaire_id = ?", questionnaireID.String())
+		dataQuery = dataQuery.Where("questionnaire_responses.questionnaire_id = ?", questionnaireID.String())
+	}
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		searchCondition := "LOWER(sp.fullname) LIKE ? OR LOWER(u.email) LIKE ?"
+		countQuery = countQuery.Where(searchCondition, searchTerm, searchTerm)
+		dataQuery = dataQuery.Where(searchCondition, searchTerm, searchTerm)
+	}
+
+	// Get count
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get data
+	err := dataQuery.
+		Select("questionnaire_responses.*").
+		Order("questionnaire_responses.submitted_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&responses).Error
+
 	return responses, total, err
 }
 

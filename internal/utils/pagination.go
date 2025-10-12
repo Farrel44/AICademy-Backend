@@ -8,3 +8,11 @@ type Pagination struct {
 	HasNext    bool `json:"has_next"`
 	HasPrev    bool `json:"has_prev"`
 }
+
+type PaginationResponse struct {
+	Data       interface{} `json:"data"`
+	Total      int64       `json:"total"`
+	Page       int         `json:"page"`
+	Limit      int         `json:"limit"`
+	TotalPages int         `json:"total_pages"`
+}

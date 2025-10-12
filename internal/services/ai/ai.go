@@ -15,6 +15,7 @@ type AIService interface {
 	GenerateCareerRecommendations(ctx context.Context, prompt string) (*CareerAnalysisResponse, error)
 	GenerateQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error)
 	GenerateQuestionnaireQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error)
+	GenerateText(ctx context.Context, prompt string) (string, error)
 }
 
 type GeminiService struct {
@@ -281,6 +282,31 @@ func (g *GeminiService) GenerateQuestionnaireQuestions(ctx context.Context, prom
 	return &result, nil
 }
 
+func (g *GeminiService) GenerateText(ctx context.Context, prompt string) (string, error) {
+	response, err := g.model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", fmt.Errorf("gagal menghubungi AI service: %w", err)
+	}
+
+	if len(response.Candidates) == 0 {
+		return "", fmt.Errorf("tidak ada candidate dalam respons AI")
+	}
+
+	candidate := response.Candidates[0]
+	if candidate.Content == nil {
+		return "", fmt.Errorf("konten candidate kosong")
+	}
+
+	var responseText strings.Builder
+	for _, part := range candidate.Content.Parts {
+		if textPart, ok := part.(genai.Text); ok {
+			responseText.WriteString(string(textPart))
+		}
+	}
+
+	return strings.TrimSpace(responseText.String()), nil
+}
+
 func (g *GeminiService) Close() error {
 	if g.client != nil {
 		return g.client.Close()
@@ -339,4 +365,8 @@ func (n *NoAIService) GenerateQuestions(ctx context.Context, prompt string) (*Qu
 
 func (n *NoAIService) GenerateQuestionnaireQuestions(ctx context.Context, prompt string) (*QuestionGenerationResponse, error) {
 	return nil, fmt.Errorf("layanan AI tidak tersedia - GEMINI_API_KEY tidak dikonfigurasi")
+}
+
+func (n *NoAIService) GenerateText(ctx context.Context, prompt string) (string, error) {
+	return "", fmt.Errorf("layanan AI tidak tersedia - GEMINI_API_KEY tidak dikonfigurasi")
 }

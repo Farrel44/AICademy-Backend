@@ -39,6 +39,7 @@ func (h *AdminRoadmapHandler) CreateRoadmap(c *fiber.Ctx) error {
 func (h *AdminRoadmapHandler) GetRoadmaps(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
 	status := c.Query("status")
 	roleIDStr := c.Query("profiling_role_id")
 
@@ -61,7 +62,7 @@ func (h *AdminRoadmapHandler) GetRoadmaps(c *fiber.Ctx) error {
 		statusPtr = &status
 	}
 
-	result, err := h.service.GetRoadmaps(page, limit, profilingRoleID, statusPtr)
+	result, err := h.service.GetRoadmaps(page, limit, search, profilingRoleID, statusPtr)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -186,24 +187,6 @@ func (h *AdminRoadmapHandler) DeleteRoadmapStep(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, "Step berhasil dihapus", nil)
 }
 
-func (h *AdminRoadmapHandler) UpdateStepOrders(c *fiber.Ctx) error {
-	var req BulkStepOrderRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Format data tidak valid")
-	}
-
-	if err := utils.ValidateStruct(req); err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, "Validasi gagal")
-	}
-
-	err := h.service.UpdateStepOrders(req)
-	if err != nil {
-		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
-	}
-
-	return utils.SendSuccess(c, "Urutan step berhasil diperbarui", nil)
-}
-
 func (h *AdminRoadmapHandler) GetStudentProgress(c *fiber.Ctx) error {
 	roadmapIDStr := c.Params("roadmapId")
 	roadmapID, err := uuid.Parse(roadmapIDStr)
@@ -232,6 +215,7 @@ func (h *AdminRoadmapHandler) GetStudentProgress(c *fiber.Ctx) error {
 func (h *AdminRoadmapHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
 	teacherIDStr := c.Query("teacher_id")
 
 	if page < 1 {
@@ -248,7 +232,7 @@ func (h *AdminRoadmapHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 		}
 	}
 
-	result, err := h.service.GetPendingSubmissions(page, limit, teacherID)
+	result, err := h.service.GetPendingSubmissions(page, limit, search, teacherID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

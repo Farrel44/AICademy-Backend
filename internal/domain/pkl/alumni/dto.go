@@ -52,6 +52,19 @@ type CleanApplicationResponse struct {
 	AppliedAt    time.Time               `json:"applied_at"`
 	ReviewedAt   *time.Time              `json:"reviewed_at,omitempty"`
 	Internship   CleanInternshipResponse `json:"internship"`
+	Alumni       CleanAlumniSummary      `json:"alumni,omitempty"`
+}
+
+// Add new Alumni summary structure
+type CleanAlumniSummary struct {
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Email          string  `json:"email"`
+	Fullname       string  `json:"fullname"`
+	ProfilePicture *string `json:"profile_picture,omitempty"`
+	Headline       *string `json:"headline,omitempty"`
+	Bio            *string `json:"bio,omitempty"`
+	CvFile         *string `json:"cv_file,omitempty"`
 }
 
 type CleanPaginatedApplicationResponse struct {

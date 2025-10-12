@@ -1,0 +1,222 @@
+package project
+
+import (
+	"strings"
+	"time"
+
+	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+)
+
+type ProjectRepository struct {
+	db           *gorm.DB
+	rdb          *redis.Client
+	cacheVersion string
+	cacheTTL     time.Duration
+}
+
+func NewProjectRepository(db *gorm.DB, rdb *redis.Client) *ProjectRepository {
+	return &ProjectRepository{
+		db:           db,
+		rdb:          rdb,
+		cacheVersion: "v1",
+		cacheTTL:     5 * time.Minute,
+	}
+}
+
+// Project methods
+func (r *ProjectRepository) CreateProject(project *Project) error {
+	return r.db.Create(project).Error
+}
+
+func (r *ProjectRepository) GetProjectByID(id uuid.UUID) (*Project, error) {
+	var project Project
+	err := r.db.Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
+		Preload("Photos").
+		First(&project, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+func (r *ProjectRepository) GetProjectsByOwnerID(ownerID uuid.UUID) ([]Project, error) {
+	var projects []Project
+	err := r.db.Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
+		Preload("Photos").
+		Where("owner_student_profile_id = ?", ownerID).Find(&projects).Error
+	return projects, err
+}
+
+func (r *ProjectRepository) GetProjectsByOwnerIDWithSearch(ownerID uuid.UUID, offset, limit int, search string) ([]Project, int64, error) {
+	var projects []Project
+	var total int64
+
+	query := r.db.Model(&Project{}).
+		Preload("Contributors.StudentProfile.User").
+		Preload("Contributors.TargetRole").
+		Preload("Photos").
+		Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ?",
+			searchTerm, searchTerm)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("created_at DESC").Find(&projects).Error
+	return projects, total, err
+}
+
+// Optimized methods for search performance
+func (r *ProjectRepository) CountProjectsByOwnerID(ownerID uuid.UUID, search string) (int64, error) {
+	var total int64
+	query := r.db.Model(&Project{}).Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(project_name) LIKE ? OR LOWER(description) LIKE ?",
+			searchTerm, searchTerm)
+	}
+
+	err := query.Count(&total).Error
+	return total, err
+}
+
+func (r *ProjectRepository) GetProjectsByOwnerIDOptimized(ownerID uuid.UUID, offset, limit int, search string) ([]Project, error) {
+	var projects []Project
+	query := r.db.Select("projects.*").
+		Model(&Project{}).
+		Where("owner_student_profile_id = ?", ownerID)
+
+	if search != "" {
+		searchTerm := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(projects.project_name) LIKE ? OR LOWER(projects.description) LIKE ?",
+			searchTerm, searchTerm)
+	}
+
+	err := query.Offset(offset).Limit(limit).Order("projects.created_at DESC").Find(&projects).Error
+	return projects, err
+}
+
+func (r *ProjectRepository) UpdateProject(project *Project) error {
+	return r.db.Save(project).Error
+}
+
+func (r *ProjectRepository) DeleteProject(id uuid.UUID) error {
+	return r.db.Delete(&Project{}, "id = ?", id).Error
+}
+
+func (r *ProjectRepository) AddProjectPhoto(photo *ProjectPhoto) error {
+	return r.db.Create(photo).Error
+}
+
+func (r *ProjectRepository) DeleteProjectPhoto(id uuid.UUID) error {
+	return r.db.Delete(&ProjectPhoto{}, "id = ?", id).Error
+}
+
+func (r *ProjectRepository) AddProjectContributor(contributor *ProjectContributor) error {
+	return r.db.Create(contributor).Error
+}
+
+func (r *ProjectRepository) RemoveProjectContributor(projectID, studentProfileID uuid.UUID) error {
+	return r.db.Delete(&ProjectContributor{}, "project_id = ? AND student_profile_id = ?", projectID, studentProfileID).Error
+}
+
+// Get student profile by NIS
+func (r *ProjectRepository) GetStudentProfileByNIS(nis string) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").Where("nis = ?", nis).First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
+}
+
+// Alternative method if you want to search by email
+func (r *ProjectRepository) GetStudentProfileByEmail(email string) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").
+		Joins("JOIN users ON student_profiles.user_id = users.id").
+		Where("users.email = ?", email).
+		First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
+}
+
+// Get student profile by ID
+func (r *ProjectRepository) GetStudentProfileByID(id uuid.UUID) (*user.StudentProfile, error) {
+	var studentProfile user.StudentProfile
+	err := r.db.Preload("User").Where("id = ?", id).First(&studentProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &studentProfile, nil
+}
+
+// Certification methods
+func (r *ProjectRepository) CreateCertification(certification *Certification) error {
+	return r.db.Create(certification).Error
+}
+
+func (r *ProjectRepository) GetCertificationByID(id uuid.UUID) (*Certification, error) {
+	var certification Certification
+	err := r.db.Preload("Photos").First(&certification, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &certification, nil
+}
+
+func (r *ProjectRepository) GetCertificationsByStudentID(studentID uuid.UUID) ([]Certification, error) {
+	var certifications []Certification
+	err := r.db.Preload("Photos").Where("student_profile_id = ?", studentID).Find(&certifications).Error
+	return certifications, err
+}
+
+func (r *ProjectRepository) UpdateCertification(certification *Certification) error {
+	return r.db.Save(certification).Error
+}
+
+func (r *ProjectRepository) DeleteCertification(id uuid.UUID) error {
+	return r.db.Delete(&Certification{}, "id = ?", id).Error
+}
+
+func (r *ProjectRepository) AddCertificationPhoto(photo *CertificationPhoto) error {
+	return r.db.Create(photo).Error
+}
+
+func (r *ProjectRepository) DeleteCertificationPhoto(id uuid.UUID) error {
+	return r.db.Delete(&CertificationPhoto{}, "id = ?", id).Error
+}
+
+func (r *ProjectRepository) GetStudentProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error) {
+	var studentProfileID string
+	err := r.db.Table("users").
+		Select("student_profiles.id").
+		Joins("JOIN student_profiles ON users.id = student_profiles.user_id").
+		Where("users.id = ?", userID).
+		Scan(&studentProfileID).Error
+
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	// Parse the string to UUID
+	parsedUUID, err := uuid.Parse(studentProfileID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return parsedUUID, nil
+}

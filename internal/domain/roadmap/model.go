@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 )
 
@@ -43,13 +43,12 @@ type FeatureRoadmap struct {
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relationships
-	ProfilingRole   *questionnaire.TargetRole `json:"profiling_role,omitempty" gorm:"foreignKey:ProfilingRoleID"`
-	CreatedByUser   *user.User                `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`
-	Steps           []RoadmapStep             `json:"steps,omitempty" gorm:"foreignKey:RoadmapID;constraint:OnDelete:CASCADE"`
-	StudentProgress []StudentRoadmapProgress  `json:"student_progress,omitempty" gorm:"foreignKey:RoadmapID"`
+	ProfilingRole   *project.TargetRole      `json:"profiling_role,omitempty" gorm:"foreignKey:ProfilingRoleID"`
+	CreatedByUser   *user.User               `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`
+	Steps           []RoadmapStep            `json:"steps,omitempty" gorm:"foreignKey:RoadmapID;constraint:OnDelete:CASCADE"`
+	StudentProgress []StudentRoadmapProgress `json:"student_progress,omitempty" gorm:"foreignKey:RoadmapID"`
 }
 
-// RoadmapStep - Step dalam roadmap template
 type RoadmapStep struct {
 	ID          uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	RoadmapID   uuid.UUID `json:"roadmap_id" gorm:"type:uuid;not null"`
@@ -57,7 +56,6 @@ type RoadmapStep struct {
 	Title       string    `json:"title" gorm:"not null"`
 	Description string    `json:"description" gorm:"type:text;not null"`
 
-	// Learning objectives dan requirements
 	LearningObjectives   string  `json:"learning_objectives" gorm:"type:text;not null"`
 	SubmissionGuidelines string  `json:"submission_guidelines" gorm:"type:text;not null"`
 	ResourceLinks        *string `json:"resource_links" gorm:"type:text"`                   // JSON array of resources

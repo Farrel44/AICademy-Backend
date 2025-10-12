@@ -1,21 +1,41 @@
 package admin
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/google/uuid"
 )
 
 type AdminRoadmapService struct {
-	repo *roadmap.RoadmapRepository
+	repo         *roadmap.RoadmapRepository
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
-func NewAdminRoadmapService(repo *roadmap.RoadmapRepository) *AdminRoadmapService {
-	return &AdminRoadmapService{repo: repo}
+func NewAdminRoadmapService(repo *roadmap.RoadmapRepository, redis *utils.RedisClient) *AdminRoadmapService {
+	return &AdminRoadmapService{
+		repo:         repo,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
+	}
 }
 
 func (s *AdminRoadmapService) CreateRoadmap(req CreateRoadmapRequest, adminID uuid.UUID) (*RoadmapResponse, error) {
+	// Check if roadmap already exists for this profiling role
+	existingRoadmap, err := s.repo.GetRoadmapByProfilingRoleID(req.ProfilingRoleID)
+	if err != nil {
+		return nil, errors.New("failed to check existing roadmap")
+	}
+
+	if existingRoadmap != nil {
+		return nil, errors.New("roadmap already exists for this profiling role. Only one roadmap per role is allowed")
+	}
+
 	newRoadmap := &roadmap.FeatureRoadmap{
 		ProfilingRoleID: req.ProfilingRoleID,
 		RoadmapName:     req.RoadmapName,
@@ -24,15 +44,37 @@ func (s *AdminRoadmapService) CreateRoadmap(req CreateRoadmapRequest, adminID uu
 		CreatedBy:       adminID,
 	}
 
-	err := s.repo.CreateRoadmap(newRoadmap)
+	err = s.repo.CreateRoadmap(newRoadmap)
 	if err != nil {
 		return nil, errors.New("failed to create roadmap")
 	}
 
+	// Invalidate cache after successful creation
+	s.invalidateRoadmapCache(newRoadmap.ID)
+
 	return s.mapRoadmapToResponse(newRoadmap), nil
 }
 
-func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid.UUID, status *string) (*PaginatedRoadmapsResponse, error) {
+func (s *AdminRoadmapService) GetRoadmaps(page, limit int, search string, profilingRoleID *uuid.UUID, status *string) (*PaginatedRoadmapsResponse, error) {
+	// Validate search parameters
+	validation, err := utils.ValidateSearchParams(search, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	page = validation.Page
+	limit = validation.Limit
+	search = validation.Query
+
+	cacheKey := fmt.Sprintf("admin_roadmaps:%d:%d:%s:%v:%v", page, limit, search, profilingRoleID, status)
+
+	if cached, err := s.redis.Get(cacheKey); err == nil && cached != "" {
+		var result PaginatedRoadmapsResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
 
 	var roadmapStatus *roadmap.RoadmapStatus
@@ -41,9 +83,14 @@ func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid
 		roadmapStatus = &rs
 	}
 
-	roadmaps, total, err := s.repo.GetRoadmaps(offset, limit, profilingRoleID, roadmapStatus)
+	total, err := s.repo.CountRoadmaps(search, profilingRoleID, roadmapStatus)
 	if err != nil {
-		return nil, errors.New("failed to get roadmaps")
+		return nil, errors.New("gagal mengambil jumlah data roadmap")
+	}
+
+	roadmaps, err := s.repo.GetRoadmapsOptimized(offset, limit, search, profilingRoleID, roadmapStatus)
+	if err != nil {
+		return nil, errors.New("gagal mengambil data roadmap")
 	}
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
@@ -53,13 +100,19 @@ func (s *AdminRoadmapService) GetRoadmaps(page, limit int, profilingRoleID *uuid
 		roadmapResponses[i] = *s.mapRoadmapToResponse(&rm)
 	}
 
-	return &PaginatedRoadmapsResponse{
+	result := &PaginatedRoadmapsResponse{
 		Data:       roadmapResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redis.Set(cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminRoadmapService) GetRoadmapByID(id uuid.UUID) (*RoadmapResponse, error) {
@@ -103,6 +156,9 @@ func (s *AdminRoadmapService) UpdateRoadmap(id uuid.UUID, req UpdateRoadmapReque
 		return nil, errors.New("failed to update roadmap")
 	}
 
+	// Invalidate cache after successful update
+	s.invalidateRoadmapCache(id)
+
 	return s.mapRoadmapToResponse(roadmapData), nil
 }
 
@@ -112,7 +168,15 @@ func (s *AdminRoadmapService) DeleteRoadmap(id uuid.UUID) error {
 		return errors.New("roadmap not found")
 	}
 
-	return s.repo.DeleteRoadmap(id)
+	err = s.repo.DeleteRoadmap(id)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache after successful deletion
+	s.invalidateRoadmapCache(id)
+
+	return nil
 }
 
 func (s *AdminRoadmapService) CreateRoadmapStep(roadmapID uuid.UUID, req CreateStepRequest) (*StepResponse, error) {
@@ -121,9 +185,14 @@ func (s *AdminRoadmapService) CreateRoadmapStep(roadmapID uuid.UUID, req CreateS
 		return nil, errors.New("roadmap not found")
 	}
 
+	nextOrder, err := s.repo.GetNextStepOrder(roadmapID)
+	if err != nil {
+		return nil, errors.New("failed to determine step order")
+	}
+
 	newStep := &roadmap.RoadmapStep{
 		RoadmapID:            roadmapID,
-		StepOrder:            req.StepOrder,
+		StepOrder:            nextOrder,
 		Title:                req.Title,
 		Description:          req.Description,
 		LearningObjectives:   req.LearningObjectives,
@@ -137,6 +206,9 @@ func (s *AdminRoadmapService) CreateRoadmapStep(roadmapID uuid.UUID, req CreateS
 	if err != nil {
 		return nil, errors.New("failed to create step")
 	}
+
+	// Invalidate cache after successful step creation
+	s.invalidateRoadmapStepCache(newStep.ID, roadmapID)
 
 	return &StepResponse{
 		ID:                   newStep.ID,
@@ -190,29 +262,28 @@ func (s *AdminRoadmapService) UpdateRoadmapStep(stepID uuid.UUID, req UpdateStep
 		return nil, errors.New("failed to update step")
 	}
 
+	// Invalidate cache after successful step update
+	s.invalidateRoadmapStepCache(stepID, step.RoadmapID)
+
 	stepResponse := s.mapStepToResponse(step)
 	return &stepResponse, nil
 }
 
 func (s *AdminRoadmapService) DeleteRoadmapStep(stepID uuid.UUID) error {
-	_, err := s.repo.GetRoadmapStepByID(stepID)
+	step, err := s.repo.GetRoadmapStepByID(stepID)
 	if err != nil {
 		return errors.New("step not found")
 	}
 
-	return s.repo.DeleteRoadmapStep(stepID)
-}
-
-func (s *AdminRoadmapService) UpdateStepOrders(req BulkStepOrderRequest) error {
-	steps := make([]roadmap.RoadmapStep, len(req.Steps))
-	for i, stepUpdate := range req.Steps {
-		steps[i] = roadmap.RoadmapStep{
-			ID:        stepUpdate.StepID,
-			StepOrder: stepUpdate.Order,
-		}
+	err = s.repo.DeleteRoadmapStep(stepID)
+	if err != nil {
+		return err
 	}
 
-	return s.repo.UpdateStepOrders(steps)
+	// Invalidate cache after successful step deletion
+	s.invalidateRoadmapStepCache(stepID, step.RoadmapID)
+
+	return nil
 }
 
 func (s *AdminRoadmapService) GetAllStudentProgress(roadmapID uuid.UUID, page, limit int) (*PaginatedSubmissionsResponse, error) {
@@ -250,9 +321,18 @@ func (s *AdminRoadmapService) GetAllStudentProgress(roadmapID uuid.UUID, page, l
 	}, nil
 }
 
-func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, teacherID *uuid.UUID) (*PaginatedSubmissionsResponse, error) {
+func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, search string, teacherID *uuid.UUID) (*PaginatedSubmissionsResponse, error) {
+	cacheKey := fmt.Sprintf("admin_roadmap_submissions:%d:%d:%s:%v", page, limit, search, teacherID)
+
+	if cached, err := s.redis.Get(cacheKey); err == nil && cached != "" {
+		var result PaginatedSubmissionsResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
-	submissions, total, err := s.repo.GetPendingSubmissions(teacherID, offset, limit)
+	submissions, total, err := s.repo.GetPendingSubmissionsOptimized(teacherID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get pending submissions")
 	}
@@ -292,17 +372,74 @@ func (s *AdminRoadmapService) GetPendingSubmissions(page, limit int, teacherID *
 		}
 	}
 
-	return &PaginatedSubmissionsResponse{
+	result := &PaginatedSubmissionsResponse{
 		Data:       submissionResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redis.Set(cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *AdminRoadmapService) GetStatistics() (map[string]interface{}, error) {
 	return s.repo.GetRoadmapStatistics()
+}
+
+// Cache invalidation methods
+func (s *AdminRoadmapService) invalidateRoadmapCache(roadmapID uuid.UUID) {
+	// Individual roadmap cache
+	roadmapKey := fmt.Sprintf("roadmap:%s", roadmapID.String())
+	s.redis.Delete(roadmapKey)
+
+	// Roadmap statistics cache
+	s.redis.Delete("roadmap:statistics")
+
+	// Pattern-based list cache invalidation
+	s.cacheManager.InvalidateByPattern("admin_roadmaps:*")
+	s.cacheManager.InvalidateByPattern("roadmaps:list:*")
+	s.cacheManager.InvalidateByPattern("roadmaps:search:*")
+}
+
+func (s *AdminRoadmapService) invalidateRoadmapStepCache(stepID uuid.UUID, roadmapID uuid.UUID) {
+	// Individual step cache
+	stepKey := fmt.Sprintf("roadmap_step:%s", stepID.String())
+	s.redis.Delete(stepKey)
+
+	// Parent roadmap cache
+	s.invalidateRoadmapCache(roadmapID)
+
+	// Roadmap steps list cache
+	stepsKey := fmt.Sprintf("roadmap_steps:%s", roadmapID.String())
+	s.redis.Delete(stepsKey)
+
+	// Progress and submission cache
+	s.cacheManager.InvalidateByPattern("admin_roadmap_submissions:*")
+	s.cacheManager.InvalidateByPattern("roadmap_progress:*")
+}
+
+func (s *AdminRoadmapService) invalidateAllRoadmapCache() {
+	patterns := []string{
+		"roadmap:*",
+		"roadmaps:*",
+		"admin_roadmaps:*",
+		"roadmap_step:*",
+		"roadmap_steps:*",
+		"roadmap_progress:*",
+		"admin_roadmap_submissions:*",
+	}
+
+	for _, pattern := range patterns {
+		s.cacheManager.InvalidateByPattern(pattern)
+	}
+
+	// Clear statistics cache
+	s.redis.Delete("roadmap:statistics")
 }
 
 func (s *AdminRoadmapService) mapRoadmapToResponse(rm *roadmap.FeatureRoadmap) *RoadmapResponse {

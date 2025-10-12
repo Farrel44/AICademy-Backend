@@ -374,14 +374,18 @@ func (s *StudentQuestionnaireService) processAIRecommendation(responseID uuid.UU
 	if len(aiResponse.Recommendations) > 0 {
 		topRecommendation := aiResponse.Recommendations[0]
 
-		targetRole, err := s.repo.GetTargetRoleByName(topRecommendation.RoleName)
-		if err != nil {
-			allTargetRoles, _, err := s.repo.GetTargetRoles(0, 1)
-			if err == nil && len(allTargetRoles) > 0 {
-				recommendedRoleID = &allTargetRoles[0].ID
+		if topRecommendation.RoleID != "" {
+			if roleUUID, err := uuid.Parse(topRecommendation.RoleID); err == nil {
+				if targetRole, err := s.repo.GetTargetRoleByID(roleUUID); err == nil {
+					recommendedRoleID = &targetRole.ID
+				}
 			}
-		} else {
-			recommendedRoleID = &targetRole.ID
+		}
+
+		if recommendedRoleID == nil {
+			if targetRole, err := s.repo.GetTargetRoleByName(topRecommendation.RoleName); err == nil {
+				recommendedRoleID = &targetRole.ID
+			}
 		}
 	}
 
@@ -395,7 +399,6 @@ func (s *StudentQuestionnaireService) processAIRecommendation(responseID uuid.UU
 
 	s.repo.UpdateResponse(response)
 }
-
 func (s *StudentQuestionnaireService) buildAIPrompt(answers []AnswerItem, questions []questionnaireRepo.QuestionnaireQuestion, maxScore int) string {
 	questionMap := make(map[uuid.UUID]questionnaireRepo.QuestionnaireQuestion)
 	for _, q := range questions {
@@ -405,26 +408,26 @@ func (s *StudentQuestionnaireService) buildAIPrompt(answers []AnswerItem, questi
 	availableRoles, _, _ := s.repo.GetTargetRoles(0, 100)
 	var rolesList string
 	if len(availableRoles) > 0 {
-		rolesList = "\nAvailable Target Roles (you MUST only recommend from these):\n"
+		rolesList = "\nDaftar Peran Karier yang Tersedia (Kamu HANYA boleh merekomendasikan dari daftar ini):\n"
 		for _, role := range availableRoles {
-			rolesList += fmt.Sprintf("- %s (Category: %s): %s\n", role.Name, role.Category, role.Description)
+			rolesList += fmt.Sprintf("- ID: %s, Nama: %s, Kategori: %s, Deskripsi: %s\n", role.ID, role.Name, role.Category, role.Description)
 		}
 		rolesList += "\n"
 	}
 
-	prompt := "Analyze the following questionnaire responses and provide career recommendations:\n\n"
+	prompt := "Analisislah hasil kuesioner berikut dan berikan rekomendasi karier yang sesuai:\n\n"
 
 	for _, answer := range answers {
 		if question, exists := questionMap[answer.QuestionID]; exists {
-			prompt += fmt.Sprintf("Q: %s\nA: %s (Score: %d)\n\n",
+			prompt += fmt.Sprintf("Pertanyaan: %s\nJawaban: %s (Skor: %d)\n\n",
 				question.QuestionText, answer.Answer, answer.Score)
 		}
 	}
 
-	prompt += fmt.Sprintf("Total Score: %d/%d\n\n", s.calculateTotalScore(answers, questions), maxScore)
+	prompt += fmt.Sprintf("Total Skor: %d/%d\n\n", s.calculateTotalScore(answers, questions), maxScore)
 	prompt += rolesList
-	prompt += "IMPORTANT: You MUST only recommend roles from the available target roles list above. Use the exact role names.\n\n"
-	prompt += "Please provide career recommendations in JSON format with role_id (use arbitrary ID), role_name (EXACT match from available roles), score, justification, and category."
+	prompt += "PENTING: Kamu HANYA boleh merekomendasikan peran dari daftar peran karier yang tersedia di atas. Gunakan nama peran yang sama persis.\n\n"
+	prompt += "Berikan hasil rekomendasi karier dalam format JSON dengan field: role_id (gunakan ID PERSIS dari daftar di atas), role_name (nama peran harus SAMA PERSIS dengan daftar di atas), score, justification (alasan rekomendasi), dan category (kategori peran)."
 
 	return prompt
 }

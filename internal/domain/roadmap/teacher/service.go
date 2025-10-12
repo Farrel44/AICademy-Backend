@@ -1,24 +1,41 @@
 package teacher
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type TeacherService struct {
-	repo *roadmap.RoadmapRepository
+	repo        *roadmap.RoadmapRepository
+	redisClient *redis.Client
 }
 
-func NewTeacherService(repo *roadmap.RoadmapRepository) *TeacherService {
-	return &TeacherService{repo: repo}
+func NewTeacherService(repo *roadmap.RoadmapRepository, redisClient *redis.Client) *TeacherService {
+	return &TeacherService{
+		repo:        repo,
+		redisClient: redisClient,
+	}
 }
 
-func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit int) (*PaginatedSubmissionsResponse, error) {
+func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
+	cacheKey := fmt.Sprintf("teacher_roadmap_submissions:%s:%d:%d:%s", teacherID.String(), page, limit, search)
+
+	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+		var result PaginatedSubmissionsResponse
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	offset := (page - 1) * limit
-
-	submissions, total, err := s.repo.GetPendingSubmissions(&teacherID, offset, limit)
+	submissions, total, err := s.repo.GetPendingSubmissionsOptimized(&teacherID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get pending submissions")
 	}
@@ -65,13 +82,19 @@ func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit 
 
 	totalPages := (int(total) + limit - 1) / limit
 
-	return &PaginatedSubmissionsResponse{
+	result := &PaginatedSubmissionsResponse{
 		Data:       submissionResponses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	if resultJSON, err := json.Marshal(result); err == nil {
+		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+	}
+
+	return result, nil
 }
 
 func (s *TeacherService) ReviewSubmission(submissionID, teacherID uuid.UUID, req ReviewSubmissionRequest) (*ReviewSubmissionResponse, error) {
