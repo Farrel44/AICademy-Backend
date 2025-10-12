@@ -4,14 +4,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 type ChallengeRepository struct {
 	db           *gorm.DB
-	rdb          *redis.Client
+	rdb          *utils.RedisClient
 	cacheVersion string
 	cacheTTL     time.Duration
 }
@@ -32,7 +32,7 @@ type StudentSearchResult struct {
 	Class          string    `json:"class"`
 }
 
-func NewChallengeRepository(db *gorm.DB, rdb *redis.Client) *ChallengeRepository {
+func NewChallengeRepository(db *gorm.DB, rdb *utils.RedisClient) *ChallengeRepository {
 	return &ChallengeRepository{
 		db:           db,
 		rdb:          rdb,

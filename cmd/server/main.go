@@ -246,7 +246,7 @@ func main() {
 	studentQuestionnaireHandler := studentQuestionnaire.NewStudentQuestionnaireHandler(studentQuestionnaireService)
 
 	// Admin questionnaire service and handler
-	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb.Client)
+	adminQuestionnaireService := adminQuestionnaire.NewAdminQuestionnaireService(questionnaireRepo, aiService, rdb)
 	adminQuestionnaireHandler := adminQuestionnaire.NewAdminQuestionnaireHandler(adminQuestionnaireService)
 
 	// PKL services and handlers
@@ -258,7 +258,7 @@ func main() {
 	roadmapRepo := roadmap.NewRoadmapRepository(db)
 
 	// Admin roadmap service and handler
-	adminRoadmapService := adminRoadmap.NewAdminRoadmapService(roadmapRepo, rdb.Client)
+	adminRoadmapService := adminRoadmap.NewAdminRoadmapService(roadmapRepo, rdb)
 	adminRoadmapHandler := adminRoadmap.NewAdminRoadmapHandler(adminRoadmapService)
 
 	// Student roadmap service and handler
@@ -295,10 +295,10 @@ func main() {
 	pklTeacherHandler := pklTeacher.NewTeacherPklHandler(pklTeacherService)
 
 	// Challenge services and handlers
-	challengeRepository := challengeRepo.NewChallengeRepository(db, rdb.Client)
+	challengeRepository := challengeRepo.NewChallengeRepository(db, rdb)
 
 	// Admin challenge
-	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository, rdb.Client)
+	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository, rdb)
 	adminChallengeHandler := adminChallenge.NewAdminChallengeHandler(adminChallengeService)
 
 	// // Trend services and handlers
@@ -310,7 +310,7 @@ func main() {
 	// studentTrendHandler := trendStudent.NewTrendHandler(studentTrendService)
 
 	// Teacher challenge
-	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository, rdb.Client)
+	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository, rdb)
 	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
 
 	// Student challenge

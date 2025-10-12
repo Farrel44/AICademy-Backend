@@ -1,7 +1,6 @@
 package teacher_challenge
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,15 +10,14 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 type TeacherChallengeService struct {
 	repo        *challenge.ChallengeRepository
-	redisClient *redis.Client
+	redisClient *utils.RedisClient
 }
 
-func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient *redis.Client) *TeacherChallengeService {
+func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient *utils.RedisClient) *TeacherChallengeService {
 	return &TeacherChallengeService{
 		repo:        repo,
 		redisClient: redisClient,
@@ -153,7 +151,7 @@ func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int,
 
 	cacheKey := fmt.Sprintf("teacher_challenges:%s:%d:%d:%s", teacherID.String(), page, limit, search)
 
-	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+	if cached, err := s.redisClient.Get(cacheKey); err == nil {
 		var result utils.PaginationResponse
 		if json.Unmarshal([]byte(cached), &result) == nil {
 			return &result, nil
@@ -177,7 +175,7 @@ func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int,
 	}
 
 	if resultJSON, err := json.Marshal(result); err == nil {
-		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+		s.redisClient.Set(cacheKey, string(resultJSON), time.Minute*5)
 	}
 
 	return result, nil
@@ -237,7 +235,7 @@ func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int
 
 	cacheKey := fmt.Sprintf("teacher_challenge_submissions:%s:%d:%d:%s:%v", teacherID.String(), page, limit, search, challengeID)
 
-	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+	if cached, err := s.redisClient.Get(cacheKey); err == nil {
 		var result utils.PaginationResponse
 		if json.Unmarshal([]byte(cached), &result) == nil {
 			return &result, nil
@@ -261,7 +259,7 @@ func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int
 	}
 
 	if resultJSON, err := json.Marshal(result); err == nil {
-		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
+		s.redisClient.Set(cacheKey, string(resultJSON), time.Minute*5)
 	}
 
 	return result, nil
@@ -290,5 +288,3 @@ func (s *TeacherChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmis
 
 	return nil
 }
-
-

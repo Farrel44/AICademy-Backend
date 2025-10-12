@@ -45,6 +45,11 @@ func (cm *CacheManager) GenerateCacheKey(prefix string, params ...interface{}) s
 
 // Pattern-based cache invalidation
 func (cm *CacheManager) InvalidateByPattern(pattern string) error {
+	// Check if Redis is available (development mode or Redis unavailable)
+	if isDevelopment() || cm.redis == nil || cm.redis.Client == nil {
+		return nil
+	}
+
 	ctx := context.Background()
 
 	// Use SCAN to find keys matching pattern
@@ -76,6 +81,10 @@ func (cm *CacheManager) ShouldCache(dataSize int, requestFrequency int) bool {
 
 // Smart cache with TTL selection
 func (cm *CacheManager) SetWithSmartTTL(key string, value interface{}, cacheType string) error {
+	if isDevelopment() || cm.redis == nil || cm.redis.Client == nil {
+		return nil
+	}
+
 	var ttl time.Duration
 
 	switch cacheType {
@@ -94,6 +103,10 @@ func (cm *CacheManager) SetWithSmartTTL(key string, value interface{}, cacheType
 
 // Track request frequency
 func (cm *CacheManager) TrackRequestFrequency(key string) (int64, error) {
+	if isDevelopment() || cm.redis == nil || cm.redis.Client == nil {
+		return 1, nil
+	}
+
 	frequencyKey := fmt.Sprintf("freq:%s", key)
 	count, err := cm.redis.Incr(frequencyKey)
 	if err != nil {

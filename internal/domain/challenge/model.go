@@ -56,11 +56,10 @@ type Challenge struct {
 	MaxParticipants     int        `gorm:"default:0" json:"max_participants"`
 	CurrentParticipants int        `gorm:"default:0" json:"current_participants"`
 	WinnerTeamID        *uuid.UUID `gorm:"type:uuid;index" json:"winner_team_id"`
-	// New fields for organizer tracking
-	CreatedByAdminID   *uuid.UUID `gorm:"type:uuid;index" json:"created_by_admin_id"`
-	CreatedByTeacherID *uuid.UUID `gorm:"type:uuid;index" json:"created_by_teacher_id"`
-	CreatedAt          time.Time  `gorm:"type:timestamptz" json:"created_at"`
-	UpdatedAt          time.Time  `gorm:"type:timestamptz" json:"updated_at"`
+	CreatedByAdminID    *uuid.UUID `gorm:"type:uuid;index" json:"created_by_admin_id"`
+	CreatedByTeacherID  *uuid.UUID `gorm:"type:uuid;index" json:"created_by_teacher_id"`
+	CreatedAt           time.Time  `gorm:"type:timestamptz" json:"created_at"`
+	UpdatedAt           time.Time  `gorm:"type:timestamptz" json:"updated_at"`
 
 	WinnerTeam       *Team             `gorm:"foreignKey:WinnerTeamID" json:"winner_team,omitempty"`
 	ChallengeWinners []ChallengeWinner `gorm:"foreignKey:ChallengeID;constraint:OnDelete:CASCADE" json:"challenge_winners,omitempty"`

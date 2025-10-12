@@ -1,7 +1,6 @@
 package admin_challenge
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,20 +10,19 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 type AdminChallengeService struct {
 	repo         *challenge.ChallengeRepository
-	redisClient  *redis.Client
+	redisClient  *utils.RedisClient
 	cacheManager *utils.CacheManager
 }
 
-func NewAdminChallengeService(repo *challenge.ChallengeRepository, redisClient *redis.Client) *AdminChallengeService {
+func NewAdminChallengeService(repo *challenge.ChallengeRepository, redisClient *utils.RedisClient) *AdminChallengeService {
 	return &AdminChallengeService{
 		repo:         repo,
 		redisClient:  redisClient,
-		cacheManager: utils.NewCacheManager(&utils.RedisClient{Client: redisClient}),
+		cacheManager: utils.NewCacheManager(redisClient),
 	}
 }
 
@@ -32,10 +30,10 @@ func NewAdminChallengeService(repo *challenge.ChallengeRepository, redisClient *
 func (s *AdminChallengeService) invalidateChallengeCache(challengeID uuid.UUID) {
 	// Individual item
 	itemKey := fmt.Sprintf("challenge:%s", challengeID.String())
-	s.redisClient.Del(context.Background(), itemKey)
+	s.redisClient.Delete(itemKey)
 
 	// Statistics
-	s.redisClient.Del(context.Background(), "challenge:statistics")
+	s.redisClient.Delete("challenge:statistics")
 
 	// Pattern-based invalidation
 	s.cacheManager.InvalidateByPattern("challenges:*")
@@ -46,7 +44,7 @@ func (s *AdminChallengeService) invalidateChallengeCache(challengeID uuid.UUID) 
 
 func (s *AdminChallengeService) invalidateSubmissionCache(submissionID uuid.UUID) {
 	itemKey := fmt.Sprintf("challenge_submission:%s", submissionID.String())
-	s.redisClient.Del(context.Background(), itemKey)
+	s.redisClient.Delete(itemKey)
 
 	s.cacheManager.InvalidateByPattern("challenge_submissions:*")
 	s.cacheManager.InvalidateByPattern("admin_challenge_submissions:*")
@@ -170,43 +168,35 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
-	// Validate search parameters
-	validation, err := utils.ValidateSearchParams(search, page, limit)
-	if err != nil {
-		return nil, err
+	// Validate parameters
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
 	}
 
-	page = validation.Page
-	limit = validation.Limit
-	search = validation.Query
+	// Create cache key
+	cacheKey := fmt.Sprintf("admin_challenges:%d:%d:%s", page, limit, search)
 
-	// Limit pagination for efficient caching
-	if page > 10 || limit > 100 {
-		return s.getChallengesFromDB(page, limit, search)
+	// Try to get from cache first
+	var cachedData utils.PaginationResponse
+	if err := s.redisClient.GetJSON(cacheKey, &cachedData); err == nil {
+		// Track access frequency for smart caching
+		s.cacheManager.TrackRequestFrequency(cacheKey)
+		return &cachedData, nil
 	}
 
-	cacheKey := s.cacheManager.GenerateCacheKey("admin_challenges", page, limit, search)
-	frequency, _ := s.cacheManager.TrackRequestFrequency(cacheKey)
-
-	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
-		var result utils.PaginationResponse
-		if json.Unmarshal([]byte(cached), &result) == nil {
-			return &result, nil
-		}
-	}
-
+	// Get from database
 	result, err := s.getChallengesFromDB(page, limit, search)
 	if err != nil {
 		return nil, err
 	}
 
-	// Smart caching
-	dataSize := len(result.Data.([]challenge.Challenge)) * 300 // estimate
-	if s.cacheManager.ShouldCache(dataSize, int(frequency)) {
-		if resultJSON, err := json.Marshal(result); err == nil {
-			s.cacheManager.SetWithSmartTTL(cacheKey, string(resultJSON), "medium")
-		}
-	}
+	// Use smart caching with frequency-based TTL
+	s.cacheManager.SetWithSmartTTL(cacheKey, result, "list")
+
+	return result, nil
 
 	return result, nil
 }
@@ -276,7 +266,7 @@ func (s *AdminChallengeService) GetSubmissionsByChallengeID(c *fiber.Ctx, challe
 
 	cacheKey := fmt.Sprintf("admin_challenge_submissions:%s:%d:%d:%s", challengeID.String(), page, limit, search)
 
-	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
+	if cached, err := s.redisClient.Get(cacheKey); err == nil {
 		var result PaginatedSubmissionsResponse
 		if json.Unmarshal([]byte(cached), &result) == nil {
 			return &result, nil
@@ -324,9 +314,7 @@ func (s *AdminChallengeService) GetSubmissionsByChallengeID(c *fiber.Ctx, challe
 		TotalPages: totalPages,
 	}
 
-	if resultJSON, err := json.Marshal(result); err == nil {
-		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
-	}
+	s.cacheManager.SetWithSmartTTL(cacheKey, result, "medium")
 
 	return result, nil
 }
