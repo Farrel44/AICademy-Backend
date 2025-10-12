@@ -359,6 +359,8 @@ func main() {
 
 	api := app.Group("/api/v1")
 
+	api.Get("/profile/:nis", userHandler.GetPublicStudentProfileByNIS)
+
 	// Common Auth
 	authRoutes := api.Group("/auth")
 	authRoutes.Post("/login", commonAuthHandler.Login)
@@ -457,12 +459,6 @@ func main() {
 	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
 	adminAuth.Delete("/challenges/:id", adminChallengeHandler.DeleteChallenge)
 
-	// Admin Trend Routes
-	// adminAuth.Post("/trends/collect", adminTrendHandler.TriggerDataCollection)
-	// adminAuth.Get("/trends/status", adminTrendHandler.GetCollectionStatus)
-	// adminAuth.Get("/trends/data", adminTrendHandler.GetAllTrendData)
-	// adminAuth.Get("/challenges/leaderboard", adminChallengeHandler.GetLeaderboard)
-
 	// Teacher Routes (for reviewing submissions)
 	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
 	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
@@ -508,7 +504,6 @@ func main() {
 	studentRoutes.Get("/projects/:id", projectHandler.GetProjectByID)
 	studentRoutes.Put("/projects/:id", projectHandler.UpdateProject)
 	studentRoutes.Delete("/projects/:id", projectHandler.DeleteProject)
-	studentRoutes.Post("/projects/:id/contributors", projectHandler.AddProjectContributor)
 
 	// Certification Routes for Students
 	studentRoutes.Post("/certifications", projectHandler.CreateCertification)
@@ -517,12 +512,10 @@ func main() {
 	studentRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	studentRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
-	// Student PKL Routes
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
 
-	// Student Challenge Routes
 	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
 	studentRoutes.Get("/challenges/teams", studentChallengeHandler.GetMyTeams)
 	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
@@ -532,11 +525,6 @@ func main() {
 	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
 
-	// Student Trend Routes
-	// studentRoutes.Get("/trends/dashboard", studentTrendHandler.GetTrendDashboard)
-	// studentRoutes.Get("/trends", studentTrendHandler.GetCareerTrends)
-
-	// Alumni Routes
 	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())
 	alumniRoutes.Get("/internships", pklAlumniHandler.GetAvailablePositions)
 	alumniRoutes.Post("/internship/apply", pklAlumniHandler.ApplyPklPosition)
@@ -545,22 +533,18 @@ func main() {
 	alumniRoutes.Get("/me", userHandler.GetUserByToken)
 	alumniRoutes.Put("/profile", userHandler.UpdateUserProfile)
 
-	// Project Routes for Alumni
 	alumniRoutes.Post("/projects", projectHandler.CreateProject)
 	alumniRoutes.Get("/projects", projectHandler.GetMyProjects)
 	alumniRoutes.Get("/projects/:id", projectHandler.GetProjectByID)
 	alumniRoutes.Put("/projects/:id", projectHandler.UpdateProject)
 	alumniRoutes.Delete("/projects/:id", projectHandler.DeleteProject)
-	alumniRoutes.Post("/projects/:id/contributors", projectHandler.AddProjectContributor)
 
-	// Certification Routes for Alumni
 	alumniRoutes.Post("/certifications", projectHandler.CreateCertification)
 	alumniRoutes.Get("/certifications", projectHandler.GetMyCertifications)
 	alumniRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
 	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
-	// Company Routes
 	companyRoutes := api.Group("/company", middleware.AuthRequired(), middleware.CompanyRequired())
 	companyRoutes.Get("/internships", pklCompanyHandler.GetMyInternships)
 	companyRoutes.Post("/internships", pklCompanyHandler.CreateInternship)

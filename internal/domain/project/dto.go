@@ -32,11 +32,6 @@ type CreateContributorRequest struct {
 	RoleID    uuid.UUID `json:"role_id" validate:"required"`    // Target role ID
 }
 
-type AddProjectContributorRequest struct {
-	StudentID string    `json:"student_id" validate:"required"` // NIS atau identifier lain
-	RoleID    uuid.UUID `json:"role_id" validate:"required"`    // Target role ID
-}
-
 // Certification DTOs
 type CreateCertificationRequest struct {
 	Name                string                  `json:"name" validate:"required"`
@@ -45,7 +40,6 @@ type CreateCertificationRequest struct {
 	ExpirationDate      *time.Time              `json:"expiration_date"`
 	CredentialID        *string                 `json:"credential_id"`
 	CredentialURL       *string                 `json:"credential_url"`
-	Media               *string                 `json:"media"`
 	Photos              []*multipart.FileHeader `form:"photos"`
 }
 

@@ -1,7 +1,9 @@
 package project
 
 import (
+	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
@@ -18,13 +20,41 @@ func NewProjectHandler(service *ProjectService) *ProjectHandler {
 	}
 }
 
-// Project handlers
 func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 	var req CreateProjectRequest
 
-	// Parse multipart form
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+	req.ProjectName = c.FormValue("project_name")
+	req.Description = c.FormValue("description")
+	req.LinkURL = nil
+	if linkURL := c.FormValue("link_url"); linkURL != "" {
+		req.LinkURL = &linkURL
+	}
+
+	// Parse dates
+	if startDateStr := c.FormValue("start_date"); startDateStr != "" {
+		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			req.StartDate = startDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
+		}
+	}
+
+	if endDateStr := c.FormValue("end_date"); endDateStr != "" {
+		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			req.EndDate = endDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
+		}
+	}
+
+	// Parse contributors JSON
+	if contributorsStr := c.FormValue("contributors"); contributorsStr != "" {
+		var contributors []CreateContributorRequest
+		if err := json.Unmarshal([]byte(contributorsStr), &contributors); err == nil {
+			req.Contributors = contributors
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid contributors format. Must be valid JSON array")
+		}
 	}
 
 	// Get files from form
@@ -33,8 +63,23 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		req.Photos = form.File["photos"]
 	}
 
-	if err := utils.ValidateStruct(req); err != nil {
-		return utils.ValidationErrorResponse(c, err)
+	// Validate required fields manually
+	if req.ProjectName == "" {
+		return utils.ErrorResponse(c, 400, "project_name is required")
+	}
+	if req.Description == "" {
+		return utils.ErrorResponse(c, 400, "description is required")
+	}
+	if req.StartDate.IsZero() {
+		return utils.ErrorResponse(c, 400, "start_date is required")
+	}
+	if req.EndDate.IsZero() {
+		return utils.ErrorResponse(c, 400, "end_date is required")
+	}
+
+	// Validate end date is after start date
+	if req.EndDate.Before(req.StartDate) {
+		return utils.ErrorResponse(c, 400, "end_date must be after start_date")
 	}
 
 	project, err := h.service.CreateProject(c, &req)
@@ -86,8 +131,33 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	}
 
 	var req UpdateProjectRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+
+	// Parse form data manually
+	if projectName := c.FormValue("project_name"); projectName != "" {
+		req.ProjectName = projectName
+	}
+	if description := c.FormValue("description"); description != "" {
+		req.Description = description
+	}
+	if linkURL := c.FormValue("link_url"); linkURL != "" {
+		req.LinkURL = &linkURL
+	}
+
+	// Parse dates
+	if startDateStr := c.FormValue("start_date"); startDateStr != "" {
+		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			req.StartDate = &startDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
+		}
+	}
+
+	if endDateStr := c.FormValue("end_date"); endDateStr != "" {
+		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			req.EndDate = &endDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
+		}
 	}
 
 	// Get files from form
@@ -117,34 +187,34 @@ func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	return utils.SendSuccess(c, "Project berhasil dihapus", nil)
 }
 
-func (h *ProjectHandler) AddProjectContributor(c *fiber.Ctx) error {
-	projectID, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid project ID")
-	}
-
-	var req AddProjectContributorRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
-	}
-
-	if err := utils.ValidateStruct(req); err != nil {
-		return utils.ValidationErrorResponse(c, err)
-	}
-
-	if err := h.service.AddProjectContributor(c, projectID, &req); err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
-	}
-
-	return utils.SendSuccess(c, "Contributor berhasil ditambahkan", nil)
-}
-
 // Certification handlers
 func (h *ProjectHandler) CreateCertification(c *fiber.Ctx) error {
 	var req CreateCertificationRequest
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+	// Parse form data manually
+	req.Name = c.FormValue("name")
+	req.IssuingOrganization = c.FormValue("issuing_organization")
+
+	if credentialID := c.FormValue("credential_id"); credentialID != "" {
+		req.CredentialID = &credentialID
+	}
+	if credentialURL := c.FormValue("credential_url"); credentialURL != "" {
+		req.CredentialURL = &credentialURL
+	}
+
+	// Parse dates
+	if issueDateStr := c.FormValue("issue_date"); issueDateStr != "" {
+		if issueDate, err := time.Parse("2006-01-02", issueDateStr); err == nil {
+			req.IssueDate = issueDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
+		}
+	}
+
+	if expirationDateStr := c.FormValue("expiration_date"); expirationDateStr != "" {
+		if expirationDate, err := time.Parse("2006-01-02", expirationDateStr); err == nil {
+			req.ExpirationDate = &expirationDate
+		}
 	}
 
 	// Get files from form
@@ -153,8 +223,15 @@ func (h *ProjectHandler) CreateCertification(c *fiber.Ctx) error {
 		req.Photos = form.File["photos"]
 	}
 
-	if err := utils.ValidateStruct(req); err != nil {
-		return utils.ValidationErrorResponse(c, err)
+	// Validate required fields manually
+	if req.Name == "" {
+		return utils.ErrorResponse(c, 400, "name is required")
+	}
+	if req.IssuingOrganization == "" {
+		return utils.ErrorResponse(c, 400, "issuing_organization is required")
+	}
+	if req.IssueDate.IsZero() {
+		return utils.ErrorResponse(c, 400, "issue_date is required")
 	}
 
 	certification, err := h.service.CreateCertification(c, &req)
@@ -195,8 +272,34 @@ func (h *ProjectHandler) UpdateCertification(c *fiber.Ctx) error {
 	}
 
 	var req UpdateCertificationRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+
+	// Parse form data manually
+	if name := c.FormValue("name"); name != "" {
+		req.Name = &name
+	}
+	if issuingOrg := c.FormValue("issuing_organization"); issuingOrg != "" {
+		req.IssuingOrganization = &issuingOrg
+	}
+	if credentialID := c.FormValue("credential_id"); credentialID != "" {
+		req.CredentialID = &credentialID
+	}
+	if credentialURL := c.FormValue("credential_url"); credentialURL != "" {
+		req.CredentialURL = &credentialURL
+	}
+
+	// Parse dates
+	if issueDateStr := c.FormValue("issue_date"); issueDateStr != "" {
+		if issueDate, err := time.Parse("2006-01-02", issueDateStr); err == nil {
+			req.IssueDate = &issueDate
+		} else {
+			return utils.ErrorResponse(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
+		}
+	}
+
+	if expirationDateStr := c.FormValue("expiration_date"); expirationDateStr != "" {
+		if expirationDate, err := time.Parse("2006-01-02", expirationDateStr); err == nil {
+			req.ExpirationDate = &expirationDate
+		}
 	}
 
 	// Get files from form

@@ -40,7 +40,6 @@ func (cm *CacheManager) GetCacheMetrics() (*CacheMetrics, error) {
 			switch key {
 			case "keyspace_hits":
 				if hits, err := strconv.ParseInt(value, 10, 64); err == nil {
-					// Calculate hit rate when we have both hits and misses
 					if metrics.MissRate > 0 {
 						total := float64(hits) + metrics.MissRate
 						metrics.HitRate = float64(hits) / total * 100

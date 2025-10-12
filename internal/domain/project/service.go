@@ -343,7 +343,7 @@ func (s *ProjectService) DeleteProject(id uuid.UUID) error {
 	return s.repo.DeleteProject(id)
 }
 
-func (s *ProjectService) AddProjectContributor(c *fiber.Ctx, projectID uuid.UUID, req *AddProjectContributorRequest) error {
+func (s *ProjectService) AddProjectContributor(c *fiber.Ctx, projectID uuid.UUID, req *CreateContributorRequest) error {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		return errors.New("failed to get user id from token")

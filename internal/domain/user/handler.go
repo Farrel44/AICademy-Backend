@@ -16,25 +16,32 @@ func NewUserHandler(service *UserService) *UserHandler {
 }
 
 func (h *UserHandler) GetUserByToken(c *fiber.Ctx) error {
-	userId, err := utils.GetUserIDFromToken(c)
+	// Get enhanced profile with projects and certifications for /me endpoint
+	enhancedUser, err := h.service.GetEnhancedUserProfile(c)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get user id")
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	user, err := h.service.repo.GetUserByID(userId)
+	return utils.SendSuccess(c, "Data user berhasil diambil", enhancedUser)
+}
+
+func (h *UserHandler) GetPublicStudentProfileByNIS(c *fiber.Ctx) error {
+	nis := c.Params("nis")
+	if nis == "" {
+		return utils.ErrorResponse(c, 400, "NIS is required")
+	}
+
+	// Validate NIS format (optional)
+	if len(nis) < 4 || len(nis) > 20 {
+		return utils.ErrorResponse(c, 400, "Invalid NIS format")
+	}
+
+	profile, err := h.service.GetPublicStudentProfileByNIS(nis)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "Failed to get user data")
+		return utils.SendError(c, fiber.StatusNotFound, "Student profile not found")
 	}
 
-	if user.Role == RoleStudent {
-		enhancedUser, err := h.service.GetStudentWithRecommendedRole(c)
-		if err != nil {
-			return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
-		}
-		return utils.SendSuccess(c, "Data siswa berhasil diambil", enhancedUser)
-	}
-
-	return utils.SendSuccess(c, "Data user berhasil diambil", user)
+	return utils.SendSuccess(c, "Student profile retrieved successfully", profile)
 }
 
 func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
