@@ -9,15 +9,25 @@ import (
 )
 
 func SetupCors() fiber.Handler {
-	allowOrigins := os.Getenv("CORS_ALLOW_ORIGINS")
 	allowMethods := os.Getenv("CORS_ALLOW_METHODS")
 	allowHeaders := os.Getenv("CORS_ALLOW_HEADERS")
 	allowCredentials := os.Getenv("CORS_ALLOW_CREDENTIALS") == "true"
 
-	allowOrigins = strings.ReplaceAll(allowOrigins, " ", "")
+	rawOrigins := os.Getenv("CORS_ALLOW_ORIGINS")
+	origins := strings.Split(rawOrigins, ",")
+	for i, o := range origins {
+		origins[i] = strings.TrimSpace(o)
+	}
 
 	return cors.New(cors.Config{
-		AllowOrigins:     allowOrigins,
+		AllowOriginsFunc: func(origin string) bool {
+			for _, o := range origins {
+				if strings.Contains(origin, o) {
+					return true
+				}
+			}
+			return false
+		},
 		AllowMethods:     allowMethods,
 		AllowHeaders:     allowHeaders,
 		AllowCredentials: allowCredentials,

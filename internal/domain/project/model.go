@@ -5,19 +5,20 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
 type Project struct {
-	ID                    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	OwnerStudentProfileID uuid.UUID `gorm:"type:uuid;not null;index" json:"owner_student_profile_id"`
-	ProjectName           string    `gorm:"not null" json:"project_name"`
-	Description           string    `gorm:"type:text" json:"description"`
-	LinkURL               *string   `gorm:"type:text" json:"link_url"`
-	TechStack             []string  `gorm:"type:text[]" json:"tech_stack"`
-	StartDate             time.Time `gorm:"type:date" json:"start_date"`
-	EndDate               time.Time `gorm:"type:date" json:"end_date"`
-	CreatedAt             time.Time `gorm:"type:timestamptz" json:"created_at"`
+	ID                    uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	OwnerStudentProfileID uuid.UUID      `gorm:"type:uuid;not null;index" json:"owner_student_profile_id"`
+	ProjectName           string         `gorm:"not null" json:"project_name"`
+	Description           string         `gorm:"type:text" json:"description"`
+	LinkURL               *string        `gorm:"type:text" json:"link_url"`
+	TechStack             pq.StringArray `gorm:"type:text[]" json:"tech_stack"`
+	StartDate             time.Time      `gorm:"type:date" json:"start_date"`
+	EndDate               time.Time      `gorm:"type:date" json:"end_date"`
+	CreatedAt             time.Time      `gorm:"type:timestamptz" json:"created_at"`
 
 	Contributors []ProjectContributor `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"contributors,omitempty"`
 	Photos       []ProjectPhoto       `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"photos,omitempty"`

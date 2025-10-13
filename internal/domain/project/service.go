@@ -197,6 +197,12 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 		return nil, errors.New("unauthorized")
 	}
 
+	// Get student profile ID from user ID (this is the key fix!)
+	studentProfileID, err := s.repo.GetStudentProfileIDByUserID(claims.UserID)
+	if err != nil {
+		return nil, errors.New("failed to get student profile")
+	}
+
 	// Validate search parameters
 	validation, err := utils.ValidateSearchParams(search, page, limit)
 	if err != nil {
@@ -213,12 +219,12 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 
 	// Limit pagination for caching
 	if page > 10 || limit > 100 {
-		return s.getProjectsFromDB(claims.UserID, page, limit, search)
+		return s.getProjectsFromDB(studentProfileID, page, limit, search)
 	}
 
-	// Generate cache keys
-	cacheKey := s.cacheManager.GenerateCacheKey("user_projects", claims.UserID, page, limit, search)
-	countKey := s.cacheManager.GenerateCacheKey("user_projects_count", claims.UserID, search)
+	// Generate cache keys (use studentProfileID for consistent caching)
+	cacheKey := s.cacheManager.GenerateCacheKey("user_projects", studentProfileID, page, limit, search)
+	countKey := s.cacheManager.GenerateCacheKey("user_projects_count", studentProfileID, search)
 
 	// Try to get from cache first
 	var cachedResult utils.PaginationResponse
@@ -229,7 +235,7 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 	// Get cached count first to avoid expensive COUNT query
 	var total int64
 	if err := s.redis.GetJSON(countKey, &total); err != nil {
-		total, err = s.repo.CountProjectsByOwnerID(claims.UserID, search)
+		total, err = s.repo.CountProjectsByOwnerID(studentProfileID, search)
 		if err != nil {
 			return nil, errors.New("failed to count projects")
 		}
@@ -239,7 +245,7 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 	offset := (page - 1) * limit
 
 	// Get projects data
-	projects, err := s.repo.GetProjectsByOwnerIDOptimized(claims.UserID, offset, limit, search)
+	projects, err := s.repo.GetProjectsByOwnerIDOptimized(studentProfileID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get projects")
 	}
@@ -260,14 +266,14 @@ func (s *ProjectService) GetMyProjects(c *fiber.Ctx, page, limit int, search str
 	return result, nil
 }
 
-func (s *ProjectService) getProjectsFromDB(userID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
-	total, err := s.repo.CountProjectsByOwnerID(userID, search)
+func (s *ProjectService) getProjectsFromDB(studentProfileID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
+	total, err := s.repo.CountProjectsByOwnerID(studentProfileID, search)
 	if err != nil {
 		return nil, errors.New("failed to count projects")
 	}
 
 	offset := (page - 1) * limit
-	projects, err := s.repo.GetProjectsByOwnerIDOptimized(userID, offset, limit, search)
+	projects, err := s.repo.GetProjectsByOwnerIDOptimized(studentProfileID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to get projects")
 	}

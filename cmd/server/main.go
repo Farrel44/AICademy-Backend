@@ -280,7 +280,7 @@ func main() {
 
 	// CV services and handlers
 	cvRepo := cv.NewCVRepository(db, rdb.Client)
-	cvService := cv.NewCVService(cvRepo, aiService)
+	cvService := cv.NewCVService(cvRepo, aiService, rdb)
 	cvHandler := cv.NewCVHandler(cvService)
 
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)

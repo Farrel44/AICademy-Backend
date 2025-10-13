@@ -36,11 +36,18 @@ func (r *CVRepository) GetCVByID(id uuid.UUID) (*CV, error) {
 	return &cv, nil
 }
 
-func (r *CVRepository) GetCVsByStudentID(studentID uuid.UUID) ([]CV, error) {
+func (r *CVRepository) GetCVsByUserID(userID uuid.UUID) ([]CV, error) {
 	var cvs []CV
-	err := r.db.Where("student_profile_id = ?", studentID).
-		Order("created_at DESC").
-		Find(&cvs).Error
+
+	query := `
+		SELECT c.*
+		FROM cvs c
+		JOIN student_profiles sp ON c.student_profile_id = sp.id
+		WHERE sp.user_id = ?
+		ORDER BY c.created_at DESC
+	`
+
+	err := r.db.Raw(query, userID).Scan(&cvs).Error
 	return cvs, err
 }
 
@@ -67,44 +74,46 @@ func (r *CVRepository) UnpublishCV(id uuid.UUID) error {
 	}).Error
 }
 
-func (r *CVRepository) GetPublicCVsByStudentID(studentID uuid.UUID) ([]CV, error) {
+func (r *CVRepository) GetPublicCVsByUserID(userID uuid.UUID) ([]CV, error) {
 	var cvs []CV
-	err := r.db.Where("student_profile_id = ? AND is_public = true", studentID).
-		Order("published_at DESC").
-		Find(&cvs).Error
+
+	query := `
+		SELECT c.*
+		FROM cvs c
+		JOIN student_profiles sp ON c.student_profile_id = sp.id
+		WHERE sp.user_id = ? AND c.is_public = true
+		ORDER BY c.published_at DESC
+	`
+
+	err := r.db.Raw(query, userID).Scan(&cvs).Error
 	return cvs, err
 }
 
-func (r *CVRepository) GetStudentProjects(studentID uuid.UUID) ([]CVProject, error) {
+func (r *CVRepository) GetStudentProjects(userID uuid.UUID) ([]CVProject, error) {
 	var projects []CVProject
 
 	query := `
-		SELECT 
+		SELECT DISTINCT ON (p.project_name)
 			p.id,
 			p.project_name as name,
 			p.description,
-			COALESCE(pc.project_role, 'Developer') as role,
-			COALESCE(p.tech_stack, ARRAY[]::text[]) as technologies,
+			COALESCE(pc.project_role, 'Project Owner') as role,
 			p.start_date,
 			p.end_date,
-			p.link_url as url,
-			CASE 
-				WHEN p.description IS NOT NULL 
-				THEN ARRAY[p.description] 
-				ELSE ARRAY[]::text[] 
-			END as highlights
+			p.link_url as url
 		FROM projects p
-		LEFT JOIN project_contributors pc ON p.id = pc.project_id AND pc.student_profile_id = ?
-		WHERE p.owner_student_profile_id = ? OR pc.student_profile_id = ?
-		ORDER BY p.start_date DESC
+		LEFT JOIN project_contributors pc ON p.id = pc.project_id 
+		JOIN student_profiles sp ON (p.owner_student_profile_id = sp.id OR pc.student_profile_id = sp.id)
+		WHERE sp.user_id = ?
+		ORDER BY p.project_name, p.start_date DESC
 		LIMIT 5
 	`
 
-	err := r.db.Raw(query, studentID, studentID, studentID).Scan(&projects).Error
+	err := r.db.Raw(query, userID).Scan(&projects).Error
 	return projects, err
 }
 
-func (r *CVRepository) GetStudentCertifications(studentID uuid.UUID) ([]CVCertification, error) {
+func (r *CVRepository) GetStudentCertifications(userID uuid.UUID) ([]CVCertification, error) {
 	var certifications []CVCertification
 
 	query := `
@@ -117,16 +126,17 @@ func (r *CVRepository) GetStudentCertifications(studentID uuid.UUID) ([]CVCertif
 			c.credential_id,
 			c.credential_url
 		FROM certifications c
-		WHERE c.student_profile_id = ?
+		JOIN student_profiles sp ON c.student_profile_id = sp.id
+		WHERE sp.user_id = ?
 		ORDER BY c.issue_date DESC
 		LIMIT 10
 	`
 
-	err := r.db.Raw(query, studentID).Scan(&certifications).Error
+	err := r.db.Raw(query, userID).Scan(&certifications).Error
 	return certifications, err
 }
 
-func (r *CVRepository) GetStudentProfile(studentID uuid.UUID) (*PersonalInfo, error) {
+func (r *CVRepository) GetStudentProfile(userID uuid.UUID) (*PersonalInfo, error) {
 	var info PersonalInfo
 
 	query := `
@@ -140,14 +150,14 @@ func (r *CVRepository) GetStudentProfile(studentID uuid.UUID) (*PersonalInfo, er
 			'' as portfolio
 		FROM users u
 		JOIN student_profiles sp ON u.id = sp.user_id
-		WHERE sp.id = ?
+		WHERE u.id = ?
 	`
 
-	err := r.db.Raw(query, studentID).Scan(&info).Error
+	err := r.db.Raw(query, userID).Scan(&info).Error
 	return &info, err
 }
 
-func (r *CVRepository) GetStudentSkills(studentID uuid.UUID) ([]CVSkill, error) {
+func (r *CVRepository) GetStudentSkills(userID uuid.UUID) ([]CVSkill, error) {
 	var skills []CVSkill
 
 	query := `
@@ -156,16 +166,17 @@ func (r *CVRepository) GetStudentSkills(studentID uuid.UUID) ([]CVSkill, error) 
 			'Technical' as category,
 			'Intermediate' as level
 		FROM projects p
-		WHERE p.owner_student_profile_id = ?
+		JOIN student_profiles sp ON p.owner_student_profile_id = sp.id
+		WHERE sp.user_id = ?
 		AND p.tech_stack IS NOT NULL
 		LIMIT 20
 	`
 
-	err := r.db.Raw(query, studentID).Scan(&skills).Error
+	err := r.db.Raw(query, userID).Scan(&skills).Error
 	return skills, err
 }
 
-func (r *CVRepository) GetStudentEducation(studentID uuid.UUID) (*CVEducation, error) {
+func (r *CVRepository) GetStudentEducation(userID uuid.UUID) (*CVEducation, error) {
 	var education CVEducation
 
 	query := `
@@ -180,9 +191,22 @@ func (r *CVRepository) GetStudentEducation(studentID uuid.UUID) (*CVEducation, e
 			2022 as start_year,
 			2025 as end_year
 		FROM student_profiles sp
-		WHERE sp.id = ?
+		WHERE sp.user_id = ?
 	`
 
-	err := r.db.Raw(query, studentID).Scan(&education).Error
+	err := r.db.Raw(query, userID).Scan(&education).Error
 	return &education, err
+}
+
+func (r *CVRepository) GetStudentProfileID(userID uuid.UUID) (uuid.UUID, error) {
+	var studentProfile struct {
+		ID uuid.UUID `json:"id"`
+	}
+
+	err := r.db.Table("student_profiles").
+		Select("id").
+		Where("user_id = ?", userID).
+		First(&studentProfile).Error
+
+	return studentProfile.ID, err
 }

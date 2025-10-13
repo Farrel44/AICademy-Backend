@@ -1,6 +1,9 @@
 package cv
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,4 +103,22 @@ func (c *CV) BeforeCreate(tx *gorm.DB) error {
 		c.ID = uuid.New()
 	}
 	return nil
+}
+
+func (c *CVContent) Scan(value interface{}) error {
+	if value == nil {
+		*c = CVContent{}
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("cannot scan non-byte value into CVContent")
+	}
+
+	return json.Unmarshal(bytes, c)
+}
+
+func (c CVContent) Value() (driver.Value, error) {
+	return json.Marshal(c)
 }

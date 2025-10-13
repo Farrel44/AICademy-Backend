@@ -30,39 +30,48 @@ type Service interface {
 }
 
 type CVService struct {
-	repo      *CVRepository
-	aiService ai.AIService
+	repo         *CVRepository
+	aiService    ai.AIService
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
-func NewCVService(repo *CVRepository, aiService ai.AIService) *CVService {
+func NewCVService(repo *CVRepository, aiService ai.AIService, redis *utils.RedisClient) *CVService {
 	return &CVService{
-		repo:      repo,
-		aiService: aiService,
+		repo:         repo,
+		aiService:    aiService,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
 	}
 }
 
-func (s *CVService) GenerateCV(studentID uuid.UUID, title string) (*CV, error) {
-	personalInfo, err := s.repo.GetStudentProfile(studentID)
+func (s *CVService) GenerateCV(userID uuid.UUID, title string) (*CV, error) {
+	studentProfileID, err := s.repo.GetStudentProfileID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get student profile ID: %w", err)
+	}
+
+	personalInfo, err := s.repo.GetStudentProfile(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student profile: %w", err)
 	}
 
-	projects, err := s.repo.GetStudentProjects(studentID)
+	projects, err := s.repo.GetStudentProjects(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student projects: %w", err)
 	}
 
-	certifications, err := s.repo.GetStudentCertifications(studentID)
+	certifications, err := s.repo.GetStudentCertifications(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student certifications: %w", err)
 	}
 
-	skills, err := s.repo.GetStudentSkills(studentID)
+	skills, err := s.repo.GetStudentSkills(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student skills: %w", err)
 	}
 
-	education, err := s.repo.GetStudentEducation(studentID)
+	education, err := s.repo.GetStudentEducation(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student education: %w", err)
 	}
@@ -83,7 +92,7 @@ func (s *CVService) GenerateCV(studentID uuid.UUID, title string) (*CV, error) {
 	}
 
 	cv := &CV{
-		StudentProfileID: studentID,
+		StudentProfileID: studentProfileID,
 		Title:            title,
 		Status:           CVStatusDraft,
 		Content:          content,
@@ -94,22 +103,34 @@ func (s *CVService) GenerateCV(studentID uuid.UUID, title string) (*CV, error) {
 		return nil, fmt.Errorf("failed to create CV: %w", err)
 	}
 
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("user_cvs:*")
+	userCacheKey := fmt.Sprintf("user_cvs:%s", userID.String())
+	s.redis.Delete(userCacheKey)
+
 	return cv, nil
 }
 
-func (s *CVService) PreviewCV(studentID uuid.UUID) (*CVContent, error) {
-	personalInfo, _ := s.repo.GetStudentProfile(studentID)
-	projects, _ := s.repo.GetStudentProjects(studentID)
-	certifications, _ := s.repo.GetStudentCertifications(studentID)
-	skills, _ := s.repo.GetStudentSkills(studentID)
-	education, _ := s.repo.GetStudentEducation(studentID)
+func (s *CVService) PreviewCV(userID uuid.UUID) (*CVContent, error) {
+	cacheKey := fmt.Sprintf("cv_preview:%s", userID.String())
+
+	var content CVContent
+	if err := s.redis.GetJSON(cacheKey, &content); err == nil {
+		return &content, nil
+	}
+
+	personalInfo, _ := s.repo.GetStudentProfile(userID)
+	projects, _ := s.repo.GetStudentProjects(userID)
+	certifications, _ := s.repo.GetStudentCertifications(userID)
+	skills, _ := s.repo.GetStudentSkills(userID)
+	education, _ := s.repo.GetStudentEducation(userID)
 
 	summary, err := s.generateAISummary(personalInfo, projects, skills)
 	if err != nil {
 		summary = s.generateDefaultSummary(personalInfo, skills)
 	}
 
-	content := &CVContent{
+	content = CVContent{
 		PersonalInfo:   *personalInfo,
 		Summary:        summary,
 		Skills:         skills,
@@ -119,15 +140,43 @@ func (s *CVService) PreviewCV(studentID uuid.UUID) (*CVContent, error) {
 		Keywords:       s.extractKeywords(projects, skills),
 	}
 
-	return content, nil
+	s.cacheManager.SetWithSmartTTL(cacheKey, content, "short")
+
+	return &content, nil
 }
 
-func (s *CVService) GetStudentCVs(studentID uuid.UUID) ([]CV, error) {
-	return s.repo.GetCVsByStudentID(studentID)
+func (s *CVService) GetStudentCVs(userID uuid.UUID) ([]CV, error) {
+	cacheKey := fmt.Sprintf("user_cvs:%s", userID.String())
+
+	var cvs []CV
+	if err := s.redis.GetJSON(cacheKey, &cvs); err == nil {
+		return cvs, nil
+	}
+
+	cvs, err := s.repo.GetCVsByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, cvs, "medium")
+	return cvs, nil
 }
 
 func (s *CVService) GetCVByID(id uuid.UUID) (*CV, error) {
-	return s.repo.GetCVByID(id)
+	cacheKey := fmt.Sprintf("cv:%s", id.String())
+
+	var cv CV
+	if err := s.redis.GetJSON(cacheKey, &cv); err == nil {
+		return &cv, nil
+	}
+
+	cvPtr, err := s.repo.GetCVByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, *cvPtr, "medium")
+	return cvPtr, nil
 }
 
 func (s *CVService) UpdateCV(id uuid.UUID, content *CVContent) error {
@@ -139,23 +188,80 @@ func (s *CVService) UpdateCV(id uuid.UUID, content *CVContent) error {
 	cv.Content = *content
 	cv.UpdatedAt = time.Now()
 
-	return s.repo.UpdateCV(cv)
+	err = s.repo.UpdateCV(cv)
+	if err != nil {
+		return err
+	}
+
+	itemKey := fmt.Sprintf("cv:%s", id.String())
+	s.redis.Delete(itemKey)
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("user_cvs:*")
+	s.cacheManager.InvalidateByPattern("cv_preview:*")
+
+	return nil
 }
 
 func (s *CVService) DeleteCV(id uuid.UUID) error {
-	return s.repo.DeleteCV(id)
+	err := s.repo.DeleteCV(id)
+	if err != nil {
+		return err
+	}
+
+	itemKey := fmt.Sprintf("cv:%s", id.String())
+	s.redis.Delete(itemKey)
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("user_cvs:*")
+	s.cacheManager.InvalidateByPattern("cv_preview:*")
+
+	return nil
 }
 
 func (s *CVService) PublishCV(id uuid.UUID) error {
-	return s.repo.PublishCV(id)
+	err := s.repo.PublishCV(id)
+	if err != nil {
+		return err
+	}
+
+	itemKey := fmt.Sprintf("cv:%s", id.String())
+	s.redis.Delete(itemKey)
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("user_cvs:*")
+	s.cacheManager.InvalidateByPattern("public_cvs:*")
+
+	return nil
 }
 
 func (s *CVService) UnpublishCV(id uuid.UUID) error {
-	return s.repo.UnpublishCV(id)
+	err := s.repo.UnpublishCV(id)
+	if err != nil {
+		return err
+	}
+
+	itemKey := fmt.Sprintf("cv:%s", id.String())
+	s.redis.Delete(itemKey)
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("user_cvs:*")
+	s.cacheManager.InvalidateByPattern("public_cvs:*")
+
+	return nil
 }
 
-func (s *CVService) GetPublicCVs(studentID uuid.UUID) ([]CV, error) {
-	return s.repo.GetPublicCVsByStudentID(studentID)
+func (s *CVService) GetPublicCVs(userID uuid.UUID) ([]CV, error) {
+	cacheKey := fmt.Sprintf("public_cvs:%s", userID.String())
+
+	var cvs []CV
+	if err := s.redis.GetJSON(cacheKey, &cvs); err == nil {
+		return cvs, nil
+	}
+
+	cvs, err := s.repo.GetPublicCVsByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, cvs, "medium")
+	return cvs, nil
 }
 
 func (s *CVService) GeneratePDF(cvID uuid.UUID) (string, error) {
@@ -213,20 +319,27 @@ func (s *CVService) generateAISummary(info *PersonalInfo, projects []CVProject, 
 		return "", fmt.Errorf("AI service not available")
 	}
 
+	skillsStr := strings.Join(s.getSkillNames(skills), ", ")
+
 	prompt := fmt.Sprintf(`
-		Generate a professional CV summary for a student with the following profile:
+		Write ONLY a professional CV summary paragraph for %s in ENGLISH. No explanations, no options, just the final summary.
 		
-		Name: %s
-		Skills: %v
-		Recent Projects: %d projects
+		Profile:
+		- Name: %s
+		- Technical Skills: %s
+		- Projects Completed: %d
+		- Education: Technology/Software Development Student
 		
-		Create an ATS-friendly professional summary (2-3 sentences) that highlights:
-		1. Key technical skills
-		2. Project experience
-		3. Career objectives
+		Requirements:
+		- Write exactly 2-3 sentences in ENGLISH
+		- Include the main technical skills
+		- Mention project experience
+		- Use professional, ATS-friendly language
+		- End with career objective (seeking internship/entry-level position)
+		- Must be optimized for Applicant Tracking Systems (ATS)
 		
-		Keep it concise and keyword-rich for ATS optimization.
-	`, info.FullName, s.getSkillNames(skills), len(projects))
+		Return ONLY the final English summary paragraph, nothing else.
+	`, info.FullName, info.FullName, skillsStr, len(projects))
 
 	return s.aiService.GenerateText(context.Background(), prompt)
 }
@@ -389,9 +502,37 @@ func (s *CVService) convertToUtilsContent(content *CVContent) utils.CVContent {
 			Degree:    content.Education.Degree,
 			Major:     content.Education.Major,
 			StartYear: content.Education.StartYear,
-			EndYear:   *content.Education.EndYear,
-			GPA:       content.Education.GPA,
+			EndYear: func() int {
+				if content.Education.EndYear != nil {
+					return *content.Education.EndYear
+				}
+				return 0
+			}(),
+			GPA: content.Education.GPA,
 		},
 		Keywords: content.Keywords,
 	}
+}
+
+func (s *CVService) invalidateCVCache(cvID uuid.UUID, userID uuid.UUID) {
+	itemKey := fmt.Sprintf("cv:%s", cvID.String())
+	s.redis.Delete(itemKey)
+
+	s.redis.Delete("cv:statistics")
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("student_cvs:*")
+
+	userCacheKey := fmt.Sprintf("user_cvs:%s", userID.String())
+	s.redis.Delete(userCacheKey)
+}
+
+func (s *CVService) invalidateUserCVCache(userID uuid.UUID) {
+	userCacheKey := fmt.Sprintf("user_cvs:%s", userID.String())
+	s.redis.Delete(userCacheKey)
+
+	previewKey := fmt.Sprintf("cv_preview:%s", userID.String())
+	s.redis.Delete(previewKey)
+
+	s.cacheManager.InvalidateByPattern("cvs:*")
+	s.cacheManager.InvalidateByPattern("student_cvs:*")
 }
