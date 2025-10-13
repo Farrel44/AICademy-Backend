@@ -337,6 +337,9 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
 	}))
 	app.Use(config.SetupCors())
+	app.Options("/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -382,6 +385,7 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
+	authRoutes.Get("/me", middleware.AuthRequired(), commonAuthHandler.GetMe)
 	adminAuth.Get("/users/statistics", adminUserHandler.GetStatistics)
 	// Students
 	adminAuth.Get("/users/students", adminUserHandler.GetStudents)

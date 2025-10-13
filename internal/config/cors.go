@@ -9,17 +9,24 @@ import (
 )
 
 func SetupCors() fiber.Handler {
-	allowOrigins := os.Getenv("CORS_ALLOW_ORIGINS")
+	allowOrigins := strings.ReplaceAll(os.Getenv("CORS_ALLOW_ORIGINS"), " ", "")
 	allowMethods := os.Getenv("CORS_ALLOW_METHODS")
 	allowHeaders := os.Getenv("CORS_ALLOW_HEADERS")
 	allowCredentials := os.Getenv("CORS_ALLOW_CREDENTIALS") == "true"
 
-	allowOrigins = strings.ReplaceAll(allowOrigins, " ", "")
+	// Tambahkan header yang umum dipakai browser & file upload
+	if allowHeaders == "" {
+		allowHeaders = "Origin, Content-Type, Accept, Authorization, Cookie, X-Requested-With, Content-Length, Accept-Language"
+	} else {
+		allowHeaders += ",Cookie,X-Requested-With,Content-Length,Accept-Language"
+	}
 
 	return cors.New(cors.Config{
-		AllowOrigins:     allowOrigins,
-		AllowMethods:     allowMethods,
+		AllowOrigins:     allowOrigins, // contoh: http://localhost:3000,http://localhost:3001,https://your-prod-domain.com
+		AllowMethods:     allowMethods, // GET,POST,PUT,DELETE,OPTIONS
 		AllowHeaders:     allowHeaders,
-		AllowCredentials: allowCredentials,
+		ExposeHeaders:    "Set-Cookie, Content-Disposition",
+		AllowCredentials: allowCredentials, // true
+		MaxAge:           86400,            // cache preflight 24 jam
 	})
 }
