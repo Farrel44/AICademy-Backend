@@ -159,7 +159,7 @@ func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentPr
 	recommendedRole, _ := s.repo.GetStudentRecommendedRole(studentProfile.UserID)
 
 	// Generate profile URL
-	profileURL := os.Getenv("FRONTEND_URL") + nis
+	profileURL := os.Getenv("FRONTEND_URL") + "/profile/" + nis
 
 	return &PublicStudentProfileResponse{
 		NIS:             studentProfile.NIS,
@@ -217,7 +217,7 @@ func (s *UserService) buildEnhancedStudentProfile(profile *StudentProfile, userI
 		enhancedProfile.Certifications = []UserCertificationInfo{} // Empty slice instead of nil
 	}
 
-	enhancedProfile.ProfileURL = os.Getenv("FRONTEND_URL") + profile.NIS
+	enhancedProfile.ProfileURL = os.Getenv("FRONTEND_URL") + "/profile/" + profile.NIS
 
 	return enhancedProfile, nil
 }
@@ -239,7 +239,7 @@ func (s *UserService) buildEnhancedAlumniProfile(profile *AlumniProfile) (*Enhan
 
 	// Generate profile URL
 	username := s.generateUsername(profile.Fullname, "alumni")
-	enhancedProfile.ProfileURL = "https://aiademy.smktelkom-pwt.sch.id/" + username
+	enhancedProfile.ProfileURL = os.Getenv("FRONTEND_URL") + "/profile/" + username
 
 	return enhancedProfile, nil
 }
