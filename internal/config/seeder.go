@@ -1212,7 +1212,7 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			var validationScore *int
 
 			if j < completedSteps {
-				status = roadmap.RoadmapProgressStatusCompleted
+				status = roadmap.RoadmapProgressStatusSubmitted
 				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(45) + 15)))
 				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(30) + 5)))
 				completedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(25)))

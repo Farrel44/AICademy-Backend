@@ -18,7 +18,6 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
 	pklAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/alumni"
-	pklCompany "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/company"
 	pklStudent "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/student"
 	pklTeacher "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/teacher"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
@@ -291,10 +290,6 @@ func main() {
 	pklAlumniService := pklAlumni.NewAlumniPklService(pklAlumniRepo, rdb)
 	pklAlumniHandler := pklAlumni.NewAlumniPklHandler(pklAlumniService)
 
-	pklCompanyRepo := pkl.NewPklRepository(db, rdb.Client)
-	pklCompanyService := pklCompany.NewCompanyPklService(pklCompanyRepo, rdb)
-	pklCompanyHandler := pklCompany.NewCompanyPklHandler(pklCompanyService)
-
 	pklTeacherRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklTeacherService := pklTeacher.NewTeacherPklService(pklTeacherRepo, rdb)
 	pklTeacherHandler := pklTeacher.NewTeacherPklHandler(pklTeacherService)
@@ -342,6 +337,9 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
 	}))
 	app.Use(config.SetupCors())
+	app.Options("/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -387,6 +385,7 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
+	authRoutes.Get("/me", middleware.AuthRequired(), commonAuthHandler.GetMe)
 	adminAuth.Get("/users/statistics", adminUserHandler.GetStatistics)
 	// Students
 	adminAuth.Get("/users/students", adminUserHandler.GetStudents)
@@ -541,6 +540,9 @@ func main() {
 	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
 
+	studentRoutes.Get("/users/students", adminUserHandler.GetStudents)
+	studentRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
+
 	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())
 	alumniRoutes.Get("/internships", pklAlumniHandler.GetAvailablePositions)
 	alumniRoutes.Post("/internship/apply", pklAlumniHandler.ApplyPklPosition)
@@ -560,16 +562,6 @@ func main() {
 	alumniRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
 	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
-
-	companyRoutes := api.Group("/company", middleware.AuthRequired(), middleware.CompanyRequired())
-	companyRoutes.Get("/internships", pklCompanyHandler.GetMyInternships)
-	companyRoutes.Post("/internships", pklCompanyHandler.CreateInternship)
-	companyRoutes.Put("/internships/:id", pklCompanyHandler.UpdateInternship)
-	companyRoutes.Delete("/internships/:id", pklCompanyHandler.DeleteInternship)
-	companyRoutes.Get("/internships/:id/applications", pklCompanyHandler.GetInternshipApplications)
-	companyRoutes.Put("/applications/:id/status", pklCompanyHandler.UpdateApplicationStatus)
-	companyRoutes.Get("/me", userHandler.GetUserByToken)
-	companyRoutes.Put("/profile", userHandler.UpdateUserProfile)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
