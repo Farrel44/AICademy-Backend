@@ -14,6 +14,7 @@ type Project struct {
 	ProjectName           string    `gorm:"not null" json:"project_name"`
 	Description           string    `gorm:"type:text" json:"description"`
 	LinkURL               *string   `gorm:"type:text" json:"link_url"`
+	TechStack             []string  `gorm:"type:text[]" json:"tech_stack"`
 	StartDate             time.Time `gorm:"type:date" json:"start_date"`
 	EndDate               time.Time `gorm:"type:date" json:"end_date"`
 	CreatedAt             time.Time `gorm:"type:timestamptz" json:"created_at"`
