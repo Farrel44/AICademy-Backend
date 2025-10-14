@@ -7,10 +7,14 @@ import (
 )
 
 type UpdateStudentRequest struct {
-	ProfilePicture *string `json:"profile_picture"`
-	Bio            *string `json:"bio"`
-	Headline       *string `json:"headline"`
-	CvFile         *string `json:"cv_file"`
+	ProfilePicture *string     `json:"profile_picture"`
+	Bio            *string     `json:"bio"`
+	Headline       *string     `json:"headline"`
+	CvFile         *string     `json:"cv_file"`
+	Phone          *string     `json:"phone"`
+	PersonalEmail  *string     `json:"personal_email"`
+	Location       *string     `json:"location"`
+	Languages      *[]Language `json:"languages"`
 }
 
 type RecommendedRoleInfo struct {
@@ -81,12 +85,16 @@ type EnhancedStudentProfile struct {
 	Headline        string                  `json:"headline"`
 	Bio             string                  `json:"bio"`
 	CVFile          *string                 `json:"cv_file"`
+	Phone           string                  `json:"phone"`
+	PersonalEmail   string                  `json:"personal_email"`
+	Location        string                  `json:"location"`
+	Languages       []Language              `json:"languages"`
 	CreatedAt       time.Time               `json:"created_at"`
 	UpdatedAt       time.Time               `json:"updated_at"`
 	RecommendedRole *RecommendedRoleInfo    `json:"recommended_role,omitempty"`
 	Projects        []UserProjectInfo       `json:"projects"`
 	Certifications  []UserCertificationInfo `json:"certifications"`
-	ProfileURL      string                  `json:"profile_url"` // aiademy.smktelkom-pwt.sch.id/NIS
+	ProfileURL      string                  `json:"profile_url"`
 }
 
 type EnhancedAlumniProfile struct {

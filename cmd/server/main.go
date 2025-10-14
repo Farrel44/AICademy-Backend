@@ -15,6 +15,7 @@ import (
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/experience"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
 	pklAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/alumni"
@@ -278,6 +279,11 @@ func main() {
 	cvService := cv.NewCVService(cvRepo, aiService, rdb)
 	cvHandler := cv.NewCVHandler(cvService)
 
+	// Experience services and handlers
+	experienceRepo := experience.NewRepository(db)
+	experienceService := experience.NewService(experienceRepo)
+	experienceHandler := experience.NewHandler(experienceService, userRepo)
+
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklStudentService := pklStudent.NewStudentPklService(pklStudentRepo, rdb)
 	pklStudentHandler := pklStudent.NewStudentPklHandler(pklStudentService)
@@ -514,6 +520,14 @@ func main() {
 	cvRoutes.Put("/:id/unpublish", cvHandler.UnpublishCV)
 	cvRoutes.Get("/:id/download", cvHandler.DownloadCV)
 	cvRoutes.Get("/:id/analyze", cvHandler.AnalyzeATS)
+
+	// Student Experience Routes
+	experienceRoutes := studentRoutes.Group("/experiences")
+	experienceRoutes.Post("/", experienceHandler.CreateExperience)
+	experienceRoutes.Get("/", experienceHandler.GetExperiences)
+	experienceRoutes.Get("/:id", experienceHandler.GetExperienceByID)
+	experienceRoutes.Put("/:id", experienceHandler.UpdateExperience)
+	experienceRoutes.Delete("/:id", experienceHandler.DeleteExperience)
 
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)

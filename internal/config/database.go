@@ -8,6 +8,7 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/experience"
 	pkl_model "github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
@@ -97,6 +98,9 @@ func InitDatabase() (*gorm.DB, error) {
 
 		// CV models
 		&cv.CV{},
+
+		// Experience models
+		&experience.Experience{},
 
 		// Challenge models
 		&challenge.Team{},

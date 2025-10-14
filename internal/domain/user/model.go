@@ -1,6 +1,9 @@
 package user
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +12,8 @@ import (
 
 type UserRole string
 
+type Languages []Language
+
 const (
 	RoleStudent UserRole = "student"
 	RoleTeacher UserRole = "teacher"
@@ -16,6 +21,30 @@ const (
 	RoleAdmin   UserRole = "admin"
 	RoleCompany UserRole = "company"
 )
+
+type Language struct {
+	Name      string `json:"name" validate:"required,min=2,max=50"`
+	Level     string `json:"level" validate:"required,oneof=Basic Intermediate Advanced Native"`
+	Certified bool   `json:"certified"`
+}
+
+func (l Languages) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+func (l *Languages) Scan(value interface{}) error {
+	if value == nil {
+		*l = Languages{}
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("cannot scan non-byte value into Languages")
+	}
+
+	return json.Unmarshal(bytes, l)
+}
 
 type User struct {
 	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
@@ -75,6 +104,10 @@ type StudentProfile struct {
 	Headline       string    `json:"headline"`
 	Bio            string    `json:"bio"`
 	CVFile         *string   `json:"cv_file"`
+	Phone          string    `json:"phone"`
+	PersonalEmail  string    `json:"personal_email"`
+	Location       string    `json:"location"`
+	Languages      Languages `gorm:"type:jsonb" json:"languages"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }

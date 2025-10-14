@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -191,30 +192,31 @@ func (s *UserService) buildEnhancedStudentProfile(profile *StudentProfile, userI
 		Headline:       profile.Headline,
 		Bio:            profile.Bio,
 		CVFile:         profile.CVFile,
+		Phone:          profile.Phone,
+		PersonalEmail:  profile.PersonalEmail,
+		Location:       profile.Location,
+		Languages:      profile.Languages,
 		CreatedAt:      profile.CreatedAt,
 		UpdatedAt:      profile.UpdatedAt,
 	}
 
-	// Get recommended role
 	recommendedRole, err := s.repo.GetStudentRecommendedRole(userID)
 	if err == nil && recommendedRole != nil {
 		enhancedProfile.RecommendedRole = recommendedRole
 	}
 
-	// Get projects
 	projects, err := s.repo.GetUserProjectsByStudentProfileID(profile.ID)
 	if err == nil {
 		enhancedProfile.Projects = projects
 	} else {
-		enhancedProfile.Projects = []UserProjectInfo{} // Empty slice instead of nil
+		enhancedProfile.Projects = []UserProjectInfo{}
 	}
 
-	// Get certifications
 	certifications, err := s.repo.GetUserCertificationsByStudentProfileID(profile.ID)
 	if err == nil {
 		enhancedProfile.Certifications = certifications
 	} else {
-		enhancedProfile.Certifications = []UserCertificationInfo{} // Empty slice instead of nil
+		enhancedProfile.Certifications = []UserCertificationInfo{}
 	}
 
 	enhancedProfile.ProfileURL = os.Getenv("FRONTEND_URL") + "/profile/" + profile.NIS
@@ -268,79 +270,119 @@ func (s *UserService) UpdateUserProfile(c *fiber.Ctx) (*StudentProfile, error) {
 		return nil, errors.New("student profile not found")
 	}
 
-	// Parse form data
-	form, err := c.MultipartForm()
-	if err != nil {
-		return nil, errors.New("failed to parse form data")
-	}
+	contentType := c.Get("Content-Type")
 
-	// Handle text fields
-	if bio := form.Value["bio"]; len(bio) > 0 && bio[0] != "" {
-		user.StudentProfile.Bio = bio[0]
-	}
-
-	if headline := form.Value["headline"]; len(headline) > 0 && headline[0] != "" {
-		user.StudentProfile.Headline = headline[0]
-	}
-
-	// Handle profile picture upload
-	if profilePictures := form.File["profile_picture"]; len(profilePictures) > 0 {
-		profilePicture := profilePictures[0]
-
-		// Validate file type
-		allowedTypes := map[string]bool{
-			".jpg":  true,
-			".jpeg": true,
-			".png":  true,
-			".gif":  true,
-			".webp": true,
+	if strings.Contains(contentType, "application/json") {
+		var updateReq struct {
+			Headline      *string     `json:"headline"`
+			Bio           *string     `json:"bio"`
+			Phone         *string     `json:"phone"`
+			PersonalEmail *string     `json:"personal_email"`
+			Location      *string     `json:"location"`
+			Languages     *[]Language `json:"languages"`
 		}
 
-		ext := filepath.Ext(profilePicture.Filename)
-		if !allowedTypes[ext] {
-			return nil, errors.New("invalid file type. Only jpg, jpeg, png, gif, webp are allowed")
+		if err := c.BodyParser(&updateReq); err != nil {
+			return nil, errors.New("invalid request data")
 		}
 
-		// Validate file size (max 5MB)
-		if profilePicture.Size > 5*1024*1024 {
-			return nil, errors.New("file size too large. Maximum 5MB allowed")
+		if updateReq.Headline != nil {
+			user.StudentProfile.Headline = *updateReq.Headline
 		}
-
-		url, err := s.uploadFile(profilePicture, "profile-pictures")
+		if updateReq.Bio != nil {
+			user.StudentProfile.Bio = *updateReq.Bio
+		}
+		if updateReq.Phone != nil {
+			user.StudentProfile.Phone = *updateReq.Phone
+		}
+		if updateReq.PersonalEmail != nil {
+			user.StudentProfile.PersonalEmail = *updateReq.PersonalEmail
+		}
+		if updateReq.Location != nil {
+			user.StudentProfile.Location = *updateReq.Location
+		}
+		if updateReq.Languages != nil {
+			user.StudentProfile.Languages = *updateReq.Languages
+		}
+	} else {
+		form, err := c.MultipartForm()
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload profile picture: %v", err)
+			return nil, errors.New("failed to parse form data")
 		}
 
-		user.StudentProfile.ProfilePicture = url
-	}
-
-	// Handle CV file upload
-	if cvFiles := form.File["cv_file"]; len(cvFiles) > 0 {
-		cvFile := cvFiles[0]
-
-		// Validate file type for CV
-		allowedCVTypes := map[string]bool{
-			".pdf":  true,
-			".doc":  true,
-			".docx": true,
+		if bio := form.Value["bio"]; len(bio) > 0 && bio[0] != "" {
+			user.StudentProfile.Bio = bio[0]
 		}
 
-		ext := filepath.Ext(cvFile.Filename)
-		if !allowedCVTypes[ext] {
-			return nil, errors.New("invalid CV file type. Only pdf, doc, docx are allowed")
+		if headline := form.Value["headline"]; len(headline) > 0 && headline[0] != "" {
+			user.StudentProfile.Headline = headline[0]
 		}
 
-		// Validate file size (max 10MB for CV)
-		if cvFile.Size > 10*1024*1024 {
-			return nil, errors.New("CV file size too large. Maximum 10MB allowed")
+		if phone := form.Value["phone"]; len(phone) > 0 && phone[0] != "" {
+			user.StudentProfile.Phone = phone[0]
 		}
 
-		url, err := s.uploadFile(cvFile, "cv-files")
-		if err != nil {
-			return nil, fmt.Errorf("failed to upload CV file: %v", err)
+		if personalEmail := form.Value["personal_email"]; len(personalEmail) > 0 && personalEmail[0] != "" {
+			user.StudentProfile.PersonalEmail = personalEmail[0]
 		}
 
-		user.StudentProfile.CVFile = &url
+		if location := form.Value["location"]; len(location) > 0 && location[0] != "" {
+			user.StudentProfile.Location = location[0]
+		}
+
+		if profilePictures := form.File["profile_picture"]; len(profilePictures) > 0 {
+			profilePicture := profilePictures[0]
+
+			allowedTypes := map[string]bool{
+				".jpg":  true,
+				".jpeg": true,
+				".png":  true,
+				".gif":  true,
+				".webp": true,
+			}
+
+			ext := filepath.Ext(profilePicture.Filename)
+			if !allowedTypes[ext] {
+				return nil, errors.New("invalid file type. Only jpg, jpeg, png, gif, webp are allowed")
+			}
+
+			if profilePicture.Size > 5*1024*1024 {
+				return nil, errors.New("file size too large. Maximum 5MB allowed")
+			}
+
+			url, err := s.uploadFile(profilePicture, "profile-pictures")
+			if err != nil {
+				return nil, fmt.Errorf("failed to upload profile picture: %v", err)
+			}
+
+			user.StudentProfile.ProfilePicture = url
+		}
+
+		if cvFiles := form.File["cv_file"]; len(cvFiles) > 0 {
+			cvFile := cvFiles[0]
+
+			allowedCVTypes := map[string]bool{
+				".pdf":  true,
+				".doc":  true,
+				".docx": true,
+			}
+
+			ext := filepath.Ext(cvFile.Filename)
+			if !allowedCVTypes[ext] {
+				return nil, errors.New("invalid CV file type. Only pdf, doc, docx are allowed")
+			}
+
+			if cvFile.Size > 10*1024*1024 {
+				return nil, errors.New("CV file size too large. Maximum 10MB allowed")
+			}
+
+			url, err := s.uploadFile(cvFile, "cv-files")
+			if err != nil {
+				return nil, fmt.Errorf("failed to upload CV file: %v", err)
+			}
+
+			user.StudentProfile.CVFile = &url
+		}
 	}
 
 	user.StudentProfile.UpdatedAt = time.Now()
