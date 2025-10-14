@@ -183,66 +183,94 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, MessageResponse{
 		Message: "Password reset successfully",
 	}, "Password reset successful")
-} // Helper methods
+}
+
+// Helper methods - UPDATE INI
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh string) {
 	if token == "" || role == "" {
 		return
 	}
+
+	// Set access token cookie
 	c.Cookie(&fiber.Cookie{
-		Name:     "token",
+		Name:     "access_token",
 		Value:    token,
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(15 * time.Minute), // 15 menit
 		HTTPOnly: false,
-		Secure:   false,
+		Secure:   false, // SECURE TRUE untuk local dan production
 		SameSite: "Lax",
+		Path:     "/",
 	})
 
+	// Set role cookie
 	c.Cookie(&fiber.Cookie{
 		Name:     "role",
 		Value:    role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   false,
+		Secure:   false, // SECURE TRUE
 		SameSite: "Lax",
+		Path:     "/",
 	})
 
+	// Set refresh token cookie - HTTPOnly untuk keamanan
 	c.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    refresh,
-		Expires:  time.Now().Add(24 * time.Hour),
-		HTTPOnly: false,
-		Secure:   false,
+		Expires:  time.Now().Add(7 * 24 * time.Hour), // 7 hari
+		HTTPOnly: true,                               // HTTPOnly untuk refresh token
+		Secure:   false,                              // SECURE TRUE
 		SameSite: "Lax",
+		Path:     "/",
+	})
+
+	// Legacy token cookie untuk backward compatibility
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    token,
+		Expires:  time.Now().Add(15 * time.Minute),
+		HTTPOnly: false,
+		Secure:   false, // SECURE TRUE
+		SameSite: "Lax",
+		Path:     "/",
 	})
 }
 
 func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
-	c.Cookie(&fiber.Cookie{
-		Name:     "token",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HTTPOnly: true,
-		Secure:   false,
-		SameSite: "Lax",
-	})
+	cookieNames := []string{"access_token", "token", "role", "refresh_token"}
 
-	c.Cookie(&fiber.Cookie{
-		Name:     "role",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HTTPOnly: false,
-		Secure:   false,
-		SameSite: "Lax",
-	})
+	for _, name := range cookieNames {
+		httpOnly := name == "refresh_token" // Only refresh token is HTTPOnly
+		c.Cookie(&fiber.Cookie{
+			Name:     name,
+			Value:    "",
+			Expires:  time.Now().Add(-time.Hour),
+			HTTPOnly: httpOnly,
+			Secure:   false, // SECURE TRUE
+			SameSite: "Lax",
+			Path:     "/",
+		})
+	}
 }
 
 func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
-	var req RefreshTokenRequest
+	// Coba ambil refresh token dari cookie dulu
+	refreshToken := c.Cookies("refresh_token")
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+	// Jika tidak ada di cookie, coba dari request body
+	if refreshToken == "" {
+		var req RefreshTokenRequest
+		if err := c.BodyParser(&req); err != nil {
+			return utils.ErrorResponse(c, 400, "Invalid request body")
+		}
+		refreshToken = req.RefreshToken
 	}
 
+	if refreshToken == "" {
+		return utils.ErrorResponse(c, 400, "Refresh token is required")
+	}
+
+	req := RefreshTokenRequest{RefreshToken: refreshToken}
 	if err := utils.ValidateStruct(req); err != nil {
 		return utils.ValidationErrorResponse(c, err)
 	}
@@ -260,6 +288,27 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 			return utils.ErrorResponse(c, 500, "Internal server error")
 		}
 	}
+
+	// Update access token cookie dengan secure
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    result.AccessToken,
+		Expires:  time.Now().Add(15 * time.Minute),
+		HTTPOnly: false,
+		Secure:   true, // SECURE TRUE
+		SameSite: "Lax",
+		Path:     "/",
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    result.AccessToken,
+		Expires:  time.Now().Add(15 * time.Minute),
+		HTTPOnly: false,
+		Secure:   true, // SECURE TRUE
+		SameSite: "Lax",
+		Path:     "/",
+	})
 
 	return utils.SuccessResponse(c, result, "Token refreshed successfully")
 }
