@@ -29,11 +29,56 @@ type Service interface {
 	AnalyzeATS(content *CVContent) (*ATSScore, error)
 }
 
+type CVConfig struct {
+	MaxSkills                int
+	MaxProjects              int
+	MaxCertifications        int
+	ATSFormatScore           int
+	StructureScorePerSection int
+	KeywordThresholds        struct {
+		High   int
+		Medium int
+		Low    int
+	}
+	ScoreValues struct {
+		High   int
+		Medium int
+		Low    int
+		Min    int
+	}
+	DefaultSkillLevel    string
+	DefaultSkillCategory string
+}
+
+func defaultCVConfig() CVConfig {
+	config := CVConfig{
+		MaxSkills:                15,
+		MaxProjects:              8,
+		MaxCertifications:        15,
+		ATSFormatScore:           85,
+		StructureScorePerSection: 18,
+		DefaultSkillLevel:        "Proficient",
+		DefaultSkillCategory:     "Technical",
+	}
+
+	config.KeywordThresholds.High = 12
+	config.KeywordThresholds.Medium = 8
+	config.KeywordThresholds.Low = 4
+
+	config.ScoreValues.High = 90
+	config.ScoreValues.Medium = 75
+	config.ScoreValues.Low = 60
+	config.ScoreValues.Min = 35
+
+	return config
+}
+
 type CVService struct {
 	repo         *CVRepository
 	aiService    ai.AIService
 	redis        *utils.RedisClient
 	cacheManager *utils.CacheManager
+	config       CVConfig
 }
 
 func NewCVService(repo *CVRepository, aiService ai.AIService, redis *utils.RedisClient) *CVService {
@@ -42,6 +87,7 @@ func NewCVService(repo *CVRepository, aiService ai.AIService, redis *utils.Redis
 		aiService:    aiService,
 		redis:        redis,
 		cacheManager: utils.NewCacheManager(redis),
+		config:       defaultCVConfig(),
 	}
 }
 
@@ -56,17 +102,17 @@ func (s *CVService) GenerateCV(userID uuid.UUID, title string) (*CV, error) {
 		return nil, fmt.Errorf("failed to get student profile: %w", err)
 	}
 
-	projects, err := s.repo.GetStudentProjects(userID)
+	projects, err := s.repo.GetStudentProjects(userID, s.config.MaxProjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student projects: %w", err)
 	}
 
-	certifications, err := s.repo.GetStudentCertifications(userID)
+	certifications, err := s.repo.GetStudentCertifications(userID, s.config.MaxCertifications)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student certifications: %w", err)
 	}
 
-	skills, err := s.repo.GetStudentSkills(userID)
+	skills, err := s.repo.GetStudentSkills(userID, s.config.DefaultSkillCategory, s.config.DefaultSkillLevel, s.config.MaxSkills)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student skills: %w", err)
 	}
@@ -120,9 +166,9 @@ func (s *CVService) PreviewCV(userID uuid.UUID) (*CVContent, error) {
 	}
 
 	personalInfo, _ := s.repo.GetStudentProfile(userID)
-	projects, _ := s.repo.GetStudentProjects(userID)
-	certifications, _ := s.repo.GetStudentCertifications(userID)
-	skills, _ := s.repo.GetStudentSkills(userID)
+	projects, _ := s.repo.GetStudentProjects(userID, s.config.MaxProjects)
+	certifications, _ := s.repo.GetStudentCertifications(userID, s.config.MaxCertifications)
+	skills, _ := s.repo.GetStudentSkills(userID, s.config.DefaultSkillCategory, s.config.DefaultSkillLevel, s.config.MaxSkills)
 	education, _ := s.repo.GetStudentEducation(userID)
 
 	summary, err := s.generateAISummary(personalInfo, projects, skills)
@@ -302,7 +348,7 @@ func (s *CVService) AnalyzeATS(content *CVContent) (*ATSScore, error) {
 	keywordScore := s.calculateKeywordScore(content)
 	score.Keywords = keywordScore
 
-	score.Format = 90
+	score.Format = s.config.ATSFormatScore
 
 	structureScore := s.calculateStructureScore(content)
 	score.Structure = structureScore
@@ -350,7 +396,10 @@ func (s *CVService) generateDefaultSummary(info *PersonalInfo, skills []CVSkill)
 		return "Motivated technology student with hands-on experience in software development and a passion for creating innovative solutions."
 	}
 
-	maxSkills := 5
+	maxSkills := s.config.MaxSkills / 3
+	if maxSkills < 3 {
+		maxSkills = 3
+	}
 	if len(skillNames) < maxSkills {
 		maxSkills = len(skillNames)
 	}
@@ -383,33 +432,33 @@ func (s *CVService) extractKeywords(projects []CVProject, skills []CVSkill) []st
 func (s *CVService) calculateKeywordScore(content *CVContent) int {
 	keywordCount := len(content.Keywords)
 
-	if keywordCount >= 15 {
-		return 95
-	} else if keywordCount >= 10 {
-		return 80
-	} else if keywordCount >= 5 {
-		return 65
+	if keywordCount >= s.config.KeywordThresholds.High {
+		return s.config.ScoreValues.High
+	} else if keywordCount >= s.config.KeywordThresholds.Medium {
+		return s.config.ScoreValues.Medium
+	} else if keywordCount >= s.config.KeywordThresholds.Low {
+		return s.config.ScoreValues.Low
 	}
-	return 40
+	return s.config.ScoreValues.Min
 }
 
 func (s *CVService) calculateStructureScore(content *CVContent) int {
 	score := 0
 
 	if content.PersonalInfo.FullName != "" {
-		score += 20
+		score += s.config.StructureScorePerSection
 	}
 	if content.Summary != "" {
-		score += 20
+		score += s.config.StructureScorePerSection
 	}
 	if len(content.Skills) > 0 {
-		score += 20
+		score += s.config.StructureScorePerSection
 	}
 	if len(content.Projects) > 0 {
-		score += 20
+		score += s.config.StructureScorePerSection
 	}
 	if content.Education.School != "" {
-		score += 20
+		score += s.config.StructureScorePerSection
 	}
 
 	return score

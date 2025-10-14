@@ -20,7 +20,7 @@ func NewCVRepository(db *gorm.DB, rdb *redis.Client) *CVRepository {
 		db:           db,
 		rdb:          rdb,
 		cacheVersion: "v1",
-		cacheTTL:     5 * time.Minute,
+		cacheTTL:     10 * time.Minute,
 	}
 }
 
@@ -89,7 +89,7 @@ func (r *CVRepository) GetPublicCVsByUserID(userID uuid.UUID) ([]CV, error) {
 	return cvs, err
 }
 
-func (r *CVRepository) GetStudentProjects(userID uuid.UUID) ([]CVProject, error) {
+func (r *CVRepository) GetStudentProjects(userID uuid.UUID, limit int) ([]CVProject, error) {
 	var projects []CVProject
 
 	query := `
@@ -106,14 +106,14 @@ func (r *CVRepository) GetStudentProjects(userID uuid.UUID) ([]CVProject, error)
 		JOIN student_profiles sp ON (p.owner_student_profile_id = sp.id OR pc.student_profile_id = sp.id)
 		WHERE sp.user_id = ?
 		ORDER BY p.project_name, p.start_date DESC
-		LIMIT 5
+		LIMIT ?
 	`
 
-	err := r.db.Raw(query, userID).Scan(&projects).Error
+	err := r.db.Raw(query, userID, limit).Scan(&projects).Error
 	return projects, err
 }
 
-func (r *CVRepository) GetStudentCertifications(userID uuid.UUID) ([]CVCertification, error) {
+func (r *CVRepository) GetStudentCertifications(userID uuid.UUID, limit int) ([]CVCertification, error) {
 	var certifications []CVCertification
 
 	query := `
@@ -129,10 +129,10 @@ func (r *CVRepository) GetStudentCertifications(userID uuid.UUID) ([]CVCertifica
 		JOIN student_profiles sp ON c.student_profile_id = sp.id
 		WHERE sp.user_id = ?
 		ORDER BY c.issue_date DESC
-		LIMIT 10
+		LIMIT ?
 	`
 
-	err := r.db.Raw(query, userID).Scan(&certifications).Error
+	err := r.db.Raw(query, userID, limit).Scan(&certifications).Error
 	return certifications, err
 }
 
@@ -157,22 +157,22 @@ func (r *CVRepository) GetStudentProfile(userID uuid.UUID) (*PersonalInfo, error
 	return &info, err
 }
 
-func (r *CVRepository) GetStudentSkills(userID uuid.UUID) ([]CVSkill, error) {
+func (r *CVRepository) GetStudentSkills(userID uuid.UUID, category, level string, limit int) ([]CVSkill, error) {
 	var skills []CVSkill
 
 	query := `
 		SELECT DISTINCT 
 			UNNEST(p.tech_stack) as name,
-			'Technical' as category,
-			'Intermediate' as level
+			? as category,
+			? as level
 		FROM projects p
 		JOIN student_profiles sp ON p.owner_student_profile_id = sp.id
 		WHERE sp.user_id = ?
 		AND p.tech_stack IS NOT NULL
-		LIMIT 20
+		LIMIT ?
 	`
 
-	err := r.db.Raw(query, userID).Scan(&skills).Error
+	err := r.db.Raw(query, category, level, userID, limit).Scan(&skills).Error
 	return skills, err
 }
 
@@ -181,15 +181,15 @@ func (r *CVRepository) GetStudentEducation(userID uuid.UUID) (*CVEducation, erro
 
 	query := `
 		SELECT 
-			'SMK Telkom Malang' as school,
+			'SMK Telkom Purwokerto' as school,
 			'Diploma' as degree,
 			CASE 
 				WHEN sp.class LIKE '%RPL%' THEN 'Rekayasa Perangkat Lunak'
 				WHEN sp.class LIKE '%TKJ%' THEN 'Teknik Komputer dan Jaringan'
 				ELSE 'Teknologi Informasi'
 			END as major,
-			2022 as start_year,
-			2025 as end_year
+			EXTRACT(YEAR FROM CURRENT_DATE) - 3 as start_year,
+			EXTRACT(YEAR FROM CURRENT_DATE) as end_year
 		FROM student_profiles sp
 		WHERE sp.user_id = ?
 	`
