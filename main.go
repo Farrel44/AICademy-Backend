@@ -14,10 +14,10 @@ import (
 	authAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/auth/alumni"
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
 	pklAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/alumni"
-	pklCompany "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/company"
 	pklStudent "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/student"
 	pklTeacher "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/teacher"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
@@ -39,7 +39,6 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
@@ -278,6 +277,11 @@ func main() {
 	projectService := project.NewProjectService(projectRepo, rdb)
 	projectHandler := project.NewProjectHandler(projectService)
 
+	// CV services and handlers
+	cvRepo := cv.NewCVRepository(db, rdb.Client)
+	cvService := cv.NewCVService(cvRepo, aiService, rdb)
+	cvHandler := cv.NewCVHandler(cvService)
+
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklStudentService := pklStudent.NewStudentPklService(pklStudentRepo, rdb)
 	pklStudentHandler := pklStudent.NewStudentPklHandler(pklStudentService)
@@ -285,10 +289,6 @@ func main() {
 	pklAlumniRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklAlumniService := pklAlumni.NewAlumniPklService(pklAlumniRepo, rdb)
 	pklAlumniHandler := pklAlumni.NewAlumniPklHandler(pklAlumniService)
-
-	pklCompanyRepo := pkl.NewPklRepository(db, rdb.Client)
-	pklCompanyService := pklCompany.NewCompanyPklService(pklCompanyRepo, rdb)
-	pklCompanyHandler := pklCompany.NewCompanyPklHandler(pklCompanyService)
 
 	pklTeacherRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklTeacherService := pklTeacher.NewTeacherPklService(pklTeacherRepo, rdb)
@@ -336,12 +336,10 @@ func main() {
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
 	}))
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3001,http://localhost:3000,http://127.0.0.1:3000",
-		AllowCredentials: true,
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
-	}))
+	app.Use(config.SetupCors())
+	app.Options("/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -360,6 +358,9 @@ func main() {
 	api := app.Group("/api/v1")
 
 	api.Get("/profile/:nis", userHandler.GetPublicStudentProfileByNIS)
+
+	// Public CV Routes
+	api.Get("/cv/student/:studentId", cvHandler.GetPublicCVs)
 
 	// Common Auth
 	authRoutes := api.Group("/auth")
@@ -384,6 +385,7 @@ func main() {
 	adminAuth.Post("/students", studentAuthHandler.CreateStudent)
 	adminAuth.Post("/students/upload-csv", studentAuthHandler.UploadStudentsCSV)
 
+	authRoutes.Get("/me", middleware.AuthRequired(), commonAuthHandler.GetMe)
 	adminAuth.Get("/users/statistics", adminUserHandler.GetStatistics)
 	// Students
 	adminAuth.Get("/users/students", adminUserHandler.GetStudents)
@@ -512,6 +514,19 @@ func main() {
 	studentRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	studentRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
+	// Student CV Routes
+	cvRoutes := studentRoutes.Group("/cv")
+	cvRoutes.Post("/generate", cvHandler.GenerateCV)
+	cvRoutes.Get("/preview", cvHandler.PreviewCV)
+	cvRoutes.Get("/", cvHandler.GetStudentCVs)
+	cvRoutes.Get("/:id", cvHandler.GetCVByID)
+	cvRoutes.Put("/:id", cvHandler.UpdateCV)
+	cvRoutes.Delete("/:id", cvHandler.DeleteCV)
+	cvRoutes.Put("/:id/publish", cvHandler.PublishCV)
+	cvRoutes.Put("/:id/unpublish", cvHandler.UnpublishCV)
+	cvRoutes.Get("/:id/download", cvHandler.DownloadCV)
+	cvRoutes.Get("/:id/analyze", cvHandler.AnalyzeATS)
+
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
@@ -524,6 +539,9 @@ func main() {
 	studentRoutes.Post("/challenges/submit", studentChallengeHandler.SubmitChallenge)           // Added submit route
 	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
+
+	studentRoutes.Get("/users/students", adminUserHandler.GetStudents)
+	studentRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
 
 	alumniRoutes := api.Group("/alumni", middleware.AuthRequired(), middleware.AlumniRequired())
 	alumniRoutes.Get("/internships", pklAlumniHandler.GetAvailablePositions)
@@ -544,16 +562,6 @@ func main() {
 	alumniRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
 	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
-
-	companyRoutes := api.Group("/company", middleware.AuthRequired(), middleware.CompanyRequired())
-	companyRoutes.Get("/internships", pklCompanyHandler.GetMyInternships)
-	companyRoutes.Post("/internships", pklCompanyHandler.CreateInternship)
-	companyRoutes.Put("/internships/:id", pklCompanyHandler.UpdateInternship)
-	companyRoutes.Delete("/internships/:id", pklCompanyHandler.DeleteInternship)
-	companyRoutes.Get("/internships/:id/applications", pklCompanyHandler.GetInternshipApplications)
-	companyRoutes.Put("/applications/:id/status", pklCompanyHandler.UpdateApplicationStatus)
-	companyRoutes.Get("/me", userHandler.GetUserByToken)
-	companyRoutes.Put("/profile", userHandler.UpdateUserProfile)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
