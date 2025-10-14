@@ -22,31 +22,53 @@ type RecommendedRoleInfo struct {
 	Justification   *string   `json:"justification,omitempty"`
 }
 
+// Project Photo struct for user domain
+type ProjectPhoto struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	URL       string    `json:"url"`
+	Caption   *string   `json:"caption"`
+	IsPrimary bool      `json:"is_primary"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Certification Photo struct for user domain
+type CertificationPhoto struct {
+	ID              uuid.UUID `json:"id"`
+	CertificationID uuid.UUID `json:"certification_id"`
+	URL             string    `json:"url"`
+	Caption         *string   `json:"caption"`
+	IsPrimary       bool      `json:"is_primary"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 // Project data for profile
 type UserProjectInfo struct {
-	ID          uuid.UUID `json:"id"`
-	ProjectName string    `json:"project_name"`
-	Description string    `json:"description"`
-	LinkURL     *string   `json:"link_url"`
-	StartDate   time.Time `json:"start_date"`
-	EndDate     time.Time `json:"end_date"`
-	CreatedAt   time.Time `json:"created_at"`
-	PhotoCount  int       `json:"photo_count"`
-	IsCompleted bool      `json:"is_completed"`
+	ID          uuid.UUID      `json:"id"`
+	ProjectName string         `json:"project_name"`
+	Description string         `json:"description"`
+	LinkURL     *string        `json:"link_url"`
+	StartDate   time.Time      `json:"start_date"`
+	EndDate     time.Time      `json:"end_date"`
+	CreatedAt   time.Time      `json:"created_at"`
+	PhotoCount  int            `json:"photo_count"`
+	IsCompleted bool           `json:"is_completed"`
+	Photos      []ProjectPhoto `json:"photos,omitempty"`
 }
 
 // Certification data for profile
 type UserCertificationInfo struct {
-	ID                  uuid.UUID  `json:"id"`
-	Name                string     `json:"name"`
-	IssuingOrganization string     `json:"issuing_organization"`
-	IssueDate           time.Time  `json:"issue_date"`
-	ExpirationDate      *time.Time `json:"expiration_date"`
-	CredentialID        *string    `json:"credential_id"`
-	CredentialURL       *string    `json:"credential_url"`
-	IsExpired           bool       `json:"is_expired"`
-	IsExpiringSoon      bool       `json:"is_expiring_soon"`
-	CreatedAt           time.Time  `json:"created_at"`
+	ID                  uuid.UUID            `json:"id"`
+	Name                string               `json:"name"`
+	IssuingOrganization string               `json:"issuing_organization"`
+	IssueDate           time.Time            `json:"issue_date"`
+	ExpirationDate      *time.Time           `json:"expiration_date"`
+	CredentialID        *string              `json:"credential_id"`
+	CredentialURL       *string              `json:"credential_url"`
+	IsExpired           bool                 `json:"is_expired"`
+	IsExpiringSoon      bool                 `json:"is_expiring_soon"`
+	CreatedAt           time.Time            `json:"created_at"`
+	Photos              []CertificationPhoto `json:"photos,omitempty"`
 }
 
 type EnhancedStudentProfile struct {

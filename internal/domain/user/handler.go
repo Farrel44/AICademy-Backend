@@ -45,16 +45,7 @@ func (h *UserHandler) GetPublicStudentProfileByNIS(c *fiber.Ctx) error {
 }
 
 func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
-	var req UpdateStudentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
-	}
-
-	if err := utils.ValidateStruct(req); err != nil {
-		return utils.ValidationErrorResponse(c, err)
-	}
-
-	user, err := h.service.UpdateUserProfile(c, &req)
+	user, err := h.service.UpdateUserProfile(c)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

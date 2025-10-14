@@ -67,6 +67,13 @@ type ValidationError struct {
 	Message string `json:"message"`
 }
 
+type MeResponse struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+	Role  string    `json:"role"`
+	Name  string    `json:"name,omitempty"`
+}
+
 type ErrorResponse struct {
 	Success bool              `json:"success"`
 	Error   string            `json:"error"`

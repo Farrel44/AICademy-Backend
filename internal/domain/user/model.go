@@ -205,3 +205,68 @@ func (r *RefreshToken) BeforeCreate(tx *gorm.DB) error {
 func (r *RefreshToken) IsValid() bool {
 	return time.Now().Before(r.ExpiresAt)
 }
+
+// Add these models at the end of the file
+type Project struct {
+	ID                    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	OwnerStudentProfileID uuid.UUID `gorm:"type:uuid;not null;index" json:"owner_student_profile_id"`
+	ProjectName           string    `gorm:"not null" json:"project_name"`
+	Description           string    `gorm:"type:text" json:"description"`
+	LinkURL               *string   `gorm:"type:text" json:"link_url"`
+	StartDate             time.Time `gorm:"type:date" json:"start_date"`
+	EndDate               time.Time `gorm:"type:date" json:"end_date"`
+	CreatedAt             time.Time `gorm:"type:timestamptz" json:"created_at"`
+
+	Photos []struct {
+		ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+		ProjectID uuid.UUID `gorm:"type:uuid;not null;index" json:"project_id"`
+		URL       string    `gorm:"type:text;not null" json:"url"`
+		Caption   *string   `gorm:"type:text" json:"caption"`
+		IsPrimary bool      `gorm:"default:false" json:"is_primary"`
+		CreatedAt time.Time `gorm:"type:timestamptz" json:"created_at"`
+	} `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"photos,omitempty"`
+}
+
+func (Project) TableName() string {
+	return "projects"
+}
+
+type Certification struct {
+	ID                  uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	StudentProfileID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"student_profile_id"`
+	Name                string     `gorm:"not null" json:"name"`
+	IssuingOrganization string     `gorm:"not null" json:"issuing_organization"`
+	IssueDate           time.Time  `gorm:"type:date" json:"issue_date"`
+	ExpirationDate      *time.Time `gorm:"type:date" json:"expiration_date"`
+	CredentialID        *string    `json:"credential_id"`
+	CredentialURL       *string    `gorm:"type:text" json:"credential_url"`
+	CreatedAt           time.Time  `gorm:"type:timestamptz" json:"created_at"`
+
+	Photos []struct {
+		ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+		CertificationID uuid.UUID `gorm:"type:uuid;not null;index" json:"certification_id"`
+		URL             string    `gorm:"type:text;not null" json:"url"`
+		Caption         *string   `gorm:"type:text" json:"caption"`
+		IsPrimary       bool      `gorm:"default:false" json:"is_primary"`
+		CreatedAt       time.Time `gorm:"type:timestamptz" json:"created_at"`
+	} `gorm:"foreignKey:CertificationID;constraint:OnDelete:CASCADE" json:"photos,omitempty"`
+}
+
+func (Certification) TableName() string {
+	return "certifications"
+}
+
+func (c *Certification) IsExpired() bool {
+	if c.ExpirationDate == nil {
+		return false
+	}
+	return time.Now().After(*c.ExpirationDate)
+}
+
+func (c *Certification) IsExpiringSoon() bool {
+	if c.ExpirationDate == nil {
+		return false
+	}
+	thirtyDaysFromNow := time.Now().AddDate(0, 0, 30)
+	return c.ExpirationDate.Before(thirtyDaysFromNow) && !c.IsExpired()
+}

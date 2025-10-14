@@ -41,7 +41,7 @@ func (h *CommonAuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// Set cookies dengan access token
-	h.setAuthCookies(c, result.AccessToken, result.User.Role)
+	h.setAuthCookies(c, result.AccessToken, result.User.Role, result.RefreshToken)
 
 	return utils.SuccessResponse(c, result, "Login successful")
 
@@ -184,7 +184,7 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 		Message: "Password reset successfully",
 	}, "Password reset successful")
 } // Helper methods
-func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role string) {
+func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh string) {
 	if token == "" || role == "" {
 		return
 	}
@@ -200,6 +200,15 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     "role",
 		Value:    role,
+		Expires:  time.Now().Add(24 * time.Hour),
+		HTTPOnly: false,
+		Secure:   false,
+		SameSite: "Lax",
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refresh,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
 		Secure:   false,

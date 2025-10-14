@@ -1,0 +1,288 @@
+package cv
+
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+)
+
+type Handler interface {
+	GenerateCV(c *fiber.Ctx) error
+	PreviewCV(c *fiber.Ctx) error
+	GetStudentCVs(c *fiber.Ctx) error
+	GetCVByID(c *fiber.Ctx) error
+	UpdateCV(c *fiber.Ctx) error
+	DeleteCV(c *fiber.Ctx) error
+
+	PublishCV(c *fiber.Ctx) error
+	UnpublishCV(c *fiber.Ctx) error
+	GetPublicCVs(c *fiber.Ctx) error
+
+	DownloadCV(c *fiber.Ctx) error
+	AnalyzeATS(c *fiber.Ctx) error
+}
+
+type CVHandler struct {
+	service *CVService
+}
+
+func NewCVHandler(service *CVService) *CVHandler {
+	return &CVHandler{service: service}
+}
+
+func (h *CVHandler) GenerateCV(c *fiber.Ctx) error {
+	studentID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.ErrorResponse(c, 401, "Unauthorized")
+	}
+
+	var req GenerateCVRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.ValidationErrorResponse(c, err)
+	}
+
+	cv, err := h.service.GenerateCV(studentID, req.Title)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate CV: "+err.Error())
+	}
+
+	atsScore, _ := h.service.AnalyzeATS(&cv.Content)
+
+	response := CVDetailResponse{
+		CVResponse: CVResponse{
+			ID:          cv.ID,
+			Title:       cv.Title,
+			Status:      cv.Status,
+			IsPublic:    cv.IsPublic,
+			HasPDF:      cv.PDFPath != "",
+			GeneratedAt: cv.GeneratedAt,
+			PublishedAt: cv.PublishedAt,
+			CreatedAt:   cv.CreatedAt,
+			UpdatedAt:   cv.UpdatedAt,
+		},
+		Content:  cv.Content,
+		ATSScore: atsScore,
+	}
+
+	return utils.SuccessResponse(c, response, "CV generated successfully")
+}
+
+func (h *CVHandler) PreviewCV(c *fiber.Ctx) error {
+	studentID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.ErrorResponse(c, 401, "Unauthorized")
+	}
+
+	content, err := h.service.PreviewCV(studentID)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate preview: "+err.Error())
+	}
+
+	atsScore, _ := h.service.AnalyzeATS(content)
+	if atsScore == nil {
+		atsScore = &ATSScore{Overall: 75}
+	}
+
+	response := CVPreviewResponse{
+		Content:  *content,
+		ATSScore: *atsScore,
+	}
+
+	return utils.SuccessResponse(c, response, "CV preview generated successfully")
+}
+
+func (h *CVHandler) GetStudentCVs(c *fiber.Ctx) error {
+	studentID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.ErrorResponse(c, 401, "Unauthorized")
+	}
+
+	cvs, err := h.service.GetStudentCVs(studentID)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to get CVs: "+err.Error())
+	}
+
+	var responses []CVResponse
+	for _, cv := range cvs {
+		responses = append(responses, CVResponse{
+			ID:          cv.ID,
+			Title:       cv.Title,
+			Status:      cv.Status,
+			IsPublic:    cv.IsPublic,
+			HasPDF:      cv.PDFPath != "",
+			GeneratedAt: cv.GeneratedAt,
+			PublishedAt: cv.PublishedAt,
+			CreatedAt:   cv.CreatedAt,
+			UpdatedAt:   cv.UpdatedAt,
+		})
+	}
+
+	return utils.SuccessResponse(c, responses, "CVs retrieved successfully")
+}
+
+func (h *CVHandler) GetCVByID(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	cv, err := h.service.GetCVByID(cvID)
+	if err != nil {
+		return utils.ErrorResponse(c, 404, "CV not found")
+	}
+
+	atsScore, _ := h.service.AnalyzeATS(&cv.Content)
+
+	response := CVDetailResponse{
+		CVResponse: CVResponse{
+			ID:          cv.ID,
+			Title:       cv.Title,
+			Status:      cv.Status,
+			IsPublic:    cv.IsPublic,
+			HasPDF:      cv.PDFPath != "",
+			GeneratedAt: cv.GeneratedAt,
+			PublishedAt: cv.PublishedAt,
+			CreatedAt:   cv.CreatedAt,
+			UpdatedAt:   cv.UpdatedAt,
+		},
+		Content:  cv.Content,
+		ATSScore: atsScore,
+	}
+
+	return utils.SuccessResponse(c, response, "CV retrieved successfully")
+}
+
+func (h *CVHandler) UpdateCV(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	var req UpdateCVRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	if err := h.service.UpdateCV(cvID, &req.Content); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to update CV: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, nil, "CV updated successfully")
+}
+
+func (h *CVHandler) DeleteCV(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	if err := h.service.DeleteCV(cvID); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to delete CV: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, nil, "CV deleted successfully")
+}
+
+func (h *CVHandler) PublishCV(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	if err := h.service.PublishCV(cvID); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to publish CV: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, nil, "CV published successfully")
+}
+
+func (h *CVHandler) UnpublishCV(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	if err := h.service.UnpublishCV(cvID); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to unpublish CV: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, nil, "CV unpublished successfully")
+}
+
+func (h *CVHandler) DownloadCV(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	pdfPath, err := h.service.DownloadCV(cvID)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate PDF: "+err.Error())
+	}
+
+	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
+		return utils.ErrorResponse(c, 404, "PDF file not found")
+	}
+
+	fileName := filepath.Base(pdfPath)
+	c.Set("Content-Type", "application/pdf")
+	c.Set("Content-Disposition", "attachment; filename="+fileName)
+
+	return c.SendFile(pdfPath)
+}
+
+func (h *CVHandler) AnalyzeATS(c *fiber.Ctx) error {
+	cvID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+	}
+
+	cv, err := h.service.GetCVByID(cvID)
+	if err != nil {
+		return utils.ErrorResponse(c, 404, "CV not found")
+	}
+
+	atsScore, err := h.service.AnalyzeATS(&cv.Content)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to analyze ATS: "+err.Error())
+	}
+
+	return utils.SuccessResponse(c, atsScore, "ATS analysis completed")
+}
+
+func (h *CVHandler) GetPublicCVs(c *fiber.Ctx) error {
+	studentIDStr := c.Params("studentId")
+	studentID, err := uuid.Parse(studentIDStr)
+	if err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid student ID")
+	}
+
+	cvs, err := h.service.GetPublicCVs(studentID)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to get public CVs: "+err.Error())
+	}
+
+	var responses []CVResponse
+	for _, cv := range cvs {
+		responses = append(responses, CVResponse{
+			ID:          cv.ID,
+			Title:       cv.Title,
+			Status:      cv.Status,
+			IsPublic:    cv.IsPublic,
+			HasPDF:      cv.PDFPath != "",
+			GeneratedAt: cv.GeneratedAt,
+			PublishedAt: cv.PublishedAt,
+			CreatedAt:   cv.CreatedAt,
+			UpdatedAt:   cv.UpdatedAt,
+		})
+	}
+
+	return utils.SuccessResponse(c, responses, "Public CVs retrieved successfully")
+}

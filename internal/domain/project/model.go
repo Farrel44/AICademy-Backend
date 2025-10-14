@@ -5,18 +5,20 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
 type Project struct {
-	ID                    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	OwnerStudentProfileID uuid.UUID `gorm:"type:uuid;not null;index" json:"owner_student_profile_id"`
-	ProjectName           string    `gorm:"not null" json:"project_name"`
-	Description           string    `gorm:"type:text" json:"description"`
-	LinkURL               *string   `gorm:"type:text" json:"link_url"`
-	StartDate             time.Time `gorm:"type:date" json:"start_date"`
-	EndDate               time.Time `gorm:"type:date" json:"end_date"`
-	CreatedAt             time.Time `gorm:"type:timestamptz" json:"created_at"`
+	ID                    uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	OwnerStudentProfileID uuid.UUID      `gorm:"type:uuid;not null;index" json:"owner_student_profile_id"`
+	ProjectName           string         `gorm:"not null" json:"project_name"`
+	Description           string         `gorm:"type:text" json:"description"`
+	LinkURL               *string        `gorm:"type:text" json:"link_url"`
+	TechStack             pq.StringArray `gorm:"type:text[]" json:"tech_stack"`
+	StartDate             time.Time      `gorm:"type:date" json:"start_date"`
+	EndDate               time.Time      `gorm:"type:date" json:"end_date"`
+	CreatedAt             time.Time      `gorm:"type:timestamptz" json:"created_at"`
 
 	Contributors []ProjectContributor `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"contributors,omitempty"`
 	Photos       []ProjectPhoto       `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"photos,omitempty"`
@@ -32,11 +34,12 @@ func (p *Project) BeforeCreate(tx *gorm.DB) error {
 type ProjectContributor struct {
 	ProjectID        uuid.UUID `gorm:"type:uuid;not null;primaryKey" json:"project_id"`
 	StudentProfileID uuid.UUID `gorm:"type:uuid;not null;primaryKey" json:"student_profile_id"`
-	RoleID           uuid.UUID `gorm:"type:uuid;not null;index" json:"role_id"`
+	ProjectRole      *string   `gorm:"type:varchar" json:"project_role"`
+	RoleID           uuid.UUID `gorm:"type:uuid;column:profiling_role_id;index" json:"role_id"` // Fixed: renamed from ProfilingRoleID
 
 	Project        *Project             `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 	StudentProfile *user.StudentProfile `gorm:"foreignKey:StudentProfileID" json:"student_profile,omitempty"`
-	TargetRole     *TargetRole          `gorm:"foreignKey:RoleID;references:ID" json:"target_role,omitempty"`
+	TargetRole     *TargetRole          `gorm:"foreignKey:RoleID;references:ID" json:"target_role,omitempty"` // Fixed: use RoleID
 }
 
 func (ProjectContributor) TableName() string {
@@ -52,7 +55,7 @@ type TargetRole struct {
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-	ProjectContributors []ProjectContributor `gorm:"foreignKey:RoleID;constraint:OnDelete:CASCADE" json:"project_contributors,omitempty"`
+	ProjectContributors []ProjectContributor `gorm:"foreignKey:RoleID;constraint:OnDelete:SET NULL" json:"project_contributors,omitempty"` // Fixed: use RoleID
 }
 
 func (t *TargetRole) BeforeCreate(tx *gorm.DB) error {
