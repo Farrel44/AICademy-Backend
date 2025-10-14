@@ -112,7 +112,6 @@ func RouteList(app *fiber.App, filterPrefix string) {
 			group = pathParts[0]
 		}
 
-		// Print group separator
 		if group != currentGroup && group != "" {
 			if currentGroup != "" {
 				fmt.Println(strings.Repeat("-", 80))
