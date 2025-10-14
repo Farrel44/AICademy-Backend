@@ -35,21 +35,47 @@ type CV struct {
 type CVContent struct {
 	PersonalInfo   PersonalInfo      `json:"personal_info"`
 	Summary        string            `json:"summary"`
-	Skills         []CVSkill         `json:"skills"`
+	Experiences    []CVExperience    `json:"experiences"`
 	Projects       []CVProject       `json:"projects"`
+	Skills         []CVSkill         `json:"skills"`
 	Certifications []CVCertification `json:"certifications"`
 	Education      CVEducation       `json:"education"`
+	Languages      []CVLanguage      `json:"languages"`
 	Keywords       []string          `json:"keywords"`
 }
 
 type PersonalInfo struct {
-	FullName  string `json:"full_name"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone,omitempty"`
-	Location  string `json:"location,omitempty"`
-	LinkedIn  string `json:"linkedin,omitempty"`
-	GitHub    string `json:"github,omitempty"`
-	Portfolio string `json:"portfolio,omitempty"`
+	FullName      string `json:"full_name"`
+	Email         string `json:"email"`
+	PersonalEmail string `json:"personal_email"`
+	Phone         string `json:"phone"`
+	Location      string `json:"location"`
+	LinkedIn      string `json:"linkedin,omitempty"`
+	GitHub        string `json:"github,omitempty"`
+	Portfolio     string `json:"portfolio,omitempty"`
+}
+
+type CVExperience struct {
+	ID               uuid.UUID  `json:"id"`
+	CompanyName      string     `json:"company_name"`
+	Position         string     `json:"position"`
+	Department       string     `json:"department,omitempty"`
+	EmploymentType   string     `json:"employment_type"`
+	Location         string     `json:"location"`
+	LocationType     string     `json:"location_type"`
+	Description      string     `json:"description"`
+	Responsibilities []string   `json:"responsibilities"`
+	Achievements     []string   `json:"achievements"`
+	Skills           []string   `json:"skills"`
+	StartDate        time.Time  `json:"start_date"`
+	EndDate          *time.Time `json:"end_date"`
+	IsCurrent        bool       `json:"is_current"`
+}
+
+type CVLanguage struct {
+	Name      string `json:"name"`
+	Level     string `json:"level"`
+	Certified bool   `json:"certified"`
 }
 
 type CVSkill struct {
@@ -67,6 +93,7 @@ type CVProject struct {
 	StartDate    time.Time  `json:"start_date"`
 	EndDate      *time.Time `json:"end_date,omitempty"`
 	URL          string     `json:"url,omitempty"`
+	TechStack    string     `json:"tech_stack,omitempty"`
 	Highlights   []string   `json:"highlights"`
 }
 

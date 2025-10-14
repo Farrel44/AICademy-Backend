@@ -102,9 +102,41 @@ func (s *CVService) GenerateCV(userID uuid.UUID, title string) (*CV, error) {
 		return nil, fmt.Errorf("failed to get student profile: %w", err)
 	}
 
+	experiences, err := s.repo.GetStudentExperiences(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get student experiences: %w", err)
+	}
+
+	// AI-powered experience summarization
+	for i := range experiences {
+		if experiences[i].Description != "" {
+			optimizedDesc, descErr := s.optimizeExperienceDescription(experiences[i])
+			if descErr == nil {
+				experiences[i].Description = optimizedDesc
+			}
+		}
+	}
+
 	projects, err := s.repo.GetStudentProjects(userID, s.config.MaxProjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get student projects: %w", err)
+	}
+
+	// Optimize project descriptions using AI
+	for i := range projects {
+		if projects[i].TechStack != "" {
+			techStack := strings.Split(projects[i].TechStack, ",")
+			for j := range techStack {
+				techStack[j] = strings.TrimSpace(techStack[j])
+			}
+			projects[i].Technologies = techStack
+		}
+
+		optimizedDesc, highlights, descErr := s.optimizeProjectDescription(projects[i])
+		if descErr == nil {
+			projects[i].Description = optimizedDesc
+			projects[i].Highlights = highlights
+		}
 	}
 
 	certifications, err := s.repo.GetStudentCertifications(userID, s.config.MaxCertifications)
@@ -122,19 +154,27 @@ func (s *CVService) GenerateCV(userID uuid.UUID, title string) (*CV, error) {
 		return nil, fmt.Errorf("failed to get student education: %w", err)
 	}
 
-	summary, err := s.generateAISummary(personalInfo, projects, skills)
+	languages, err := s.repo.GetStudentLanguages(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get student languages: %w", err)
+	}
+
+	summary, err := s.generateAISummaryWithExperiences(personalInfo, experiences, projects, skills)
 	if err != nil {
 		summary = s.generateDefaultSummary(personalInfo, skills)
 	}
 
+	// New CV layout order: Personal Info, Summary, Experiences, Projects, Skills, Certifications, Education, Languages
 	content := CVContent{
 		PersonalInfo:   *personalInfo,
 		Summary:        summary,
-		Skills:         skills,
+		Experiences:    experiences,
 		Projects:       projects,
+		Skills:         skills,
 		Certifications: certifications,
 		Education:      *education,
-		Keywords:       s.extractKeywords(projects, skills),
+		Languages:      languages,
+		Keywords:       s.extractKeywordsWithExperiences(experiences, projects, skills),
 	}
 
 	cv := &CV{
@@ -166,12 +206,41 @@ func (s *CVService) PreviewCV(userID uuid.UUID) (*CVContent, error) {
 	}
 
 	personalInfo, _ := s.repo.GetStudentProfile(userID)
+	experiences, _ := s.repo.GetStudentExperiences(userID)
 	projects, _ := s.repo.GetStudentProjects(userID, s.config.MaxProjects)
 	certifications, _ := s.repo.GetStudentCertifications(userID, s.config.MaxCertifications)
 	skills, _ := s.repo.GetStudentSkills(userID, s.config.DefaultSkillCategory, s.config.DefaultSkillLevel, s.config.MaxSkills)
 	education, _ := s.repo.GetStudentEducation(userID)
+	languages, _ := s.repo.GetStudentLanguages(userID)
 
-	summary, err := s.generateAISummary(personalInfo, projects, skills)
+	// AI-powered experience summarization for preview
+	for i := range experiences {
+		if experiences[i].Description != "" {
+			optimizedDesc, descErr := s.optimizeExperienceDescription(experiences[i])
+			if descErr == nil {
+				experiences[i].Description = optimizedDesc
+			}
+		}
+	}
+
+	// AI-powered project optimization for preview
+	for i := range projects {
+		if projects[i].TechStack != "" {
+			techStack := strings.Split(projects[i].TechStack, ",")
+			for j := range techStack {
+				techStack[j] = strings.TrimSpace(techStack[j])
+			}
+			projects[i].Technologies = techStack
+		}
+
+		optimizedDesc, highlights, descErr := s.optimizeProjectDescription(projects[i])
+		if descErr == nil {
+			projects[i].Description = optimizedDesc
+			projects[i].Highlights = highlights
+		}
+	}
+
+	summary, err := s.generateAISummaryWithExperiences(personalInfo, experiences, projects, skills)
 	if err != nil {
 		summary = s.generateDefaultSummary(personalInfo, skills)
 	}
@@ -179,11 +248,13 @@ func (s *CVService) PreviewCV(userID uuid.UUID) (*CVContent, error) {
 	content = CVContent{
 		PersonalInfo:   *personalInfo,
 		Summary:        summary,
-		Skills:         skills,
+		Experiences:    experiences,
 		Projects:       projects,
+		Skills:         skills,
 		Certifications: certifications,
 		Education:      *education,
-		Keywords:       s.extractKeywords(projects, skills),
+		Languages:      languages,
+		Keywords:       s.extractKeywordsWithExperiences(experiences, projects, skills),
 	}
 
 	s.cacheManager.SetWithSmartTTL(cacheKey, content, "short")
@@ -451,6 +522,9 @@ func (s *CVService) calculateStructureScore(content *CVContent) int {
 	if content.Summary != "" {
 		score += s.config.StructureScorePerSection
 	}
+	if len(content.Experiences) > 0 {
+		score += s.config.StructureScorePerSection
+	}
 	if len(content.Skills) > 0 {
 		score += s.config.StructureScorePerSection
 	}
@@ -458,6 +532,9 @@ func (s *CVService) calculateStructureScore(content *CVContent) int {
 		score += s.config.StructureScorePerSection
 	}
 	if content.Education.School != "" {
+		score += s.config.StructureScorePerSection
+	}
+	if len(content.Languages) > 0 {
 		score += s.config.StructureScorePerSection
 	}
 
@@ -532,19 +609,50 @@ func (s *CVService) convertToUtilsContent(content *CVContent) utils.CVContent {
 		}
 	}
 
+	utilsExperiences := make([]utils.CVExperience, len(content.Experiences))
+	for i, exp := range content.Experiences {
+		utilsExperiences[i] = utils.CVExperience{
+			ID:               exp.ID.String(),
+			CompanyName:      exp.CompanyName,
+			Position:         exp.Position,
+			Department:       exp.Department,
+			EmploymentType:   exp.EmploymentType,
+			Location:         exp.Location,
+			LocationType:     exp.LocationType,
+			Description:      exp.Description,
+			Responsibilities: exp.Responsibilities,
+			Achievements:     exp.Achievements,
+			Skills:           exp.Skills,
+			StartDate:        exp.StartDate,
+			EndDate:          exp.EndDate,
+			IsCurrent:        exp.IsCurrent,
+		}
+	}
+
+	utilsLanguages := make([]utils.CVLanguage, len(content.Languages))
+	for i, lang := range content.Languages {
+		utilsLanguages[i] = utils.CVLanguage{
+			Name:      lang.Name,
+			Level:     lang.Level,
+			Certified: lang.Certified,
+		}
+	}
+
 	return utils.CVContent{
 		PersonalInfo: utils.PersonalInfo{
-			FullName:  content.PersonalInfo.FullName,
-			Email:     content.PersonalInfo.Email,
-			Phone:     content.PersonalInfo.Phone,
-			Location:  content.PersonalInfo.Location,
-			LinkedIn:  content.PersonalInfo.LinkedIn,
-			GitHub:    content.PersonalInfo.GitHub,
-			Portfolio: content.PersonalInfo.Portfolio,
+			FullName:      content.PersonalInfo.FullName,
+			Email:         content.PersonalInfo.Email,
+			PersonalEmail: content.PersonalInfo.PersonalEmail,
+			Phone:         content.PersonalInfo.Phone,
+			Location:      content.PersonalInfo.Location,
+			LinkedIn:      content.PersonalInfo.LinkedIn,
+			GitHub:        content.PersonalInfo.GitHub,
+			Portfolio:     content.PersonalInfo.Portfolio,
 		},
 		Summary:        content.Summary,
-		Skills:         utilsSkills,
+		Experiences:    utilsExperiences,
 		Projects:       utilsProjects,
+		Skills:         utilsSkills,
 		Certifications: utilsCerts,
 		Education: utils.CVEducation{
 			School:    content.Education.School,
@@ -559,7 +667,8 @@ func (s *CVService) convertToUtilsContent(content *CVContent) utils.CVContent {
 			}(),
 			GPA: content.Education.GPA,
 		},
-		Keywords: content.Keywords,
+		Languages: utilsLanguages,
+		Keywords:  content.Keywords,
 	}
 }
 
@@ -584,4 +693,193 @@ func (s *CVService) invalidateUserCVCache(userID uuid.UUID) {
 
 	s.cacheManager.InvalidateByPattern("cvs:*")
 	s.cacheManager.InvalidateByPattern("student_cvs:*")
+}
+
+// optimizeExperienceDescription uses AI to optimize experience descriptions for ATS
+func (s *CVService) optimizeExperienceDescription(experience CVExperience) (string, error) {
+	if s.aiService == nil {
+		return experience.Description, nil
+	}
+
+	prompt := fmt.Sprintf(`
+		Optimize this work experience description for ATS (Applicant Tracking Systems) and professional standards:
+		
+		Position: %s at %s
+		Original Description: %s
+		Skills Used: %s
+		Achievements: %s
+		
+		Requirements:
+		- Rewrite in ENGLISH using professional language
+		- Start with strong action verbs
+		- Include quantifiable achievements if possible
+		- Use ATS-friendly keywords
+		- Keep it concise (2-3 sentences maximum)
+		- Focus on impact and results
+		
+		Return ONLY the optimized description, nothing else.
+	`, experience.Position, experience.CompanyName, experience.Description,
+		strings.Join(experience.Skills, ", "), strings.Join(experience.Achievements, ", "))
+
+	optimizedDesc, err := s.aiService.GenerateText(context.Background(), prompt)
+	if err != nil {
+		return experience.Description, err
+	}
+
+	return optimizedDesc, nil
+}
+
+// optimizeProjectDescription uses AI to optimize project descriptions for ATS
+func (s *CVService) optimizeProjectDescription(project CVProject) (string, []string, error) {
+	if s.aiService == nil {
+		return project.Description, project.Highlights, nil
+	}
+
+	techList := strings.Join(project.Technologies, ", ")
+	if project.TechStack != "" {
+		techList = project.TechStack
+	}
+
+	prompt := fmt.Sprintf(`
+		Optimize this project description for ATS (Applicant Tracking Systems) and professional standards:
+		
+		Project: %s
+		Role: %s
+		Original Description: %s
+		Technologies: %s
+		Project URL: %s
+		
+		Requirements:
+		- Rewrite in ENGLISH using professional technical language
+		- Convert Indonesian text to professional English
+		- Start with strong action verbs (Built, Developed, Implemented, Created, etc.)
+		- Include technical achievements and impact
+		- Use industry-standard terminology
+		- Highlight technical challenges solved
+		- Keep it concise but informative (2-3 sentences maximum)
+		- Focus on technical skills demonstrated
+		
+		Return format:
+		DESCRIPTION: [optimized description]
+		HIGHLIGHTS: [3-4 key technical highlights separated by | ]
+		
+		Example:
+		DESCRIPTION: Developed a full-stack e-commerce platform using React and Node.js, implementing secure payment processing and real-time inventory management. Achieved 99.9%% uptime and reduced page load times by 40%% through optimized database queries and caching strategies.
+		HIGHLIGHTS: Full-stack development with React/Node.js | Secure payment integration | Database optimization | Real-time features implementation
+	`, project.Name, project.Role, project.Description, techList, project.URL)
+
+	response, err := s.aiService.GenerateText(context.Background(), prompt)
+	if err != nil {
+		return project.Description, project.Highlights, err
+	}
+
+	// Parse response
+	lines := strings.Split(response, "\n")
+	var optimizedDesc string
+	var highlights []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "DESCRIPTION:") {
+			optimizedDesc = strings.TrimSpace(strings.TrimPrefix(line, "DESCRIPTION:"))
+		} else if strings.HasPrefix(line, "HIGHLIGHTS:") {
+			highlightStr := strings.TrimSpace(strings.TrimPrefix(line, "HIGHLIGHTS:"))
+			if highlightStr != "" {
+				highlights = strings.Split(highlightStr, "|")
+				for i := range highlights {
+					highlights[i] = strings.TrimSpace(highlights[i])
+				}
+			}
+		}
+	}
+
+	if optimizedDesc == "" {
+		optimizedDesc = project.Description
+	}
+	if len(highlights) == 0 {
+		highlights = project.Highlights
+	}
+
+	return optimizedDesc, highlights, nil
+}
+
+// generateAISummaryWithExperiences generates AI summary including experience information
+func (s *CVService) generateAISummaryWithExperiences(info *PersonalInfo, experiences []CVExperience, projects []CVProject, skills []CVSkill) (string, error) {
+	if s.aiService == nil {
+		return "", fmt.Errorf("AI service not available")
+	}
+
+	skillsStr := strings.Join(s.getSkillNames(skills), ", ")
+
+	// Build experience summary
+	var experienceStr string
+	if len(experiences) > 0 {
+		expParts := make([]string, 0, len(experiences))
+		for _, exp := range experiences {
+			expParts = append(expParts, fmt.Sprintf("%s at %s", exp.Position, exp.CompanyName))
+		}
+		experienceStr = strings.Join(expParts, ", ")
+	}
+
+	prompt := fmt.Sprintf(`
+		Write ONLY a professional CV summary paragraph for %s in ENGLISH. No explanations, no options, just the final summary.
+		
+		Profile:
+		- Name: %s
+		- Technical Skills: %s
+		- Work Experience: %s
+		- Projects Completed: %d
+		- Education: Technology/Software Development Student
+		
+		Requirements:
+		- Write exactly 2-3 sentences in ENGLISH
+		- Include the main technical skills
+		- Mention work experience if available
+		- Mention project experience
+		- Use professional, ATS-friendly language
+		- End with career objective (seeking growth opportunities/advancement)
+		- Must be optimized for Applicant Tracking Systems (ATS)
+		
+		Return ONLY the final English summary paragraph, nothing else.
+	`, info.FullName, info.FullName, skillsStr, experienceStr, len(projects))
+
+	return s.aiService.GenerateText(context.Background(), prompt)
+}
+
+// extractKeywordsWithExperiences extracts keywords from experiences, projects, and skills
+func (s *CVService) extractKeywordsWithExperiences(experiences []CVExperience, projects []CVProject, skills []CVSkill) []string {
+	keywordMap := make(map[string]bool)
+
+	// Extract from skills
+	for _, skill := range skills {
+		keywordMap[skill.Name] = true
+	}
+
+	// Extract from projects
+	for _, project := range projects {
+		for _, tech := range project.Technologies {
+			keywordMap[tech] = true
+		}
+	}
+
+	// Extract from experiences
+	for _, exp := range experiences {
+		for _, skill := range exp.Skills {
+			keywordMap[skill] = true
+		}
+
+		// Add company and position as keywords for industry relevance
+		keywordMap[exp.CompanyName] = true
+		keywordMap[exp.Position] = true
+		keywordMap[exp.EmploymentType] = true
+	}
+
+	var keywords []string
+	for keyword := range keywordMap {
+		if keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+
+	return keywords
 }

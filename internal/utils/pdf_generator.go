@@ -17,21 +17,24 @@ type PDFGenerator struct {
 type CVContent struct {
 	PersonalInfo   PersonalInfo      `json:"personal_info"`
 	Summary        string            `json:"summary"`
-	Skills         []CVSkill         `json:"skills"`
+	Experiences    []CVExperience    `json:"experiences"`
 	Projects       []CVProject       `json:"projects"`
+	Skills         []CVSkill         `json:"skills"`
 	Certifications []CVCertification `json:"certifications"`
 	Education      CVEducation       `json:"education"`
+	Languages      []CVLanguage      `json:"languages"`
 	Keywords       []string          `json:"keywords"`
 }
 
 type PersonalInfo struct {
-	FullName  string `json:"full_name"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone,omitempty"`
-	Location  string `json:"location,omitempty"`
-	LinkedIn  string `json:"linkedin,omitempty"`
-	GitHub    string `json:"github,omitempty"`
-	Portfolio string `json:"portfolio,omitempty"`
+	FullName      string `json:"full_name"`
+	Email         string `json:"email"`
+	PersonalEmail string `json:"personal_email"`
+	Phone         string `json:"phone,omitempty"`
+	Location      string `json:"location,omitempty"`
+	LinkedIn      string `json:"linkedin,omitempty"`
+	GitHub        string `json:"github,omitempty"`
+	Portfolio     string `json:"portfolio,omitempty"`
 }
 
 type CVSkill struct {
@@ -71,6 +74,29 @@ type CVEducation struct {
 	GPA       string `json:"gpa,omitempty"`
 }
 
+type CVExperience struct {
+	ID               string     `json:"id"`
+	CompanyName      string     `json:"company_name"`
+	Position         string     `json:"position"`
+	Department       string     `json:"department,omitempty"`
+	EmploymentType   string     `json:"employment_type"`
+	Location         string     `json:"location"`
+	LocationType     string     `json:"location_type"`
+	Description      string     `json:"description"`
+	Responsibilities []string   `json:"responsibilities"`
+	Achievements     []string   `json:"achievements"`
+	Skills           []string   `json:"skills"`
+	StartDate        time.Time  `json:"start_date"`
+	EndDate          *time.Time `json:"end_date"`
+	IsCurrent        bool       `json:"is_current"`
+}
+
+type CVLanguage struct {
+	Name      string `json:"name"`
+	Level     string `json:"level"`
+	Certified bool   `json:"certified"`
+}
+
 func NewPDFGenerator() *PDFGenerator {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	return &PDFGenerator{pdf: pdf}
@@ -80,8 +106,10 @@ func (pg *PDFGenerator) GenerateATSCV(content *CVContent) (string, error) {
 	pg.pdf.AddPage()
 	pg.pdf.SetFont("Arial", "", 10)
 
+	// 1. Personal Info (Name + Contact/Location)
 	pg.generateHeader(&content.PersonalInfo)
 
+	// 2. Professional Summary
 	if content.Summary != "" {
 		pg.addSectionHeader("PROFESSIONAL SUMMARY")
 		pg.pdf.SetFont("Arial", "", 10)
@@ -89,19 +117,33 @@ func (pg *PDFGenerator) GenerateATSCV(content *CVContent) (string, error) {
 		pg.pdf.Ln(5)
 	}
 
+	// 3. Work Experiences (New section)
+	if len(content.Experiences) > 0 {
+		pg.generateWorkExperiences(content.Experiences)
+	}
+
+	// 4. Projects
+	if len(content.Projects) > 0 {
+		pg.generateProjects(content.Projects)
+	}
+
+	// 5. Skills
 	if len(content.Skills) > 0 {
 		pg.generateSkills(content.Skills)
 	}
 
-	if len(content.Projects) > 0 {
-		pg.generateExperience(content.Projects)
-	}
-
+	// 6. Certifications
 	if len(content.Certifications) > 0 {
 		pg.generateCertifications(content.Certifications)
 	}
 
+	// 7. Education
 	pg.generateEducation(&content.Education)
+
+	// 8. Languages (New section)
+	if len(content.Languages) > 0 {
+		pg.generateLanguages(content.Languages)
+	}
 
 	filename := fmt.Sprintf("cv_%d.pdf", time.Now().Unix())
 	outputPath := filepath.Join("temp", filename)
@@ -122,7 +164,12 @@ func (pg *PDFGenerator) generateHeader(info *PersonalInfo) {
 	pg.pdf.CellFormat(0, 10, info.FullName, "", 1, "C", false, 0, "")
 
 	pg.pdf.SetFont("Arial", "", 10)
+
+	// Primary contact info: Email, Phone, Location
 	contactInfo := info.Email
+	if info.PersonalEmail != "" && info.PersonalEmail != info.Email {
+		contactInfo += " | " + info.PersonalEmail
+	}
 	if info.Phone != "" {
 		contactInfo += " | " + info.Phone
 	}
@@ -131,6 +178,7 @@ func (pg *PDFGenerator) generateHeader(info *PersonalInfo) {
 	}
 	pg.pdf.CellFormat(0, 8, contactInfo, "", 1, "C", false, 0, "")
 
+	// Professional links
 	links := []string{}
 	if info.LinkedIn != "" {
 		links = append(links, info.LinkedIn)
@@ -171,8 +219,8 @@ func (pg *PDFGenerator) generateSkills(skills []CVSkill) {
 	pg.pdf.Ln(3)
 }
 
-func (pg *PDFGenerator) generateExperience(projects []CVProject) {
-	pg.addSectionHeader("PROFESSIONAL EXPERIENCE")
+func (pg *PDFGenerator) generateProjects(projects []CVProject) {
+	pg.addSectionHeader("PROJECTS")
 
 	for _, project := range projects {
 		pg.pdf.SetFont("Arial", "B", 11)
@@ -205,13 +253,97 @@ func (pg *PDFGenerator) generateExperience(projects []CVProject) {
 		if len(project.Highlights) > 0 {
 			pg.pdf.SetFont("Arial", "", 10)
 			for _, highlight := range project.Highlights {
-				pg.pdf.CellFormat(5, 5, "•", "", 0, "", false, 0, "")
+				pg.pdf.CellFormat(5, 5, "-", "", 0, "", false, 0, "")
 				pg.pdf.MultiCell(0, 5, highlight, "", "", false)
 			}
 		}
 
 		pg.pdf.Ln(4)
 	}
+}
+
+func (pg *PDFGenerator) generateWorkExperiences(experiences []CVExperience) {
+	pg.addSectionHeader("PROFESSIONAL EXPERIENCE")
+
+	for _, exp := range experiences {
+		pg.pdf.SetFont("Arial", "B", 11)
+		positionTitle := exp.Position + " - " + exp.CompanyName
+		pg.pdf.CellFormat(0, 6, positionTitle, "", 1, "", false, 0, "")
+
+		pg.pdf.SetFont("Arial", "", 9)
+		locationInfo := exp.Location + " (" + exp.LocationType + ")"
+		pg.pdf.CellFormat(0, 4, locationInfo, "", 1, "", false, 0, "")
+
+		dateRange := exp.StartDate.Format("Jan 2006")
+		if exp.IsCurrent {
+			dateRange += " - Present"
+		} else if exp.EndDate != nil {
+			dateRange += " - " + exp.EndDate.Format("Jan 2006")
+		}
+		pg.pdf.CellFormat(0, 4, dateRange, "", 1, "", false, 0, "")
+
+		if exp.Description != "" {
+			pg.pdf.SetFont("Arial", "", 10)
+			pg.pdf.MultiCell(0, 5, exp.Description, "", "", false)
+		}
+
+		if len(exp.Responsibilities) > 0 {
+			pg.pdf.SetFont("Arial", "B", 10)
+			pg.pdf.CellFormat(0, 5, "Key Responsibilities:", "", 1, "", false, 0, "")
+			pg.pdf.SetFont("Arial", "", 10)
+			for _, resp := range exp.Responsibilities {
+				pg.pdf.CellFormat(5, 5, "-", "", 0, "", false, 0, "")
+				pg.pdf.MultiCell(0, 5, resp, "", "", false)
+			}
+		}
+
+		if len(exp.Achievements) > 0 {
+			pg.pdf.SetFont("Arial", "B", 10)
+			pg.pdf.CellFormat(0, 5, "Key Achievements:", "", 1, "", false, 0, "")
+			pg.pdf.SetFont("Arial", "", 10)
+			for _, achievement := range exp.Achievements {
+				pg.pdf.CellFormat(5, 5, "-", "", 0, "", false, 0, "")
+				pg.pdf.MultiCell(0, 5, achievement, "", "", false)
+			}
+		}
+
+		if len(exp.Skills) > 0 {
+			pg.pdf.SetFont("Arial", "I", 9)
+			skillsText := "Skills Used: " + strings.Join(exp.Skills, ", ")
+			pg.pdf.MultiCell(0, 4, skillsText, "", "", false)
+		}
+
+		pg.pdf.Ln(4)
+	}
+}
+
+func (pg *PDFGenerator) generateLanguages(languages []CVLanguage) {
+	pg.addSectionHeader("LANGUAGES")
+
+	pg.pdf.SetFont("Arial", "", 10)
+	for i, lang := range languages {
+		langText := lang.Name + " - " + lang.Level
+		if lang.Certified {
+			langText += " (Certified)"
+		}
+
+		if i > 0 && i%2 == 0 {
+			pg.pdf.Ln(5)
+		}
+
+		if i%2 == 0 {
+			pg.pdf.CellFormat(95, 5, langText, "", 0, "", false, 0, "")
+		} else {
+			pg.pdf.CellFormat(95, 5, langText, "", 1, "", false, 0, "")
+		}
+	}
+
+	// Add line break if last row wasn't complete
+	if len(languages)%2 != 0 {
+		pg.pdf.Ln(5)
+	}
+
+	pg.pdf.Ln(3)
 }
 
 func (pg *PDFGenerator) generateCertifications(certifications []CVCertification) {
@@ -228,7 +360,7 @@ func (pg *PDFGenerator) generateCertifications(certifications []CVCertification)
 			dateText += " - " + cert.ExpirationDate.Format("Jan 2006")
 		}
 
-		pg.pdf.CellFormat(5, 5, "•", "", 0, "", false, 0, "")
+		pg.pdf.CellFormat(5, 5, "-", "", 0, "", false, 0, "")
 		pg.pdf.MultiCell(0, 4, "Issued: "+dateText, "", "", false)
 		pg.pdf.Ln(2)
 	}
