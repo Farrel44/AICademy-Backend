@@ -85,6 +85,26 @@ func SeedData(db *gorm.DB) error {
 		return fmt.Errorf("gagal melakukan seeding student CVs: %v", err)
 	}
 
+	if err := SeedTeams(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding teams: %v", err)
+	}
+
+	if err := SeedChallengeSubmissions(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding challenge submissions: %v", err)
+	}
+
+	if err := SeedChallengeJudges(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding challenge judges: %v", err)
+	}
+
+	if err := SeedInternshipApplications(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding internship applications: %v", err)
+	}
+
+	if err := SeedInternshipReviews(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding internship reviews: %v", err)
+	}
+
 	log.Println("Proses seeding database selesai dengan sukses")
 	return nil
 }
@@ -1556,4 +1576,384 @@ func intPtr(i int) *int {
 
 func randomInt(n int) int {
 	return int(time.Now().UnixNano()) % n
+}
+
+func SeedTeams(db *gorm.DB) error {
+	log.Println("Seeding teams...")
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(9).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	if len(studentProfiles) < 6 {
+		log.Println("Not enough students for team creation")
+		return nil
+	}
+
+	var targetRoles []project.TargetRole
+	if err := db.Limit(3).Find(&targetRoles).Error; err != nil {
+		return fmt.Errorf("target roles not found: %v", err)
+	}
+
+	teams := []struct {
+		TeamName   string
+		About      string
+		LeaderIdx  int
+		MemberIdxs []int
+	}{
+		{
+			TeamName:   "Code Warriors",
+			About:      "Tim yang berfokus pada pengembangan aplikasi web dengan teknologi modern",
+			LeaderIdx:  0,
+			MemberIdxs: []int{0, 1, 2},
+		},
+		{
+			TeamName:   "Data Miners",
+			About:      "Tim yang berspesialisasi dalam analisis data dan machine learning",
+			LeaderIdx:  3,
+			MemberIdxs: []int{3, 4, 5},
+		},
+		{
+			TeamName:   "Tech Innovators",
+			About:      "Tim yang menciptakan solusi teknologi inovatif untuk berbagai masalah",
+			LeaderIdx:  6,
+			MemberIdxs: []int{6, 7, 8},
+		},
+	}
+
+	for _, teamData := range teams {
+		if teamData.LeaderIdx >= len(studentProfiles) {
+			continue
+		}
+
+		var existingTeam challenge.Team
+		err := db.Where("team_name = ?", teamData.TeamName).First(&existingTeam).Error
+		if err == nil {
+			log.Printf("Team '%s' sudah ada, melewati...", teamData.TeamName)
+			continue
+		}
+
+		newTeam := challenge.Team{
+			TeamName:                  teamData.TeamName,
+			About:                     &teamData.About,
+			CreatedByStudentProfileID: studentProfiles[teamData.LeaderIdx].ID,
+		}
+
+		if err := db.Create(&newTeam).Error; err != nil {
+			return fmt.Errorf("failed to create team %s: %v", teamData.TeamName, err)
+		}
+
+		for i, memberIdx := range teamData.MemberIdxs {
+			if memberIdx >= len(studentProfiles) {
+				continue
+			}
+
+			role := "Developer"
+			if i == 0 {
+				role = "Team Leader"
+			}
+
+			member := challenge.TeamMember{
+				TeamID:           newTeam.ID,
+				StudentProfileID: studentProfiles[memberIdx].ID,
+				MemberRole:       &role,
+				ProfilingRoleID:  &targetRoles[i%len(targetRoles)].ID,
+				JoinedAt:         time.Now().AddDate(0, 0, -randomInt(30)),
+			}
+
+			if err := db.Create(&member).Error; err != nil {
+				return fmt.Errorf("failed to create team member: %v", err)
+			}
+		}
+
+		log.Printf("Team '%s' berhasil dibuat dengan %d members", teamData.TeamName, len(teamData.MemberIdxs))
+	}
+
+	return nil
+}
+
+func SeedChallengeSubmissions(db *gorm.DB) error {
+	log.Println("Seeding challenge submissions...")
+
+	var challenges []challenge.Challenge
+	if err := db.Find(&challenges).Error; err != nil {
+		return fmt.Errorf("challenges not found: %v", err)
+	}
+
+	var teams []challenge.Team
+	if err := db.Find(&teams).Error; err != nil {
+		return fmt.Errorf("teams not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	submissions := []struct {
+		Title    string
+		ImageURL string
+		RepoURL  string
+		DocsURL  string
+		Points   int
+	}{
+		{
+			Title:    "AI-Powered Learning Platform",
+			ImageURL: "https://example.com/images/ai-learning-platform.jpg",
+			RepoURL:  "https://github.com/team/ai-learning-platform",
+			DocsURL:  "https://docs.example.com/ai-learning-platform",
+			Points:   95,
+		},
+		{
+			Title:    "Smart Campus Management System",
+			ImageURL: "https://example.com/images/campus-system.jpg",
+			RepoURL:  "https://github.com/team/campus-management",
+			DocsURL:  "https://docs.example.com/campus-management",
+			Points:   88,
+		},
+		{
+			Title:    "Student Collaboration Hub",
+			ImageURL: "https://example.com/images/collaboration-hub.jpg",
+			RepoURL:  "https://github.com/team/collaboration-hub",
+			DocsURL:  "https://docs.example.com/collaboration-hub",
+			Points:   82,
+		},
+	}
+
+	for i, submissionData := range submissions {
+		if i >= len(challenges) {
+			break
+		}
+
+		var existingSubmission challenge.Submission
+		err := db.Where("title = ? AND challenge_id = ?", submissionData.Title, challenges[i].ID).First(&existingSubmission).Error
+		if err == nil {
+			log.Printf("Submission '%s' sudah ada, melewati...", submissionData.Title)
+			continue
+		}
+
+		newSubmission := challenge.Submission{
+			ChallengeID: challenges[i].ID,
+			Title:       submissionData.Title,
+			ImageURL:    &submissionData.ImageURL,
+			RepoURL:     &submissionData.RepoURL,
+			DocsURL:     &submissionData.DocsURL,
+			SubmittedAt: time.Now().AddDate(0, 0, -randomInt(10)),
+			Points:      &submissionData.Points,
+		}
+
+		if i < len(teams) {
+			newSubmission.TeamID = &teams[i].ID
+		} else if i < len(studentProfiles) {
+			newSubmission.StudentProfileID = &studentProfiles[i].ID
+		}
+
+		if err := db.Create(&newSubmission).Error; err != nil {
+			return fmt.Errorf("failed to create submission %s: %v", submissionData.Title, err)
+		}
+
+		log.Printf("Submission '%s' berhasil dibuat", submissionData.Title)
+	}
+
+	return nil
+}
+
+func SeedChallengeJudges(db *gorm.DB) error {
+	log.Println("Seeding challenge judges...")
+
+	var challenges []challenge.Challenge
+	if err := db.Find(&challenges).Error; err != nil {
+		return fmt.Errorf("challenges not found: %v", err)
+	}
+
+	var teacherProfiles []user.TeacherProfile
+	if err := db.Find(&teacherProfiles).Error; err != nil {
+		return fmt.Errorf("teacher profiles not found: %v", err)
+	}
+
+	if len(teacherProfiles) == 0 {
+		log.Println("No teacher profiles found, skipping challenge judges seeding")
+		return nil
+	}
+
+	for i, challengeData := range challenges {
+		teacherIdx := i % len(teacherProfiles)
+
+		var existingJudge challenge.ChallengeJudge
+		err := db.Where("challenge_id = ? AND teacher_profile_id = ?", challengeData.ID, teacherProfiles[teacherIdx].ID).First(&existingJudge).Error
+		if err == nil {
+			log.Printf("Judge untuk challenge '%s' sudah ada, melewati...", challengeData.Title)
+			continue
+		}
+
+		newJudge := challenge.ChallengeJudge{
+			ChallengeID:      challengeData.ID,
+			TeacherProfileID: teacherProfiles[teacherIdx].ID,
+		}
+
+		if err := db.Create(&newJudge).Error; err != nil {
+			return fmt.Errorf("failed to create challenge judge: %v", err)
+		}
+
+		log.Printf("Judge berhasil ditambahkan untuk challenge '%s'", challengeData.Title)
+	}
+
+	return nil
+}
+
+func SeedInternshipApplications(db *gorm.DB) error {
+	log.Println("Seeding internship applications...")
+
+	var internships []pkl.Internship
+	if err := db.Limit(3).Find(&internships).Error; err != nil {
+		return fmt.Errorf("internships not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(5).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	var alumniProfiles []user.AlumniProfile
+	if err := db.Limit(3).Find(&alumniProfiles).Error; err != nil {
+		return fmt.Errorf("alumni profiles not found: %v", err)
+	}
+
+	var teacherProfiles []user.TeacherProfile
+	if err := db.Find(&teacherProfiles).Error; err != nil {
+		return fmt.Errorf("teacher profiles not found: %v", err)
+	}
+
+	applicationCount := 0
+	for i, internship := range internships {
+		for j := 0; j < 2 && j < len(studentProfiles); j++ {
+			var existingApp pkl.InternshipApplication
+			err := db.Where("internship_id = ? AND student_profile_id = ?", internship.ID, studentProfiles[j].ID).First(&existingApp).Error
+			if err == nil {
+				continue
+			}
+
+			status := pkl.ApplicationStatusPending
+			var reviewedAt *time.Time
+			var approvedByUserID *uuid.UUID
+			var approvedByRole *string
+
+			if applicationCount%3 == 0 {
+				status = pkl.ApplicationStatusApproved
+				reviewedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				if len(teacherProfiles) > 0 {
+					approvedByUserID = &teacherProfiles[0].UserID
+					role := "teacher"
+					approvedByRole = &role
+				}
+			} else if applicationCount%3 == 1 {
+				status = pkl.ApplicationStatusRejected
+				reviewedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				if len(teacherProfiles) > 0 {
+					approvedByUserID = &teacherProfiles[0].UserID
+					role := "teacher"
+					approvedByRole = &role
+				}
+			}
+
+			newApp := pkl.InternshipApplication{
+				InternshipID:     internship.ID,
+				StudentProfileID: &studentProfiles[j].ID,
+				Status:           status,
+				AppliedAt:        time.Now().AddDate(0, 0, -randomInt(15)),
+				ReviewedAt:       reviewedAt,
+				ApprovedByUserID: approvedByUserID,
+				ApprovedByRole:   approvedByRole,
+			}
+
+			if err := db.Create(&newApp).Error; err != nil {
+				log.Printf("Warning: failed to create internship application: %v", err)
+			} else {
+				log.Printf("Internship application berhasil dibuat untuk student %s", studentProfiles[j].Fullname)
+			}
+			applicationCount++
+		}
+
+		if i < len(alumniProfiles) {
+			var existingApp pkl.InternshipApplication
+			err := db.Where("internship_id = ? AND alumni_profile_id = ?", internship.ID, alumniProfiles[i].ID).First(&existingApp).Error
+			if err != nil {
+				newApp := pkl.InternshipApplication{
+					InternshipID:    internship.ID,
+					AlumniProfileID: &alumniProfiles[i].ID,
+					Status:          pkl.ApplicationStatusPending,
+					AppliedAt:       time.Now().AddDate(0, 0, -randomInt(15)),
+				}
+
+				if err := db.Create(&newApp).Error; err != nil {
+					log.Printf("Warning: failed to create alumni internship application: %v", err)
+				} else {
+					log.Printf("Internship application berhasil dibuat untuk alumni %s", alumniProfiles[i].Fullname)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func SeedInternshipReviews(db *gorm.DB) error {
+	log.Println("Seeding internship reviews...")
+
+	var internships []pkl.Internship
+	if err := db.Find(&internships).Error; err != nil {
+		return fmt.Errorf("internships not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	reviews := []struct {
+		Rating      int
+		Testimonial string
+	}{
+		{
+			Rating:      5,
+			Testimonial: "Pengalaman magang yang luar biasa! Mendapat bimbingan yang sangat baik dari mentor dan team. Banyak belajar tentang development process dan best practices dalam industri.",
+		},
+		{
+			Rating:      4,
+			Testimonial: "Magang yang sangat bermanfaat, environment kerja yang supportive dan project yang challenging. Sangat membantu untuk mempersiapkan karir di bidang teknologi.",
+		},
+		{
+			Rating:      5,
+			Testimonial: "Amazing internship experience! Tim yang solid, mentor yang berpengalaman, dan project yang real-world. Definitely recommended untuk yang ingin belajar lebih dalam tentang software development.",
+		},
+	}
+
+	for i, reviewData := range reviews {
+		if i >= len(internships) || i >= len(studentProfiles) {
+			break
+		}
+
+		var existingReview pkl.InternshipReview
+		err := db.Where("internship_id = ? AND student_profile_id = ?", internships[i].ID, studentProfiles[i].ID).First(&existingReview).Error
+		if err == nil {
+			log.Printf("Review sudah ada untuk internship dan student, melewati...")
+			continue
+		}
+
+		newReview := pkl.InternshipReview{
+			InternshipID:     internships[i].ID,
+			StudentProfileID: studentProfiles[i].ID,
+			Rating:           reviewData.Rating,
+			Testimonial:      reviewData.Testimonial,
+		}
+
+		if err := db.Create(&newReview).Error; err != nil {
+			return fmt.Errorf("failed to create internship review: %v", err)
+		}
+
+		log.Printf("Internship review berhasil dibuat untuk student %s", studentProfiles[i].Fullname)
+	}
+
+	return nil
 }

@@ -30,9 +30,6 @@ import (
 	studentRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/student"
 	teacherRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/teacher"
 
-	// "github.com/Farrel44/AICademy-Backend/internal/domain/trend"
-	// trendAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/trend/admin"
-	// trendStudent "github.com/Farrel44/AICademy-Backend/internal/domain/trend/student"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
@@ -301,14 +298,6 @@ func main() {
 	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository, rdb)
 	adminChallengeHandler := adminChallenge.NewAdminChallengeHandler(adminChallengeService)
 
-	// // Trend services and handlers
-	// trendRepo := trend.NewTrendRepository(db, rdb.Client)
-	// adminTrendService := trendAdmin.NewAdminTrendService(trendRepo, rdb.Client, aiService)
-	// adminTrendHandler := trendAdmin.NewAdminTrendHandler(adminTrendService)
-
-	// studentTrendService := trendStudent.NewTrendService(trendRepo, rdb.Client)
-	// studentTrendHandler := trendStudent.NewTrendHandler(studentTrendService)
-
 	// Teacher challenge
 	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository, rdb)
 	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
@@ -568,14 +557,13 @@ func main() {
 		port = "8000"
 	}
 
-	// Check for route listing flags/env vars AFTER all routes are registered
 	if *routeListFlag || os.Getenv("ROUTE_LIST") == "1" {
 		prefix := *routePrefixFlag
 		if envPrefix := os.Getenv("ROUTE_PREFIX"); envPrefix != "" {
 			prefix = envPrefix
 		}
 		RouteList(app, prefix)
-		return // Exit after displaying routes
+		return
 	}
 
 	// Start server
