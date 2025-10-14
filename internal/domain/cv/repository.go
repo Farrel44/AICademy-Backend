@@ -37,6 +37,14 @@ func (r *CVRepository) GetCVByID(id uuid.UUID) (*CV, error) {
 	return &cv, nil
 }
 
+func (r *CVRepository) getCVByIDTx(tx *gorm.DB, id uuid.UUID) (*CV, error) {
+	var cv CV
+	if err := tx.First(&cv, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &cv, nil
+}
+
 func (r *CVRepository) GetCVsByUserID(userID uuid.UUID) ([]CV, error) {
 	var cvs []CV
 
@@ -61,11 +69,28 @@ func (r *CVRepository) DeleteCV(id uuid.UUID) error {
 }
 
 func (r *CVRepository) PublishCV(id uuid.UUID) error {
-	return r.db.Model(&CV{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"status":       CVStatusPublished,
-		"is_public":    true,
-		"published_at": "NOW()",
-	}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		cv, err := r.getCVByIDTx(tx, id)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Model(&CV{}).
+			Where("student_profile_id = ? AND status = ? AND id != ?",
+				cv.StudentProfileID, CVStatusPublished, id).
+			Updates(map[string]interface{}{
+				"status":    CVStatusDraft,
+				"is_public": false,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&CV{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"status":       CVStatusPublished,
+			"is_public":    true,
+			"published_at": "NOW()",
+		}).Error
+	})
 }
 
 func (r *CVRepository) UnpublishCV(id uuid.UUID) error {
@@ -75,18 +100,18 @@ func (r *CVRepository) UnpublishCV(id uuid.UUID) error {
 	}).Error
 }
 
-func (r *CVRepository) GetPublicCVsByUserID(userID uuid.UUID) ([]CV, error) {
+func (r *CVRepository) GetPublicCVsByNIS(nis string) ([]CV, error) {
 	var cvs []CV
 
 	query := `
 		SELECT c.*
 		FROM cvs c
 		JOIN student_profiles sp ON c.student_profile_id = sp.id
-		WHERE sp.user_id = ? AND c.is_public = true
+		WHERE sp.nis = ? AND c.is_public = true AND c.status = 'published'
 		ORDER BY c.published_at DESC
 	`
 
-	err := r.db.Raw(query, userID).Scan(&cvs).Error
+	err := r.db.Raw(query, nis).Scan(&cvs).Error
 	return cvs, err
 }
 

@@ -156,6 +156,12 @@ func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentPr
 		certifications = []UserCertificationInfo{} // Empty slice if error
 	}
 
+	// Get experiences
+	experiences, err := s.repo.GetUserExperiencesByStudentProfileID(studentProfile.ID)
+	if err != nil {
+		experiences = []UserExperienceInfo{} // Empty slice if error
+	}
+
 	// Get recommended role
 	recommendedRole, _ := s.repo.GetStudentRecommendedRole(studentProfile.UserID)
 
@@ -171,6 +177,7 @@ func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentPr
 		Bio:             studentProfile.Bio,
 		Projects:        projects,
 		Certifications:  certifications,
+		Experiences:     experiences,
 		ProfileURL:      profileURL,
 		JoinedAt:        studentProfile.CreatedAt,
 		LastActive:      studentProfile.UpdatedAt,

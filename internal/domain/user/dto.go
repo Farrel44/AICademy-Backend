@@ -124,6 +124,24 @@ type EnhancedUserResponse struct {
 }
 
 // Public profile view by NIS (LinkedIn-like)
+type UserExperienceInfo struct {
+	ID               uuid.UUID  `json:"id"`
+	CompanyName      string     `json:"company_name"`
+	Position         string     `json:"position"`
+	Department       string     `json:"department"`
+	EmploymentType   string     `json:"employment_type"`
+	Location         string     `json:"location"`
+	LocationType     string     `json:"location_type"`
+	Description      string     `json:"description"`
+	Responsibilities string     `json:"responsibilities"`
+	Achievements     string     `json:"achievements"`
+	Skills           string     `json:"skills"`
+	StartDate        time.Time  `json:"start_date"`
+	EndDate          *time.Time `json:"end_date"`
+	IsCurrent        bool       `json:"is_current"`
+	CreatedAt        time.Time  `json:"created_at"`
+}
+
 type PublicStudentProfileResponse struct {
 	NIS             string                  `json:"nis"`
 	Fullname        string                  `json:"fullname"`
@@ -131,6 +149,7 @@ type PublicStudentProfileResponse struct {
 	ProfilePicture  string                  `json:"profile_picture"`
 	Headline        string                  `json:"headline"`
 	Bio             string                  `json:"bio"`
+	Experiences     []UserExperienceInfo    `json:"experiences"`
 	Projects        []UserProjectInfo       `json:"projects"`
 	Certifications  []UserCertificationInfo `json:"certifications"`
 	ProfileURL      string                  `json:"profile_url"`

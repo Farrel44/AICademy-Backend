@@ -21,7 +21,7 @@ type Service interface {
 
 	PublishCV(id uuid.UUID) error
 	UnpublishCV(id uuid.UUID) error
-	GetPublicCVs(studentID uuid.UUID) ([]CV, error)
+	GetPublicCVs(nis string) ([]CV, error)
 
 	GeneratePDF(cvID uuid.UUID) (string, error)
 	DownloadCV(cvID uuid.UUID) (string, error)
@@ -364,15 +364,15 @@ func (s *CVService) UnpublishCV(id uuid.UUID) error {
 	return nil
 }
 
-func (s *CVService) GetPublicCVs(userID uuid.UUID) ([]CV, error) {
-	cacheKey := fmt.Sprintf("public_cvs:%s", userID.String())
+func (s *CVService) GetPublicCVs(nis string) ([]CV, error) {
+	cacheKey := fmt.Sprintf("public_cvs:nis:%s", nis)
 
 	var cvs []CV
 	if err := s.redis.GetJSON(cacheKey, &cvs); err == nil {
 		return cvs, nil
 	}
 
-	cvs, err := s.repo.GetPublicCVsByUserID(userID)
+	cvs, err := s.repo.GetPublicCVsByNIS(nis)
 	if err != nil {
 		return nil, err
 	}

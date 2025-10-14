@@ -258,20 +258,24 @@ func (h *CVHandler) AnalyzeATS(c *fiber.Ctx) error {
 }
 
 func (h *CVHandler) GetPublicCVs(c *fiber.Ctx) error {
-	studentIDStr := c.Params("studentId")
-	studentID, err := uuid.Parse(studentIDStr)
-	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid student ID")
+	nis := c.Params("studentId")
+	if nis == "" {
+		return utils.ErrorResponse(c, 400, "NIS is required")
 	}
 
-	cvs, err := h.service.GetPublicCVs(studentID)
+	cvs, err := h.service.GetPublicCVs(nis)
 	if err != nil {
 		return utils.ErrorResponse(c, 500, "Failed to get public CVs: "+err.Error())
 	}
 
-	var responses []CVResponse
+	var responses []PublicCVResponse
 	for _, cv := range cvs {
-		responses = append(responses, CVResponse{
+		var publicProjects []PublicCVProject
+		for _, project := range cv.Content.Projects {
+			publicProjects = append(publicProjects, NewPublicCVProject(project))
+		}
+
+		responses = append(responses, PublicCVResponse{
 			ID:          cv.ID,
 			Title:       cv.Title,
 			Status:      cv.Status,
@@ -281,6 +285,21 @@ func (h *CVHandler) GetPublicCVs(c *fiber.Ctx) error {
 			PublishedAt: cv.PublishedAt,
 			CreatedAt:   cv.CreatedAt,
 			UpdatedAt:   cv.UpdatedAt,
+			PersonalInfo: PublicPersonalInfo{
+				FullName:  cv.Content.PersonalInfo.FullName,
+				Location:  cv.Content.PersonalInfo.Location,
+				LinkedIn:  cv.Content.PersonalInfo.LinkedIn,
+				GitHub:    cv.Content.PersonalInfo.GitHub,
+				Portfolio: cv.Content.PersonalInfo.Portfolio,
+			},
+			Summary:        cv.Content.Summary,
+			Experiences:    cv.Content.Experiences,
+			Projects:       publicProjects,
+			Skills:         cv.Content.Skills,
+			Certifications: cv.Content.Certifications,
+			Education:      cv.Content.Education,
+			Languages:      cv.Content.Languages,
+			Keywords:       cv.Content.Keywords,
 		})
 	}
 

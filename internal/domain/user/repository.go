@@ -266,6 +266,39 @@ func (r *UserRepository) GetUserProjectsByStudentProfileID(studentProfileID uuid
 	return projectInfos, nil
 }
 
+// Get experiences by student profile ID for public view
+func (r *UserRepository) GetUserExperiencesByStudentProfileID(studentProfileID uuid.UUID) ([]UserExperienceInfo, error) {
+	var experiences []UserExperienceInfo
+
+	err := r.db.Raw(`
+		SELECT 
+			e.id,
+			e.company_name,
+			e.position,
+			e.department,
+			e.employment_type,
+			e.location,
+			e.location_type,
+			e.description,
+			e.responsibilities,
+			e.achievements,
+			e.skills,
+			e.start_date,
+			e.end_date,
+			e.is_current,
+			e.created_at
+		FROM experiences e
+		WHERE e.student_profile_id = ?
+		ORDER BY e.start_date DESC
+	`, studentProfileID).Scan(&experiences).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return experiences, nil
+}
+
 func (r *UserRepository) GetStudentProfileByNIS(nis string) (*StudentProfile, error) {
 	var studentProfile StudentProfile
 	err := r.db.Where("nis = ?", nis).First(&studentProfile).Error
