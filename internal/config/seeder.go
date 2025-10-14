@@ -795,6 +795,15 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					EstimatedDuration:    40,
 					DifficultyLevel:      "advanced",
 				},
+				{
+					Order:                4,
+					Title:                "Testing & Documentation",
+					Description:          "Pelajari unit testing dan API documentation",
+					LearningObjectives:   "Membuat test coverage minimal 80% dan dokumentasi API lengkap",
+					SubmissionGuidelines: "Submit link repository dengan test coverage report dan dokumentasi API",
+					EstimatedDuration:    25,
+					DifficultyLevel:      "intermediate",
+				},
 			},
 		},
 		{
@@ -827,6 +836,90 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					SubmissionGuidelines: "Upload project interactive website dengan fitur dinamis",
 					EstimatedDuration:    35,
 					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Modern Frontend Framework",
+					Description:          "Pelajari React.js atau Vue.js untuk building aplikasi modern",
+					LearningObjectives:   "Membuat single page application dengan state management",
+					SubmissionGuidelines: "Deploy aplikasi web ke hosting dan berikan source code",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Mobile Developer",
+			Description: "Jalur pembelajaran untuk menjadi Mobile Developer yang mahir",
+			RoleIndex:   2,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Mobile UI/UX Design",
+					Description:          "Pelajari prinsip desain mobile dan user experience",
+					LearningObjectives:   "Memahami design patterns mobile dan membuat wireframe",
+					SubmissionGuidelines: "Upload mockup aplikasi mobile dengan justifikasi design choices",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Cross-Platform Development",
+					Description:          "Belajar Flutter atau React Native untuk development mobile",
+					LearningObjectives:   "Membuat aplikasi mobile yang bisa berjalan di Android dan iOS",
+					SubmissionGuidelines: "Submit APK/IPA file dan source code aplikasi mobile",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap DevOps Engineer",
+			Description: "Jalur pembelajaran untuk menjadi DevOps Engineer yang kompeten",
+			RoleIndex:   3,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Linux System Administration",
+					Description:          "Kuasai administrasi sistem Linux dan command line",
+					LearningObjectives:   "Mampu mengelola server Linux dan automation script",
+					SubmissionGuidelines: "Upload dokumentasi setup server dan automation scripts",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "Containerization & Orchestration",
+					Description:          "Pelajari Docker dan Kubernetes untuk container management",
+					LearningObjectives:   "Deploy aplikasi menggunakan Docker dan Kubernetes",
+					SubmissionGuidelines: "Berikan link repository dengan Docker compose dan K8s manifests",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "CI/CD Pipeline",
+					Description:          "Buat pipeline otomatis untuk testing dan deployment",
+					LearningObjectives:   "Mengimplementasikan CI/CD dengan GitHub Actions atau Jenkins",
+					SubmissionGuidelines: "Setup working CI/CD pipeline untuk aplikasi sample",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "advanced",
 				},
 			},
 		},
@@ -1169,9 +1262,9 @@ func SeedQuestionnaireResponses(db *gorm.DB) error {
 func SeedStudentRoadmapProgress(db *gorm.DB) error {
 	log.Println("Seeding student roadmap progress...")
 
-	// Get students, roadmaps, and teachers
+	// Get all students and roadmaps and teachers
 	var studentProfiles []user.StudentProfile
-	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+	if err := db.Find(&studentProfiles).Error; err != nil {
 		return fmt.Errorf("student profiles not found: %v", err)
 	}
 
@@ -1185,12 +1278,38 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 		return fmt.Errorf("teacher profiles not found: %v", err)
 	}
 
-	for i, studentProfile := range studentProfiles {
-		if i >= len(featureRoadmaps) {
-			break
-		}
+	if len(featureRoadmaps) == 0 {
+		log.Println("No roadmaps found, skipping student roadmap progress seeding")
+		return nil
+	}
 
-		roadmapData := featureRoadmaps[i]
+	// Create diverse scenarios for different students
+	scenarios := []struct {
+		Description      string
+		CompletedSteps   int
+		HasPendingSteps  bool
+		HasRejectedSteps bool
+		ProgressPattern  string // "linear", "mixed", "advanced"
+	}{
+		{"Beginner student - just started", 0, false, false, "linear"},
+		{"Active student - making progress", 1, true, false, "linear"},
+		{"Progressing student - some submissions pending", 2, true, false, "linear"},
+		{"Advanced student - mixed progress with some rejections", 3, true, true, "mixed"},
+		{"Struggling student - multiple rejections", 1, true, true, "mixed"},
+		{"High achiever - consistent progress", 4, false, false, "linear"},
+		{"Inconsistent student - sporadic submissions", 2, true, true, "mixed"},
+		{"Recent starter - first submission pending", 1, true, false, "linear"},
+		{"Fast learner - rapid progression", 3, true, false, "advanced"},
+		{"Methodical student - steady progress", 2, false, false, "linear"},
+	}
+
+	for i, studentProfile := range studentProfiles {
+		// Assign roadmap based on student index (cycling through available roadmaps)
+		roadmapIndex := i % len(featureRoadmaps)
+		roadmapData := featureRoadmaps[roadmapIndex]
+
+		// Use scenario based on student index
+		scenario := scenarios[i%len(scenarios)]
 
 		var existingProgress roadmap.StudentRoadmapProgress
 		err := db.Where("student_profile_id = ? AND roadmap_id = ?",
@@ -1200,21 +1319,26 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			continue
 		}
 
-		// Create roadmap progress
-		completedSteps := randomInt(len(roadmapData.Steps) + 1)
-		progressPercent := float64(completedSteps) / float64(len(roadmapData.Steps)) * 100
+		// Determine completed steps based on scenario and available steps
+		maxSteps := len(roadmapData.Steps)
+		completedSteps := scenario.CompletedSteps
+		if completedSteps > maxSteps {
+			completedSteps = maxSteps
+		}
+
+		progressPercent := float64(completedSteps) / float64(maxSteps) * 100
 
 		newProgress := roadmap.StudentRoadmapProgress{
 			RoadmapID:        roadmapData.ID,
 			StudentProfileID: studentProfile.ID,
-			TotalSteps:       len(roadmapData.Steps),
+			TotalSteps:       maxSteps,
 			CompletedSteps:   completedSteps,
 			ProgressPercent:  progressPercent,
-			StartedAt:        timePtr(time.Now().AddDate(0, 0, -randomInt(60))),
+			StartedAt:        timePtr(time.Now().AddDate(0, 0, -randomInt(90))),
 			LastActivityAt:   timePtr(time.Now().AddDate(0, 0, -randomInt(7))),
 		}
 
-		if completedSteps == len(roadmapData.Steps) {
+		if completedSteps == maxSteps {
 			newProgress.CompletedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(30)))
 		}
 
@@ -1222,7 +1346,7 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			return fmt.Errorf("failed to create roadmap progress: %v", err)
 		}
 
-		// Create step progress
+		// Create step progress with diverse statuses
 		for j, step := range roadmapData.Steps {
 			status := roadmap.RoadmapProgressStatusLocked
 			var startedAt, submittedAt, completedAt *time.Time
@@ -1232,20 +1356,49 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			var validationScore *int
 
 			if j < completedSteps {
-				status = roadmap.RoadmapProgressStatusSubmitted
-				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(45) + 15)))
-				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(30) + 5)))
-				completedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(25)))
-				evidenceLink = stringPtr("https://github.com/student/project-" + fmt.Sprintf("%d", j+1))
-				submissionNotes = stringPtr("Project berhasil diselesaikan sesuai dengan requirements yang diberikan")
+				// Completed steps
+				status = roadmap.RoadmapProgressStatusApproved
+				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(60) + 20)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(45) + 15)))
+				completedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(30) + 10)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+
 				if len(teacherProfiles) > 0 {
 					validatedByTeacherID = &teacherProfiles[randomInt(len(teacherProfiles))].ID
-					validationNotes = stringPtr("Bagus! Project sudah memenuhi semua kriteria penilaian")
-					validationScore = intPtr(85 + randomInt(15))
+					validationNotes = stringPtr(getRandomValidationNote(true))
+					validationScore = intPtr(75 + randomInt(25)) // 75-100 for approved
 				}
-			} else if j == completedSteps && completedSteps < len(roadmapData.Steps) {
+			} else if j == completedSteps && scenario.HasPendingSteps && completedSteps < maxSteps {
+				// Pending submission
+				status = roadmap.RoadmapProgressStatusSubmitted
+				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(20)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+			} else if j == completedSteps && scenario.HasRejectedSteps && completedSteps < maxSteps {
+				// Rejected submission
+				status = roadmap.RoadmapProgressStatusRejected
+				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(25) + 10)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(15) + 5)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+
+				if len(teacherProfiles) > 0 {
+					validatedByTeacherID = &teacherProfiles[randomInt(len(teacherProfiles))].ID
+					validationNotes = stringPtr(getRandomValidationNote(false))
+					validationScore = intPtr(40 + randomInt(35)) // 40-75 for rejected
+				}
+			} else if j == completedSteps+1 && scenario.ProgressPattern == "advanced" && completedSteps < maxSteps-1 {
+				// In progress for advanced students
 				status = roadmap.RoadmapProgressStatusInProgress
-				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(15)))
+				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(10)))
+			} else if j <= completedSteps+1 && scenario.ProgressPattern == "mixed" {
+				// Unlocked for mixed pattern students
+				status = roadmap.RoadmapProgressStatusUnlocked
 			}
 
 			stepProgress := roadmap.StudentStepProgress{
@@ -1268,8 +1421,8 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			}
 		}
 
-		log.Printf("Roadmap progress berhasil dibuat untuk student %s dengan %d/%d steps completed",
-			studentProfile.Fullname, completedSteps, len(roadmapData.Steps))
+		log.Printf("Roadmap progress berhasil dibuat untuk student %s (%s) dengan %d/%d steps completed - %s",
+			studentProfile.Fullname, roadmapData.RoadmapName, completedSteps, maxSteps, scenario.Description)
 	}
 
 	return nil
@@ -1956,4 +2109,53 @@ func SeedInternshipReviews(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+// Helper functions for generating random content
+func getRandomSubmissionNote() string {
+	notes := []string{
+		"Project berhasil diselesaikan sesuai dengan requirements yang diberikan. Semua fitur telah diimplementasikan dengan baik.",
+		"Implementasi sudah sesuai dengan spesifikasi teknis. Testing telah dilakukan dan semua test case passed.",
+		"Aplikasi berjalan dengan lancar dan memenuhi kriteria penilaian. User interface responsif dan user-friendly.",
+		"Source code clean dan well-documented. Best practices sudah diterapkan dalam development process.",
+		"Deployment berhasil dan aplikasi dapat diakses dengan baik. Performance optimization sudah dilakukan.",
+		"Fitur tambahan berhasil diimplementasikan untuk meningkatkan user experience.",
+		"Integration dengan external API berjalan dengan baik. Error handling sudah diterapkan dengan proper.",
+		"Database design optimal dan normalized. Query performance sudah dioptimasi.",
+		"Security measures telah diimplementasikan sesuai dengan standar keamanan.",
+		"Code review internal sudah dilakukan dan feedback sudah diincorporate.",
+	}
+	return notes[randomInt(len(notes))]
+}
+
+func getRandomValidationNote(approved bool) string {
+	if approved {
+		notes := []string{
+			"Excellent work! Project memenuhi semua kriteria penilaian dengan sangat baik.",
+			"Great job! Implementation sangat solid dan code quality bagus.",
+			"Outstanding! Creativity dan problem-solving skills terlihat jelas dalam project ini.",
+			"Very good! Technical implementation sesuai dengan best practices.",
+			"Impressive work! Attention to detail sangat baik dan hasil akhir memuaskan.",
+			"Well done! Project menunjukkan pemahaman yang mendalam terhadap materi.",
+			"Fantastic! Innovation dan technical skills yang ditunjukkan sangat baik.",
+			"Superb execution! Code organization dan dokumentasi sangat rapi.",
+			"Excellent problem-solving approach dan implementation yang efisien.",
+			"Outstanding project! Menunjukkan kemampuan development yang matang.",
+		}
+		return notes[randomInt(len(notes))]
+	} else {
+		notes := []string{
+			"Project needs improvement. Beberapa requirements belum terpenuhi dengan baik.",
+			"Implementation perlu diperbaiki. Code quality masih bisa ditingkatkan.",
+			"Submission tidak memenuhi kriteria minimum. Silakan revisi dan submit ulang.",
+			"Functionality tidak sesuai dengan spesifikasi. Perlu review ulang requirements.",
+			"Code structure perlu diperbaiki. Best practices belum diterapkan dengan konsisten.",
+			"Testing tidak sufficient. Perlu menambahkan test cases yang lebih comprehensive.",
+			"Documentation kurang lengkap. Silakan tambahkan penjelasan yang lebih detail.",
+			"Performance issues ditemukan. Optimasi diperlukan sebelum submission final.",
+			"Security vulnerabilities terdeteksi. Silakan perbaiki sebelum submit ulang.",
+			"UI/UX perlu improvement. User experience masih bisa diperbaiki.",
+		}
+		return notes[randomInt(len(notes))]
+	}
 }

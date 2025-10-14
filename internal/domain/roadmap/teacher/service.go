@@ -1,11 +1,7 @@
 package teacher
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/roadmap"
 	"github.com/google/uuid"
@@ -25,19 +21,22 @@ func NewTeacherService(repo *roadmap.RoadmapRepository, redisClient *redis.Clien
 }
 
 func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
-	cacheKey := fmt.Sprintf("teacher_roadmap_submissions:%s:%d:%d:%s", teacherID.String(), page, limit, search)
-
-	if cached, err := s.redisClient.Get(context.Background(), cacheKey).Result(); err == nil {
-		var result PaginatedSubmissionsResponse
-		if json.Unmarshal([]byte(cached), &result) == nil {
-			return &result, nil
-		}
-	}
-
+	// Skip cache for now to simplify debugging
 	offset := (page - 1) * limit
 	submissions, total, err := s.repo.GetPendingSubmissionsOptimized(&teacherID, offset, limit, search)
 	if err != nil {
-		return nil, errors.New("failed to get pending submissions")
+		return nil, errors.New("failed to get pending submissions: " + err.Error())
+	}
+
+	// Return empty response if no submissions found
+	if len(submissions) == 0 {
+		return &PaginatedSubmissionsResponse{
+			Data:       []PendingSubmissionResponse{},
+			Total:      0,
+			Page:       page,
+			Limit:      limit,
+			TotalPages: 0,
+		}, nil
 	}
 
 	var submissionResponses []PendingSubmissionResponse
@@ -46,18 +45,24 @@ func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit 
 		var stepOrder int
 		var learningObjectives, submissionGuidelines string
 
-		if submission.StudentRoadmapProgress.StudentProfile != nil {
-			studentName = submission.StudentRoadmapProgress.StudentProfile.Fullname
-			if submission.StudentRoadmapProgress.StudentProfile.User.Email != "" {
-				studentEmail = submission.StudentRoadmapProgress.StudentProfile.User.Email
+		// Check if StudentRoadmapProgress ID is valid (meaning it was loaded)
+		if submission.StudentRoadmapProgressID != (uuid.UUID{}) {
+			// Check StudentRoadmapProgress and its relationships
+			if submission.StudentRoadmapProgress.StudentProfile != nil {
+				studentName = submission.StudentRoadmapProgress.StudentProfile.Fullname
+				if submission.StudentRoadmapProgress.StudentProfile.User.Email != "" {
+					studentEmail = submission.StudentRoadmapProgress.StudentProfile.User.Email
+				}
+			}
+
+			// Check if Roadmap relationship was loaded properly by checking ID
+			if submission.StudentRoadmapProgress.Roadmap.ID != (uuid.UUID{}) && submission.StudentRoadmapProgress.Roadmap.RoadmapName != "" {
+				roadmapName = submission.StudentRoadmapProgress.Roadmap.RoadmapName
 			}
 		}
 
-		if submission.StudentRoadmapProgress.Roadmap.RoadmapName != "" {
-			roadmapName = submission.StudentRoadmapProgress.Roadmap.RoadmapName
-		}
-
-		if submission.RoadmapStep.Title != "" {
+		// Check if RoadmapStep relationship was loaded properly by checking ID
+		if submission.RoadmapStepID != (uuid.UUID{}) && submission.RoadmapStep.ID != (uuid.UUID{}) && submission.RoadmapStep.Title != "" {
 			stepTitle = submission.RoadmapStep.Title
 			stepOrder = submission.RoadmapStep.StepOrder
 			learningObjectives = submission.RoadmapStep.LearningObjectives
@@ -88,10 +93,6 @@ func (s *TeacherService) GetPendingSubmissions(teacherID uuid.UUID, page, limit 
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}
-
-	if resultJSON, err := json.Marshal(result); err == nil {
-		s.redisClient.Set(context.Background(), cacheKey, string(resultJSON), time.Minute*5)
 	}
 
 	return result, nil
