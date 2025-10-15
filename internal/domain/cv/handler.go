@@ -1,8 +1,8 @@
 package cv
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
+	"strings"
 
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
@@ -222,20 +222,22 @@ func (h *CVHandler) DownloadCV(c *fiber.Ctx) error {
 		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
-	pdfPath, err := h.service.DownloadCV(cvID)
+	cv, err := h.service.GetCVByID(cvID)
 	if err != nil {
-		return utils.SendError(c, 500, "Failed to generate PDF: "+err.Error())
+		return utils.SendError(c, fiber.StatusNotFound, err.Error())
 	}
 
-	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		return utils.SendError(c, 404, "PDF file not found")
+	if cv.PDFPath == "" {
+		return utils.SendError(c, fiber.StatusNotFound, "PDF file not found")
 	}
 
-	fileName := filepath.Base(pdfPath)
+	// Set proper headers for PDF download
+	filename := fmt.Sprintf("%s.pdf", strings.ReplaceAll(cv.Title, " ", "_"))
 	c.Set("Content-Type", "application/pdf")
-	c.Set("Content-Disposition", "attachment; filename="+fileName)
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
-	return c.SendFile(pdfPath)
+	// Redirect to R2 URL for download
+	return c.Redirect(cv.PDFPath, fiber.StatusTemporaryRedirect)
 }
 
 func (h *CVHandler) AnalyzeATS(c *fiber.Ctx) error {

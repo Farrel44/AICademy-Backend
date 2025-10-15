@@ -37,6 +37,7 @@ import (
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
@@ -215,7 +216,6 @@ func main() {
 			aiService = ai.NewNoAIService()
 		}
 	} else {
-		log.Println("GEMINI_API_KEY not found in environment")
 		log.Println("Using NoAI service - AI features will be disabled")
 		aiService = ai.NewNoAIService()
 	}
@@ -350,6 +350,16 @@ func main() {
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
+	}))
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelDefault,
+		Next: func(c *fiber.Ctx) bool {
+			contentType := c.Get("Content-Type")
+			return strings.Contains(contentType, "image/") ||
+				strings.Contains(contentType, "video/") ||
+				strings.Contains(contentType, "application/pdf") ||
+				strings.Contains(contentType, "multipart/form-data")
+		},
 	}))
 	app.Use(config.SetupCors())
 	app.Options("/*", func(c *fiber.Ctx) error {

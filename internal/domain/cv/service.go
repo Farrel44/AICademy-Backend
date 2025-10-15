@@ -3,6 +3,7 @@ package cv
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -433,13 +434,14 @@ func (s *CVService) GeneratePDF(cvID uuid.UUID) (string, error) {
 func (s *CVService) DownloadCV(cvID uuid.UUID) (string, error) {
 	cv, err := s.repo.GetCVByID(cvID)
 	if err != nil {
-		return "", err
+		return "", errors.New("CV not found")
 	}
 
 	if cv.PDFPath == "" {
-		return s.GeneratePDF(cvID)
+		return "", errors.New("PDF file not found")
 	}
 
+	// Return the R2 URL directly
 	return cv.PDFPath, nil
 }
 
