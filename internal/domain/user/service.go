@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -11,10 +10,6 @@ import (
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -22,9 +17,7 @@ import (
 
 type UserService struct {
 	repo     *UserRepository
-	s3Client *s3.Client
-	bucket   string
-	baseURL  string
+	r2Client *utils.R2Client
 }
 
 type Claims struct {
@@ -35,54 +28,19 @@ type Claims struct {
 }
 
 func NewUserService(repo *UserRepository) *UserService {
-	bucketName := os.Getenv("R2_BUCKET_NAME")
-	accountId := os.Getenv("R2_ACCOUNT_ID")
-	accessKeyId := os.Getenv("R2_KEY_ID")
-	accessKeySecret := os.Getenv("ACCESS_KEY_SECRET")
-	baseURL := os.Getenv("OBJECT_STORAGE_URL")
-
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, "")),
-		config.WithRegion("auto"),
-	)
+	r2Client, err := utils.NewR2Client()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load AWS config: %v", err))
+		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
 	}
-
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountId))
-	})
 
 	return &UserService{
 		repo:     repo,
-		s3Client: client,
-		bucket:   bucketName,
-		baseURL:  baseURL,
+		r2Client: r2Client,
 	}
 }
 
 func (s *UserService) uploadFile(file *multipart.FileHeader, folder string) (string, error) {
-	src, err := file.Open()
-	if err != nil {
-		return "", err
-	}
-	defer src.Close()
-
-	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("%s/%s%s", folder, uuid.New().String(), ext)
-
-	// Upload to R2
-	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(filename),
-		Body:   src,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/%s", s.baseURL, filename), nil
+	return s.r2Client.UploadFile(file, folder)
 }
 
 func (s *UserService) GetUserByToken(c *fiber.Ctx) (*User, error) {

@@ -363,12 +363,15 @@ func main() {
 		})
 	})
 
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":  "OK",
-			"message": "AICademy API is healthy",
-		})
-	})
+	// Get SQL DB for health check
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal("Failed to get SQL DB instance:", err)
+	}
+
+	// Health check endpoints
+	app.Get("/health", utils.HealthCheck(sqlDB))
+	app.Get("/health/db", utils.DetailedDBStats(sqlDB))
 
 	api := app.Group("/api/v1")
 

@@ -3,6 +3,7 @@ package admin
 import (
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/auth"
@@ -13,12 +14,27 @@ import (
 )
 
 type AdminUserService struct {
-	repo  *auth.AuthRepository
-	redis *utils.RedisClient
+	repo     *auth.AuthRepository
+	redis    *utils.RedisClient
+	r2Client *utils.R2Client
 }
 
 func NewAdminUserService(repo *auth.AuthRepository, redis *utils.RedisClient) *AdminUserService {
-	return &AdminUserService{repo: repo, redis: redis}
+	r2Client, err := utils.NewR2Client()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
+	}
+
+	return &AdminUserService{
+		repo:     repo,
+		redis:    redis,
+		r2Client: r2Client,
+	}
+}
+
+func (s *AdminUserService) UploadProfilePicture(file *multipart.FileHeader, userType string) (string, error) {
+	folder := fmt.Sprintf("profile-pictures/%s", userType)
+	return s.r2Client.UploadFile(file, folder)
 }
 
 // Rate Limiting

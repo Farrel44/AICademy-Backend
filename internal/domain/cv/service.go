@@ -1,10 +1,9 @@
 package cv
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -80,15 +79,22 @@ type CVService struct {
 	aiService    ai.AIService
 	redis        *utils.RedisClient
 	cacheManager *utils.CacheManager
+	r2Client     *utils.R2Client
 	config       CVConfig
 }
 
 func NewCVService(repo *CVRepository, aiService ai.AIService, redis *utils.RedisClient) *CVService {
+	r2Client, err := utils.NewR2Client()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
+	}
+
 	return &CVService{
 		repo:         repo,
 		aiService:    aiService,
 		redis:        redis,
 		cacheManager: utils.NewCacheManager(redis),
+		r2Client:     r2Client,
 		config:       defaultCVConfig(),
 	}
 }
@@ -403,17 +409,25 @@ func (s *CVService) GeneratePDF(cvID uuid.UUID) (string, error) {
 		return "", fmt.Errorf("CV not found: %w", err)
 	}
 
-	pdfGen := utils.NewPDFGenerator()
+	pdfGenerator := utils.NewPDFGenerator()
 	utilsContent := s.convertToUtilsContent(&cv.Content)
-	pdfPath, err := pdfGen.GenerateATSCV(&utilsContent)
+	pdfData, err := pdfGenerator.GenerateCV(&utilsContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate PDF: %w", err)
 	}
 
-	cv.PDFPath = pdfPath
-	s.repo.UpdateCV(cv)
+	filename := fmt.Sprintf("cv_%s_%d.pdf", cv.ID.String(), time.Now().Unix())
+	pdfURL, err := s.r2Client.UploadFileFromReader(bytes.NewReader(pdfData), filename, "cv")
+	if err != nil {
+		return "", fmt.Errorf("failed to upload PDF to R2: %w", err)
+	}
 
-	return pdfPath, nil
+	cv.PDFPath = pdfURL
+	if err := s.repo.UpdateCV(cv); err != nil {
+		return "", fmt.Errorf("failed to update CV: %w", err)
+	}
+
+	return pdfURL, nil
 }
 
 func (s *CVService) DownloadCV(cvID uuid.UUID) (string, error) {
@@ -910,14 +924,10 @@ func (s *CVService) generateAndSavePDF(cv *CV) (string, error) {
 	}
 
 	filename := fmt.Sprintf("cv_%s_%d.pdf", cv.ID.String(), time.Now().Unix())
-	pdfPath := filepath.Join("storage", "cv", filename)
-
-	os.MkdirAll(filepath.Dir(pdfPath), 0755)
-
-	err = os.WriteFile(pdfPath, pdfData, 0644)
+	pdfURL, err := s.r2Client.UploadFileFromReader(bytes.NewReader(pdfData), filename, "cv")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to upload PDF to R2: %w", err)
 	}
 
-	return pdfPath, nil
+	return pdfURL, nil
 }
