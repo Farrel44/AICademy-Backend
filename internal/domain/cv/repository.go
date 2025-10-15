@@ -311,3 +311,9 @@ func (r *CVRepository) GetStudentProfileID(userID uuid.UUID) (uuid.UUID, error) 
 
 	return studentProfile.ID, err
 }
+
+func (r *CVRepository) UpdateStudentProfileCVFile(studentProfileID uuid.UUID, pdfPath string) error {
+	return r.db.Table("student_profiles").
+		Where("id = ?", studentProfileID).
+		Update("cv_file", pdfPath).Error
+}

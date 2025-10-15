@@ -71,7 +71,7 @@ func (h *CVHandler) GenerateCV(c *fiber.Ctx) error {
 		ATSScore: atsScore,
 	}
 
-	return utils.SendSuccess(c, "CV generated successfully", response)
+	return utils.SendSuccess(c, "CV generated successfully with PDF. You can now apply for internships", response)
 }
 
 func (h *CVHandler) PreviewCV(c *fiber.Ctx) error {

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -395,4 +396,48 @@ func (pg *PDFGenerator) addSectionHeader(title string) {
 	pg.pdf.SetDrawColor(0, 0, 0)
 	pg.pdf.Line(10, pg.pdf.GetY(), 200, pg.pdf.GetY())
 	pg.pdf.Ln(5)
+}
+
+func (pg *PDFGenerator) GenerateCV(content *CVContent) ([]byte, error) {
+	pg.pdf.AddPage()
+	pg.pdf.SetFont("Arial", "", 10)
+
+	pg.generateHeader(&content.PersonalInfo)
+
+	if content.Summary != "" {
+		pg.addSectionHeader("PROFESSIONAL SUMMARY")
+		pg.pdf.SetFont("Arial", "", 10)
+		pg.pdf.MultiCell(0, 5, content.Summary, "", "", false)
+		pg.pdf.Ln(5)
+	}
+
+	if len(content.Experiences) > 0 {
+		pg.generateWorkExperiences(content.Experiences)
+	}
+
+	if len(content.Projects) > 0 {
+		pg.generateProjects(content.Projects)
+	}
+
+	if len(content.Skills) > 0 {
+		pg.generateSkills(content.Skills)
+	}
+
+	if len(content.Certifications) > 0 {
+		pg.generateCertifications(content.Certifications)
+	}
+
+	pg.generateEducation(&content.Education)
+
+	if len(content.Languages) > 0 {
+		pg.generateLanguages(content.Languages)
+	}
+
+	var buf bytes.Buffer
+	err := pg.pdf.Output(&buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

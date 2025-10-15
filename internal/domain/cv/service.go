@@ -3,6 +3,8 @@ package cv
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -187,6 +189,20 @@ func (s *CVService) GenerateCV(userID uuid.UUID, title string) (*CV, error) {
 
 	if err := s.repo.CreateCV(cv); err != nil {
 		return nil, fmt.Errorf("failed to create CV: %w", err)
+	}
+
+	pdfPath, err := s.generateAndSavePDF(cv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	}
+
+	cv.PDFPath = pdfPath
+	if err := s.repo.UpdateCV(cv); err != nil {
+		return nil, fmt.Errorf("failed to update CV with PDF path: %w", err)
+	}
+
+	if err := s.repo.UpdateStudentProfileCVFile(studentProfileID, pdfPath); err != nil {
+		return nil, fmt.Errorf("failed to update student profile CV file: %w", err)
 	}
 
 	s.cacheManager.InvalidateByPattern("cvs:*")
@@ -882,4 +898,26 @@ func (s *CVService) extractKeywordsWithExperiences(experiences []CVExperience, p
 	}
 
 	return keywords
+}
+
+func (s *CVService) generateAndSavePDF(cv *CV) (string, error) {
+	pdfGenerator := utils.NewPDFGenerator()
+
+	utilsContent := s.convertToUtilsContent(&cv.Content)
+	pdfData, err := pdfGenerator.GenerateCV(&utilsContent)
+	if err != nil {
+		return "", err
+	}
+
+	filename := fmt.Sprintf("cv_%s_%d.pdf", cv.ID.String(), time.Now().Unix())
+	pdfPath := filepath.Join("storage", "cv", filename)
+
+	os.MkdirAll(filepath.Dir(pdfPath), 0755)
+
+	err = os.WriteFile(pdfPath, pdfData, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	return pdfPath, nil
 }
