@@ -19,7 +19,7 @@ func NewTeacherChallengeHandler(service *TeacherChallengeService) *TeacherChalle
 func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
 	var req CreateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -42,7 +42,7 @@ func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 
 	var req UpdateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	challenge, err := h.service.UpdateChallenge(c, challengeID, &req)
@@ -133,7 +133,7 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
 	var req ScoreSubmissionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {

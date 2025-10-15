@@ -18,7 +18,7 @@ func (h *AlumniAuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 	var req RegisterAlumniRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Format data tidak valid")
+		return utils.SendError(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -29,19 +29,19 @@ func (h *AlumniAuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 	if err != nil {
 		switch err.Error() {
 		case "user with this email already exists":
-			return utils.ErrorResponse(c, 409, "Email already registered")
+			return utils.SendError(c, 409, "Email already registered")
 		case "failed to hash password":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		case "failed to create user account":
-			return utils.ErrorResponse(c, 500, "Failed to create user account")
+			return utils.SendError(c, 500, "Failed to create user account")
 		case "failed to create alumni profile":
-			return utils.ErrorResponse(c, 500, "Failed to create alumni profile")
+			return utils.SendError(c, 500, "Failed to create alumni profile")
 		case "failed to generate authentication token":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c, result, "Alumni registration successful")
+	return utils.SendSuccess(c, "Alumni berhasil mendaftar", result)
 }

@@ -316,12 +316,33 @@ func main() {
 		ServerHeader: "Fiber",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
+			message := "Internal Server Error"
+
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
+				message = e.Message
 			}
+
+			switch code {
+			case fiber.StatusMethodNotAllowed:
+				message = "Method not allowed for this endpoint"
+			case fiber.StatusNotFound:
+				message = "Endpoint not found"
+			case fiber.StatusUnauthorized:
+				message = "Unauthorized access"
+			case fiber.StatusForbidden:
+				message = "Access forbidden"
+			case fiber.StatusBadRequest:
+				message = "Bad request"
+			default:
+				if err != nil {
+					message = err.Error()
+				}
+			}
+
 			return c.Status(code).JSON(fiber.Map{
 				"success": false,
-				"error":   err.Error(),
+				"error":   message,
 			})
 		},
 	})
@@ -469,11 +490,11 @@ func main() {
 	// Teacher Challenge Routes
 	teacherAuth.Post("/challenges", teacherChallengeHandler.CreateChallenge)
 	teacherAuth.Get("/challenges", teacherChallengeHandler.GetMyChallenges)
+	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
+	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
 	teacherAuth.Get("/challenges/:id", teacherChallengeHandler.GetChallengeByID)
 	teacherAuth.Put("/challenges/:id", teacherChallengeHandler.UpdateChallenge)
 	teacherAuth.Delete("/challenges/:id", teacherChallengeHandler.DeleteChallenge)
-	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
-	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
 
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
@@ -535,12 +556,12 @@ func main() {
 
 	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
 	studentRoutes.Get("/challenges/teams", studentChallengeHandler.GetMyTeams)
-	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
 	studentRoutes.Get("/challenges", studentChallengeHandler.GetAvailableChallenges)
 	studentRoutes.Post("/challenges/register", studentChallengeHandler.AutoRegisterToChallenge) // Changed to auto register
 	studentRoutes.Post("/challenges/submit", studentChallengeHandler.SubmitChallenge)           // Added submit route
 	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
+	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
 
 	studentRoutes.Get("/users/students", adminUserHandler.GetStudents)
 	studentRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
@@ -564,6 +585,14 @@ func main() {
 	alumniRoutes.Get("/certifications/:id", projectHandler.GetCertificationByID)
 	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
+
+	// Add 404 handler for unmatched routes
+	app.Use(func(c *fiber.Ctx) error {
+		return c.Status(404).JSON(fiber.Map{
+			"success": false,
+			"error":   "Endpoint not found",
+		})
+	})
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {

@@ -23,7 +23,7 @@ func (h *StudentAuthHandler) CreateStudent(c *fiber.Ctx) error {
 	var req CreateStudentRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Format data tidak valid")
+		return utils.SendError(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -34,36 +34,36 @@ func (h *StudentAuthHandler) CreateStudent(c *fiber.Ctx) error {
 	if err != nil {
 		switch err.Error() {
 		case "user with this email already exists":
-			return utils.ErrorResponse(c, 409, "Email already registered")
+			return utils.SendError(c, 409, "Email already registered")
 		case "student with this NIS already exists":
-			return utils.ErrorResponse(c, 409, "NIS already exists")
+			return utils.SendError(c, 409, "NIS already exists")
 		case "failed to check NIS":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		case "failed to generate password":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		case "failed to create user account":
-			return utils.ErrorResponse(c, 500, "Failed to create user account")
+			return utils.SendError(c, 500, "Failed to create user account")
 		case "failed to create student profile":
-			return utils.ErrorResponse(c, 500, "Failed to create student profile")
+			return utils.SendError(c, 500, "Failed to create student profile")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c.Status(fiber.StatusCreated), commonAuth.MessageResponse{
+	return utils.SendSuccess(c, "Siswa berhasil dibuat", commonAuth.MessageResponse{
 		Message: "Siswa berhasil dibuat",
-	}, "Siswa berhasil dibuat")
+	})
 }
 
 func (h *StudentAuthHandler) ChangeDefaultPassword(c *fiber.Ctx) error {
 	user := c.Locals("user").(*middleware.UserClaims)
 	if user == nil {
-		return utils.ErrorResponse(c, 401, "Tidak diizinkan")
+		return utils.SendError(c, 401, "Tidak diizinkan")
 	}
 
 	var req ChangeDefaultPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Format data tidak valid")
+		return utils.SendError(c, 400, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -74,49 +74,49 @@ func (h *StudentAuthHandler) ChangeDefaultPassword(c *fiber.Ctx) error {
 	if err != nil {
 		switch err.Error() {
 		case "password confirmation does not match":
-			return utils.ErrorResponse(c, 422, "Password confirmation does not match")
+			return utils.SendError(c, 422, "Password confirmation does not match")
 		case "user not found":
-			return utils.ErrorResponse(c, 404, "User not found")
+			return utils.SendError(c, 404, "User not found")
 		case "user is not a student":
-			return utils.ErrorResponse(c, 403, "Access denied")
+			return utils.SendError(c, 403, "Access denied")
 		case "current password is incorrect":
-			return utils.ErrorResponse(c, 401, "Current password is incorrect")
+			return utils.SendError(c, 401, "Current password is incorrect")
 		case "password has already been changed from default":
-			return utils.ErrorResponse(c, 400, "Password has already been changed from default")
+			return utils.SendError(c, 400, "Password has already been changed from default")
 		case "failed to hash new password":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		case "failed to update password":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		case "failed to generate token":
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c, result, "Password berhasil diubah")
+	return utils.SendSuccess(c, "Password berhasil diubah", result)
 }
 
 func (h *StudentAuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 	file, err := c.FormFile("file")
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "No file uploaded")
+		return utils.SendError(c, 400, "No file uploaded")
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Failed to open file")
+		return utils.SendError(c, 400, "Failed to open file")
 	}
 	defer src.Close()
 
 	reader := csv.NewReader(src)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Failed to parse CSV file")
+		return utils.SendError(c, 400, "Failed to parse CSV file")
 	}
 
 	if len(records) < 2 {
-		return utils.ErrorResponse(c, 400, "CSV file must contain header and at least one data row")
+		return utils.SendError(c, 400, "CSV file must contain header and at least one data row")
 	}
 
 	var successCount, failedCount int
@@ -152,5 +152,5 @@ func (h *StudentAuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 		Errors:       errors,
 	}
 
-	return utils.SuccessResponse(c, result, "Bulk student creation completed")
+	return utils.SendSuccess(c, "Bulk student creation completed", result)
 }

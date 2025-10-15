@@ -29,7 +29,7 @@ func ValidateSearchParams(query string, page, limit int) (*SearchValidation, err
 	// Sanitize query
 	query = strings.TrimSpace(query)
 
-	// Validate search length
+	// Validate search length (allow empty search)
 	if len(query) > 0 && len(query) < MinSearchLength {
 		return nil, fmt.Errorf("search query must be at least %d characters", MinSearchLength)
 	}

@@ -66,7 +66,7 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 	var req RegisterAlumniRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -80,7 +80,7 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 
 	result, err := h.service.RegisterAlumni(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -101,14 +101,14 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return utils.SuccessResponse(c, result, "Registrasi alumni berhasil")
+	return utils.SendSuccess(c, "Registrasi alumni berhasil", result)
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -122,7 +122,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	result, err := h.service.Login(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusUnauthorized, err.Error())
+		return utils.SendError(c, http.StatusUnauthorized, err.Error())
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -143,7 +143,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return utils.SuccessResponse(c, result, "Login berhasil")
+	return utils.SendSuccess(c, "Login berhasil", result)
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
@@ -165,16 +165,16 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Logout berhasil", MessageResponse{
 		Message: "Logout berhasil",
-	}, "Logout berhasil")
+	})
 }
 
 func (h *AuthHandler) CreateTeacher(c *fiber.Ctx) error {
 	var req CreateTeacherRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -188,19 +188,19 @@ func (h *AuthHandler) CreateTeacher(c *fiber.Ctx) error {
 
 	err := h.service.CreateTeacher(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Guru berhasil dibuat", MessageResponse{
 		Message: "Guru berhasil dibuat",
-	}, "Guru berhasil dibuat")
+	})
 }
 
 func (h *AuthHandler) CreateStudent(c *fiber.Ctx) error {
 	var req CreateStudentRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -214,19 +214,19 @@ func (h *AuthHandler) CreateStudent(c *fiber.Ctx) error {
 
 	err := h.service.CreateStudent(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Siswa berhasil dibuat", MessageResponse{
 		Message: fmt.Sprintf("Siswa berhasil dibuat dengan password default: %s", DefaultStudentPassword),
-	}, "Siswa berhasil dibuat")
+	})
 }
 
 func (h *AuthHandler) CreateCompany(c *fiber.Ctx) error {
 	var req CreateCompanyRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -240,27 +240,27 @@ func (h *AuthHandler) CreateCompany(c *fiber.Ctx) error {
 
 	err := h.service.CreateCompany(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Perusahaan berhasil dibuat", MessageResponse{
 		Message: "Perusahaan berhasil dibuat",
-	}, "Perusahaan berhasil dibuat")
+	})
 }
 
 func (h *AuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 	file, err := c.FormFile("csv_file")
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "CSV file is required")
+		return utils.SendError(c, http.StatusBadRequest, "CSV file is required")
 	}
 
 	if !strings.HasSuffix(strings.ToLower(file.Filename), ".csv") {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "File must be a CSV")
+		return utils.SendError(c, http.StatusBadRequest, "File must be a CSV")
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to open file")
+		return utils.SendError(c, http.StatusInternalServerError, "Failed to open file")
 	}
 	defer src.Close()
 
@@ -269,7 +269,7 @@ func (h *AuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 
 	createdCount, validationErrors, err := h.service.CreateStudentsFromCSV(csvReader)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
 	response := map[string]interface{}{
@@ -282,7 +282,7 @@ func (h *AuthHandler) UploadStudentsCSV(c *fiber.Ctx) error {
 		response["message"] = fmt.Sprintf("Berhasil membuat %d siswa, tetapi %d baris mengalami error", createdCount, len(validationErrors))
 	}
 
-	return utils.SuccessResponse(c, response, "Upload CSV berhasil diproses")
+	return utils.SendSuccess(c, "Upload CSV berhasil diproses", response)
 }
 
 func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
@@ -291,7 +291,7 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	var req ChangePasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -305,19 +305,19 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 
 	err := h.service.ChangePassword(userID, req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Password berhasil diubah", MessageResponse{
 		Message: "Password berhasil diubah",
-	}, "Password berhasil diubah")
+	})
 }
 
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req ForgotPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -331,24 +331,24 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 
 	err := h.service.ForgotPassword(req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return utils.SendError(c, http.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Link reset telah dikirim", MessageResponse{
 		Message: "Anda akan menerima email reset jika pengguna dengan email tersebut ada",
-	}, "Link reset telah dikirim")
+	})
 }
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	token := c.Params("token")
 	if token == "" {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Token reset diperlukan")
+		return utils.SendError(c, http.StatusBadRequest, "Token reset diperlukan")
 	}
 
 	var req ResetPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, "Format data tidak valid")
+		return utils.SendError(c, http.StatusBadRequest, "Format data tidak valid")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -362,10 +362,10 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 
 	err := h.service.ResetPassword(token, req)
 	if err != nil {
-		return utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return utils.SendError(c, http.StatusBadRequest, err.Error())
 	}
 
-	return utils.SuccessResponse(c, MessageResponse{
+	return utils.SendSuccess(c, "Password berhasil direset", MessageResponse{
 		Message: "Password berhasil direset",
-	}, "Password berhasil direset")
+	})
 }

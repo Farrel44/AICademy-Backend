@@ -31,7 +31,7 @@ func (h *TeacherHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 
 	teacherClaims := c.Locals("user")
 	if teacherClaims == nil {
-		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Invalid teacher claims")
+		return utils.SendError(c, fiber.StatusUnauthorized, "Invalid teacher claims")
 	}
 
 	var teacherID uuid.UUID
@@ -40,26 +40,26 @@ func (h *TeacherHandler) GetPendingSubmissions(c *fiber.Ctx) error {
 	}
 
 	if teacherID == uuid.Nil {
-		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Invalid teacher ID")
+		return utils.SendError(c, fiber.StatusUnauthorized, "Invalid teacher ID")
 	}
 
 	result, err := h.service.GetPendingSubmissions(teacherID, page, limit, search)
 	if err != nil {
-		return utils.ErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SuccessResponse(c, result, "Pending submissions retrieved successfully")
+	return utils.SendSuccess(c, "Pending submissions retrieved successfully", result)
 }
 
 func (h *TeacherHandler) ReviewSubmission(c *fiber.Ctx) error {
 	submissionID, err := uuid.Parse(c.Params("submissionId"))
 	if err != nil {
-		return utils.ErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	var req ReviewSubmissionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return utils.SendError(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -68,7 +68,7 @@ func (h *TeacherHandler) ReviewSubmission(c *fiber.Ctx) error {
 
 	teacherClaims := c.Locals("user")
 	if teacherClaims == nil {
-		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Invalid teacher claims")
+		return utils.SendError(c, fiber.StatusUnauthorized, "Invalid teacher claims")
 	}
 
 	var teacherID uuid.UUID
@@ -77,13 +77,13 @@ func (h *TeacherHandler) ReviewSubmission(c *fiber.Ctx) error {
 	}
 
 	if teacherID == uuid.Nil {
-		return utils.ErrorResponse(c, fiber.StatusUnauthorized, "Invalid teacher ID")
+		return utils.SendError(c, fiber.StatusUnauthorized, "Invalid teacher ID")
 	}
 
 	result, err := h.service.ReviewSubmission(submissionID, teacherID, req)
 	if err != nil {
-		return utils.ErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return utils.SuccessResponse(c, result, "Submission reviewed successfully")
+	return utils.SendSuccess(c, "Submission reviewed successfully", result)
 }

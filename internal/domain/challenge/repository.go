@@ -62,17 +62,17 @@ func (r *ChallengeRepository) SearchStudents(query string, limit int, excludeUse
 	err := r.db.Table("users").
 		Select(`
             student_profiles.id,
-            users.nis,
-            users.full_name,
+            student_profiles.nis,
+            student_profiles.fullname AS full_name,
             users.email,
             student_profiles.profile_picture,
-            users.class
+            student_profiles.class
         `).
 		Joins("JOIN student_profiles ON users.id = student_profiles.user_id").
 		Where("users.role = ? AND users.id != ?", "student", excludeUserID).
 		Where(`
-            users.nis ILIKE ? OR 
-            users.full_name ILIKE ? OR 
+            student_profiles.nis ILIKE ? OR 
+            student_profiles.fullname ILIKE ? OR 
             users.email ILIKE ?
         `, "%"+query+"%", "%"+query+"%", "%"+query+"%").
 		Limit(limit).
@@ -453,7 +453,7 @@ func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UU
 	// Separate count query for optimization
 	countQuery := r.db.Model(&Submission{}).
 		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
-		Where("c.created_by = ?", teacherID)
+		Where("c.created_by_teacher_id = ?", teacherID)
 
 	// Apply challenge filter
 	if challengeID != nil {
@@ -484,7 +484,7 @@ func (r *ChallengeRepository) GetSubmissionsByTeacherOptimized(teacherID uuid.UU
 			})
 		}).
 		Joins("JOIN challenges c ON submissions.challenge_id = c.id").
-		Where("c.created_by = ?", teacherID)
+		Where("c.created_by_teacher_id = ?", teacherID)
 
 	// Apply challenge filter
 	if challengeID != nil {

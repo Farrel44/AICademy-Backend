@@ -21,7 +21,7 @@ func NewAdminChallengeHandler(service *AdminChallengeService) *AdminChallengeHan
 func (h *AdminChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
 	var req CreateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -44,7 +44,7 @@ func (h *AdminChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 
 	var req UpdateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	challenge, err := h.service.UpdateChallenge(c, challengeID, &req)
@@ -131,7 +131,7 @@ func (h *AdminChallengeHandler) GetSubmissionsByChallengeID(c *fiber.Ctx) error 
 func (h *AdminChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
 	var req ScoreSubmissionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {

@@ -36,12 +36,12 @@ func NewCVHandler(service *CVService) *CVHandler {
 func (h *CVHandler) GenerateCV(c *fiber.Ctx) error {
 	studentID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	var req GenerateCVRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(&req); err != nil {
@@ -50,7 +50,7 @@ func (h *CVHandler) GenerateCV(c *fiber.Ctx) error {
 
 	cv, err := h.service.GenerateCV(studentID, req.Title)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to generate CV: "+err.Error())
+		return utils.SendError(c, 500, "Failed to generate CV: "+err.Error())
 	}
 
 	atsScore, _ := h.service.AnalyzeATS(&cv.Content)
@@ -71,18 +71,18 @@ func (h *CVHandler) GenerateCV(c *fiber.Ctx) error {
 		ATSScore: atsScore,
 	}
 
-	return utils.SuccessResponse(c, response, "CV generated successfully")
+	return utils.SendSuccess(c, "CV generated successfully", response)
 }
 
 func (h *CVHandler) PreviewCV(c *fiber.Ctx) error {
 	studentID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	content, err := h.service.PreviewCV(studentID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to generate preview: "+err.Error())
+		return utils.SendError(c, 500, "Failed to generate preview: "+err.Error())
 	}
 
 	atsScore, _ := h.service.AnalyzeATS(content)
@@ -95,18 +95,18 @@ func (h *CVHandler) PreviewCV(c *fiber.Ctx) error {
 		ATSScore: *atsScore,
 	}
 
-	return utils.SuccessResponse(c, response, "CV preview generated successfully")
+	return utils.SendSuccess(c, "CV preview generated successfully", response)
 }
 
 func (h *CVHandler) GetStudentCVs(c *fiber.Ctx) error {
 	studentID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	cvs, err := h.service.GetStudentCVs(studentID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get CVs: "+err.Error())
+		return utils.SendError(c, 500, "Failed to get CVs: "+err.Error())
 	}
 
 	var responses []CVResponse
@@ -124,18 +124,18 @@ func (h *CVHandler) GetStudentCVs(c *fiber.Ctx) error {
 		})
 	}
 
-	return utils.SuccessResponse(c, responses, "CVs retrieved successfully")
+	return utils.SendSuccess(c, "CVs retrieved successfully", responses)
 }
 
 func (h *CVHandler) GetCVByID(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	cv, err := h.service.GetCVByID(cvID)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "CV not found")
+		return utils.SendError(c, 404, "CV not found")
 	}
 
 	atsScore, _ := h.service.AnalyzeATS(&cv.Content)
@@ -156,79 +156,79 @@ func (h *CVHandler) GetCVByID(c *fiber.Ctx) error {
 		ATSScore: atsScore,
 	}
 
-	return utils.SuccessResponse(c, response, "CV retrieved successfully")
+	return utils.SendSuccess(c, "CV retrieved successfully", response)
 }
 
 func (h *CVHandler) UpdateCV(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	var req UpdateCVRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := h.service.UpdateCV(cvID, &req.Content); err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to update CV: "+err.Error())
+		return utils.SendError(c, 500, "Failed to update CV: "+err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "CV updated successfully")
+	return utils.SendSuccess(c, "CV updated successfully", nil)
 }
 
 func (h *CVHandler) DeleteCV(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	if err := h.service.DeleteCV(cvID); err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to delete CV: "+err.Error())
+		return utils.SendError(c, 500, "Failed to delete CV: "+err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "CV deleted successfully")
+	return utils.SendSuccess(c, "CV deleted successfully", nil)
 }
 
 func (h *CVHandler) PublishCV(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	if err := h.service.PublishCV(cvID); err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to publish CV: "+err.Error())
+		return utils.SendError(c, 500, "Failed to publish CV: "+err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "CV published successfully")
+	return utils.SendSuccess(c, "CV published successfully", nil)
 }
 
 func (h *CVHandler) UnpublishCV(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	if err := h.service.UnpublishCV(cvID); err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to unpublish CV: "+err.Error())
+		return utils.SendError(c, 500, "Failed to unpublish CV: "+err.Error())
 	}
 
-	return utils.SuccessResponse(c, nil, "CV unpublished successfully")
+	return utils.SendSuccess(c, "CV unpublished successfully", nil)
 }
 
 func (h *CVHandler) DownloadCV(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	pdfPath, err := h.service.DownloadCV(cvID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to generate PDF: "+err.Error())
+		return utils.SendError(c, 500, "Failed to generate PDF: "+err.Error())
 	}
 
 	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		return utils.ErrorResponse(c, 404, "PDF file not found")
+		return utils.SendError(c, 404, "PDF file not found")
 	}
 
 	fileName := filepath.Base(pdfPath)
@@ -241,31 +241,31 @@ func (h *CVHandler) DownloadCV(c *fiber.Ctx) error {
 func (h *CVHandler) AnalyzeATS(c *fiber.Ctx) error {
 	cvID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid CV ID")
+		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
 	cv, err := h.service.GetCVByID(cvID)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "CV not found")
+		return utils.SendError(c, 404, "CV not found")
 	}
 
 	atsScore, err := h.service.AnalyzeATS(&cv.Content)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to analyze ATS: "+err.Error())
+		return utils.SendError(c, 500, "Failed to analyze ATS: "+err.Error())
 	}
 
-	return utils.SuccessResponse(c, atsScore, "ATS analysis completed")
+	return utils.SendSuccess(c, "ATS analysis completed", atsScore)
 }
 
 func (h *CVHandler) GetPublicCVs(c *fiber.Ctx) error {
 	nis := c.Params("studentId")
 	if nis == "" {
-		return utils.ErrorResponse(c, 400, "NIS is required")
+		return utils.SendError(c, 400, "NIS is required")
 	}
 
 	cvs, err := h.service.GetPublicCVs(nis)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get public CVs: "+err.Error())
+		return utils.SendError(c, 500, "Failed to get public CVs: "+err.Error())
 	}
 
 	var responses []PublicCVResponse
@@ -303,5 +303,5 @@ func (h *CVHandler) GetPublicCVs(c *fiber.Ctx) error {
 		})
 	}
 
-	return utils.SuccessResponse(c, responses, "Public CVs retrieved successfully")
+	return utils.SendSuccess(c, "Public CVs retrieved successfully", responses)
 }

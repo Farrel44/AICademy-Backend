@@ -19,7 +19,7 @@ func NewStudentChallengeHandler(service *StudentChallengeService) *StudentChalle
 func (h *StudentChallengeHandler) SearchStudents(c *fiber.Ctx) error {
 	var req SearchStudentRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	// Set default limit
@@ -42,7 +42,7 @@ func (h *StudentChallengeHandler) SearchStudents(c *fiber.Ctx) error {
 func (h *StudentChallengeHandler) CreateTeam(c *fiber.Ctx) error {
 	var req CreateTeamRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -82,7 +82,7 @@ func (h *StudentChallengeHandler) GetAvailableChallenges(c *fiber.Ctx) error {
 func (h *StudentChallengeHandler) RegisterTeamToChallenge(c *fiber.Ctx) error {
 	var req RegisterChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -100,7 +100,7 @@ func (h *StudentChallengeHandler) RegisterTeamToChallenge(c *fiber.Ctx) error {
 func (h *StudentChallengeHandler) AutoRegisterToChallenge(c *fiber.Ctx) error {
 	var req AutoRegisterChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -133,24 +133,24 @@ func (h *StudentChallengeHandler) SubmitChallenge(c *fiber.Ctx) error {
 	// Parse multipart form
 	form, err := c.MultipartForm()
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Failed to parse form data")
+		return utils.SendError(c, 400, "Failed to parse form data")
 	}
 
 	// Get challenge_id from form
 	challengeIDs := form.Value["challenge_id"]
 	if len(challengeIDs) == 0 {
-		return utils.ErrorResponse(c, 400, "challenge_id is required")
+		return utils.SendError(c, 400, "challenge_id is required")
 	}
 
 	challengeID, err := uuid.Parse(challengeIDs[0])
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid challenge_id format")
+		return utils.SendError(c, 400, "Invalid challenge_id format")
 	}
 
 	// Get title from form
 	titles := form.Value["title"]
 	if len(titles) == 0 {
-		return utils.ErrorResponse(c, 400, "title is required")
+		return utils.SendError(c, 400, "title is required")
 	}
 
 	req := &SubmitChallengeRequest{

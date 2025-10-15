@@ -54,7 +54,7 @@ func (h *CompanyPklHandler) CreateInternship(c *fiber.Ctx) error {
 	var req CreateInternshipRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -73,13 +73,13 @@ func (h *CompanyPklHandler) UpdateInternship(c *fiber.Ctx) error {
 	internshipIDParam := c.Params("id")
 	internshipID, err := uuid.Parse(internshipIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	var req UpdateInternshipRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -98,7 +98,7 @@ func (h *CompanyPklHandler) DeleteInternship(c *fiber.Ctx) error {
 	internshipIDParam := c.Params("id")
 	internshipID, err := uuid.Parse(internshipIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	err = h.service.DeleteInternshipPosition(c, internshipID)
@@ -113,7 +113,7 @@ func (h *CompanyPklHandler) GetInternshipApplications(c *fiber.Ctx) error {
 	internshipIDParam := c.Params("id")
 	internshipID, err := uuid.Parse(internshipIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	applications, err := h.service.GetInternshipApplications(c, internshipID)
@@ -128,13 +128,13 @@ func (h *CompanyPklHandler) UpdateApplicationStatus(c *fiber.Ctx) error {
 	applicationIDParam := c.Params("id")
 	applicationID, err := uuid.Parse(applicationIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid application ID")
+		return utils.SendError(c, 400, "Invalid application ID")
 	}
 
 	var req UpdateApplicationStatusRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
