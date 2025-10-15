@@ -31,11 +31,7 @@ func NewStudentChallengeService(repo *challenge.ChallengeRepository, redis *util
 	}
 }
 
-func (s *StudentChallengeService) GetChallengeByID(claims *utils.Claims, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetChallengeByID(challengeID uuid.UUID) (*challenge.Challenge, error) {
 	// Use the new method with auto winner check
 	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
@@ -50,17 +46,13 @@ func (s *StudentChallengeService) uploadFile(file *multipart.FileHeader, folder 
 }
 
 // SearchStudents allows students to search for other students (limited information)
-func (s *StudentChallengeService) SearchStudents(claims *utils.Claims, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) SearchStudents(userID uuid.UUID, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
 	query := strings.TrimSpace(req.Query)
 	if req.Limit == 0 {
 		req.Limit = 10
 	}
 
-	students, err := s.repo.SearchStudents(query, req.Limit, claims.UserID)
+	students, err := s.repo.SearchStudents(query, req.Limit, userID)
 	if err != nil {
 		return nil, errors.New("failed to search students")
 	}
@@ -69,13 +61,9 @@ func (s *StudentChallengeService) SearchStudents(claims *utils.Claims, req *Sear
 }
 
 // Create team
-func (s *StudentChallengeService) CreateTeam(claims *utils.Claims, req *CreateTeamRequest) (*CreateTeamResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) CreateTeam(userID uuid.UUID, req *CreateTeamRequest) (*CreateTeamResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -167,13 +155,9 @@ func convertToDTOMembers(members []challenge.TeamMemberInfo) []TeamMemberInfo {
 }
 
 // Get my teams
-func (s *StudentChallengeService) GetMyTeams(claims *utils.Claims) ([]MyTeamResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetMyTeams(userID uuid.UUID) ([]MyTeamResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -211,11 +195,7 @@ func (s *StudentChallengeService) GetMyTeams(claims *utils.Claims) ([]MyTeamResp
 }
 
 // Get available challenges
-func (s *StudentChallengeService) GetAvailableChallenges(claims *utils.Claims, page, limit int, search string) (*utils.PaginationResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("akses ditolak: diperlukan role siswa")
-	}
-
+func (s *StudentChallengeService) GetAvailableChallenges(userID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -230,7 +210,7 @@ func (s *StudentChallengeService) GetAvailableChallenges(claims *utils.Claims, p
 	search = validation.Query
 
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("profil siswa tidak ditemukan")
 	}
@@ -313,13 +293,9 @@ func (s *StudentChallengeService) GetAvailableChallenges(claims *utils.Claims, p
 }
 
 // Register team to challenge
-func (s *StudentChallengeService) RegisterTeamToChallenge(claims *utils.Claims, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) RegisterTeamToChallenge(userID uuid.UUID, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -379,13 +355,9 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(claims *utils.Claims, 
 }
 
 // Auto register to challenge without team_id
-func (s *StudentChallengeService) AutoRegisterToChallenge(claims *utils.Claims, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) AutoRegisterToChallenge(userID uuid.UUID, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -452,13 +424,9 @@ func (s *StudentChallengeService) AutoRegisterToChallenge(claims *utils.Claims, 
 }
 
 // Submit challenge
-func (s *StudentChallengeService) SubmitChallenge(claims *utils.Claims, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) SubmitChallenge(userID uuid.UUID, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -530,13 +498,9 @@ func (s *StudentChallengeService) SubmitChallenge(claims *utils.Claims, req *Sub
 }
 
 // Get my submissions
-func (s *StudentChallengeService) GetMySubmissions(claims *utils.Claims, page, limit int) (*utils.PaginationResponse, error) {
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetMySubmissions(userID uuid.UUID, page, limit int) (*utils.PaginationResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}

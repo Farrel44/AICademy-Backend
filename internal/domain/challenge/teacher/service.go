@@ -23,13 +23,7 @@ func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient
 	}
 }
 
-func (s *TeacherChallengeService) CreateChallenge(claims *utils.Claims, req *CreateChallengeRequest) (*challenge.Challenge, error) {
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
-	teacherID := claims.UserID
-
+func (s *TeacherChallengeService) CreateChallenge(teacherID uuid.UUID, req *CreateChallengeRequest) (*challenge.Challenge, error) {
 	newChallenge := &challenge.Challenge{
 		Title:              req.Title,
 		Description:        req.Description,
@@ -49,13 +43,9 @@ func (s *TeacherChallengeService) CreateChallenge(claims *utils.Claims, req *Cre
 	return newChallenge, nil
 }
 
-func (s *TeacherChallengeService) UpdateChallenge(claims *utils.Claims, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
+func (s *TeacherChallengeService) UpdateChallenge(teacherID uuid.UUID, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
 	// Get existing challenge and verify ownership
-	existingChallenge, err := s.repo.GetTeacherChallengeByID(challengeID, claims.UserID)
+	existingChallenge, err := s.repo.GetTeacherChallengeByID(challengeID, teacherID)
 	if err != nil {
 		return nil, errors.New("challenge not found or access denied")
 	}
@@ -86,13 +76,9 @@ func (s *TeacherChallengeService) UpdateChallenge(claims *utils.Claims, challeng
 	return existingChallenge, nil
 }
 
-func (s *TeacherChallengeService) DeleteChallenge(claims *utils.Claims, challengeID uuid.UUID) error {
-	if claims.Role != "teacher" {
-		return errors.New("access denied: teacher role required")
-	}
-
+func (s *TeacherChallengeService) DeleteChallenge(teacherID uuid.UUID, challengeID uuid.UUID) error {
 	// Verify ownership
-	_, err := s.repo.GetTeacherChallengeByID(challengeID, claims.UserID)
+	_, err := s.repo.GetTeacherChallengeByID(challengeID, teacherID)
 	if err != nil {
 		return errors.New("challenge not found or access denied")
 	}
@@ -105,13 +91,7 @@ func (s *TeacherChallengeService) DeleteChallenge(claims *utils.Claims, challeng
 	return nil
 }
 
-func (s *TeacherChallengeService) GetMyChallenges(claims *utils.Claims, page, limit int, search string) (*utils.PaginationResponse, error) {
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
-	teacherID := claims.UserID
-
+func (s *TeacherChallengeService) GetMyChallenges(teacherID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -157,13 +137,7 @@ func (s *TeacherChallengeService) GetMyChallenges(claims *utils.Claims, page, li
 	return result, nil
 }
 
-func (s *TeacherChallengeService) GetChallengeByID(claims *utils.Claims, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
-	teacherID := claims.UserID
-
+func (s *TeacherChallengeService) GetChallengeByID(teacherID uuid.UUID, challengeID uuid.UUID) (*challenge.Challenge, error) {
 	// Use the new method with auto winner check instead of direct repository call
 	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
@@ -178,13 +152,7 @@ func (s *TeacherChallengeService) GetChallengeByID(claims *utils.Claims, challen
 	return challengeData, nil
 }
 
-func (s *TeacherChallengeService) GetMySubmissions(claims *utils.Claims, page, limit int, search string, challengeID *uuid.UUID) (*utils.PaginationResponse, error) {
-	if claims.Role != "teacher" {
-		return nil, errors.New("access denied: teacher role required")
-	}
-
-	teacherID := claims.UserID
-
+func (s *TeacherChallengeService) GetMySubmissions(teacherID uuid.UUID, page, limit int, search string, challengeID *uuid.UUID) (*utils.PaginationResponse, error) {
 	// Check and auto announce winners before getting submissions
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -230,17 +198,13 @@ func (s *TeacherChallengeService) GetMySubmissions(claims *utils.Claims, page, l
 	return result, nil
 }
 
-func (s *TeacherChallengeService) ScoreSubmission(claims *utils.Claims, req *ScoreSubmissionRequest) error {
-	if claims.Role != "teacher" {
-		return errors.New("access denied: teacher role required")
-	}
-
+func (s *TeacherChallengeService) ScoreSubmission(teacherID uuid.UUID, req *ScoreSubmissionRequest) error {
 	// Validate score range
 	if req.Points < 1 || req.Points > 100 {
 		return errors.New("points must be between 1 and 100")
 	}
 
-	err := s.repo.ScoreSubmission(req.SubmissionID, req.Points, claims.UserID, false)
+	err := s.repo.ScoreSubmission(req.SubmissionID, req.Points, teacherID, false)
 	if err != nil {
 		return errors.New("failed to score submission")
 	}

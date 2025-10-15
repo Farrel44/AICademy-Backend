@@ -57,6 +57,22 @@ func (r *ChallengeRepository) GetStudentProfileByUserID(userID uuid.UUID) (*uuid
 	return &studentProfile.ID, nil
 }
 
+// Teacher Profile operations
+func (r *ChallengeRepository) GetTeacherProfileByUserID(userID uuid.UUID) (*uuid.UUID, error) {
+	var teacherProfile struct {
+		ID uuid.UUID `gorm:"column:id"`
+	}
+
+	err := r.db.Table("teacher_profiles").
+		Select("id").
+		Where("user_id = ?", userID).
+		First(&teacherProfile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &teacherProfile.ID, nil
+}
+
 func (r *ChallengeRepository) SearchStudents(query string, limit int, excludeUserID uuid.UUID) ([]StudentSearchResult, error) {
 	var students []StudentSearchResult
 	err := r.db.Table("users").

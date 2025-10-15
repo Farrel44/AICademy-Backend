@@ -17,12 +17,9 @@ func NewTeacherChallengeHandler(service *TeacherChallengeService) *TeacherChalle
 }
 
 func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	var req CreateChallengeRequest
@@ -34,7 +31,7 @@ func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
 		return utils.ValidationErrorResponse(c, err)
 	}
 
-	challenge, err := h.service.CreateChallenge(claims, &req)
+	challenge, err := h.service.CreateChallenge(userID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -43,12 +40,9 @@ func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	challengeID, err := uuid.Parse(c.Params("id"))
@@ -61,7 +55,7 @@ func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 		return utils.SendError(c, 400, "Invalid request body")
 	}
 
-	challenge, err := h.service.UpdateChallenge(claims, challengeID, &req)
+	challenge, err := h.service.UpdateChallenge(userID, challengeID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -70,12 +64,9 @@ func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	challengeID, err := uuid.Parse(c.Params("id"))
@@ -83,7 +74,7 @@ func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
 	}
 
-	err = h.service.DeleteChallenge(claims, challengeID)
+	err = h.service.DeleteChallenge(userID, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -92,12 +83,9 @@ func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	page := c.QueryInt("page", 1)
@@ -111,7 +99,7 @@ func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	challenges, err := h.service.GetMyChallenges(claims, page, limit, search)
+	challenges, err := h.service.GetMyChallenges(userID, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -120,12 +108,9 @@ func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	challengeID, err := uuid.Parse(c.Params("id"))
@@ -133,7 +118,7 @@ func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
 	}
 
-	challenge, err := h.service.GetChallengeByID(claims, challengeID)
+	challenge, err := h.service.GetChallengeByID(userID, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -142,12 +127,9 @@ func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	page := c.QueryInt("page", 1)
@@ -170,7 +152,7 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 		challengeID = &id
 	}
 
-	submissions, err := h.service.GetMySubmissions(claims, page, limit, search, challengeID)
+	submissions, err := h.service.GetMySubmissions(userID, page, limit, search, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -179,12 +161,9 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uuid.UUID)
-	role := c.Locals("role").(string)
-
-	claims := &utils.Claims{
-		UserID: userID,
-		Role:   role,
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
 	}
 
 	var req ScoreSubmissionRequest
@@ -196,7 +175,7 @@ func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
 		return utils.ValidationErrorResponse(c, err)
 	}
 
-	err := h.service.ScoreSubmission(claims, &req)
+	err = h.service.ScoreSubmission(userID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
