@@ -9,7 +9,6 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -32,13 +31,7 @@ func NewStudentChallengeService(repo *challenge.ChallengeRepository, redis *util
 	}
 }
 
-func (s *StudentChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) GetChallengeByID(claims *utils.Claims, challengeID uuid.UUID) (*challenge.Challenge, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -57,12 +50,7 @@ func (s *StudentChallengeService) uploadFile(file *multipart.FileHeader, folder 
 }
 
 // SearchStudents allows students to search for other students (limited information)
-func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) SearchStudents(claims *utils.Claims, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -81,13 +69,7 @@ func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStuden
 }
 
 // Create team
-func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamRequest) (*CreateTeamResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) CreateTeam(claims *utils.Claims, req *CreateTeamRequest) (*CreateTeamResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -185,13 +167,7 @@ func convertToDTOMembers(members []challenge.TeamMemberInfo) []TeamMemberInfo {
 }
 
 // Get my teams
-func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) GetMyTeams(claims *utils.Claims) ([]MyTeamResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -235,13 +211,7 @@ func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, er
 }
 
 // Get available challenges
-func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) GetAvailableChallenges(claims *utils.Claims, page, limit int, search string) (*utils.PaginationResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("akses ditolak: diperlukan role siswa")
 	}
@@ -343,13 +313,7 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, lim
 }
 
 // Register team to challenge
-func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) RegisterTeamToChallenge(claims *utils.Claims, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -415,13 +379,7 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *Reg
 }
 
 // Auto register to challenge without team_id
-func (s *StudentChallengeService) AutoRegisterToChallenge(c *fiber.Ctx, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) AutoRegisterToChallenge(claims *utils.Claims, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -494,13 +452,7 @@ func (s *StudentChallengeService) AutoRegisterToChallenge(c *fiber.Ctx, req *Aut
 }
 
 // Submit challenge
-func (s *StudentChallengeService) SubmitChallenge(c *fiber.Ctx, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) SubmitChallenge(claims *utils.Claims, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}
@@ -578,13 +530,7 @@ func (s *StudentChallengeService) SubmitChallenge(c *fiber.Ctx, req *SubmitChall
 }
 
 // Get my submissions
-func (s *StudentChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int) (*utils.PaginationResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *StudentChallengeService) GetMySubmissions(claims *utils.Claims, page, limit int) (*utils.PaginationResponse, error) {
 	if claims.Role != "student" {
 		return nil, errors.New("access denied: student role required")
 	}

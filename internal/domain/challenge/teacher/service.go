@@ -8,7 +8,6 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -24,13 +23,7 @@ func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient
 	}
 }
 
-func (s *TeacherChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallengeRequest) (*challenge.Challenge, error) {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) CreateChallenge(claims *utils.Claims, req *CreateChallengeRequest) (*challenge.Challenge, error) {
 	if claims.Role != "teacher" {
 		return nil, errors.New("access denied: teacher role required")
 	}
@@ -48,7 +41,7 @@ func (s *TeacherChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChall
 		UpdatedAt:          time.Now(),
 	}
 
-	err = s.repo.CreateChallenge(newChallenge)
+	err := s.repo.CreateChallenge(newChallenge)
 	if err != nil {
 		return nil, errors.New("failed to create challenge")
 	}
@@ -56,13 +49,7 @@ func (s *TeacherChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChall
 	return newChallenge, nil
 }
 
-func (s *TeacherChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) UpdateChallenge(claims *utils.Claims, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
 	if claims.Role != "teacher" {
 		return nil, errors.New("access denied: teacher role required")
 	}
@@ -99,19 +86,13 @@ func (s *TeacherChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid
 	return existingChallenge, nil
 }
 
-func (s *TeacherChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid.UUID) error {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) DeleteChallenge(claims *utils.Claims, challengeID uuid.UUID) error {
 	if claims.Role != "teacher" {
 		return errors.New("access denied: teacher role required")
 	}
 
 	// Verify ownership
-	_, err = s.repo.GetTeacherChallengeByID(challengeID, claims.UserID)
+	_, err := s.repo.GetTeacherChallengeByID(challengeID, claims.UserID)
 	if err != nil {
 		return errors.New("challenge not found or access denied")
 	}
@@ -124,12 +105,7 @@ func (s *TeacherChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid
 	return nil
 }
 
-func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) GetMyChallenges(claims *utils.Claims, page, limit int, search string) (*utils.PaginationResponse, error) {
 	if claims.Role != "teacher" {
 		return nil, errors.New("access denied: teacher role required")
 	}
@@ -181,13 +157,7 @@ func (s *TeacherChallengeService) GetMyChallenges(c *fiber.Ctx, page, limit int,
 	return result, nil
 }
 
-func (s *TeacherChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) GetChallengeByID(claims *utils.Claims, challengeID uuid.UUID) (*challenge.Challenge, error) {
 	if claims.Role != "teacher" {
 		return nil, errors.New("access denied: teacher role required")
 	}
@@ -208,12 +178,7 @@ func (s *TeacherChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uui
 	return challengeData, nil
 }
 
-func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int, search string, challengeID *uuid.UUID) (*utils.PaginationResponse, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) GetMySubmissions(claims *utils.Claims, page, limit int, search string, challengeID *uuid.UUID) (*utils.PaginationResponse, error) {
 	if claims.Role != "teacher" {
 		return nil, errors.New("access denied: teacher role required")
 	}
@@ -265,13 +230,7 @@ func (s *TeacherChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int
 	return result, nil
 }
 
-func (s *TeacherChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmissionRequest) error {
-	// Verify teacher access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return errors.New("unauthorized")
-	}
-
+func (s *TeacherChallengeService) ScoreSubmission(claims *utils.Claims, req *ScoreSubmissionRequest) error {
 	if claims.Role != "teacher" {
 		return errors.New("access denied: teacher role required")
 	}
@@ -281,7 +240,7 @@ func (s *TeacherChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmis
 		return errors.New("points must be between 1 and 100")
 	}
 
-	err = s.repo.ScoreSubmission(req.SubmissionID, req.Points, claims.UserID, false)
+	err := s.repo.ScoreSubmission(req.SubmissionID, req.Points, claims.UserID, false)
 	if err != nil {
 		return errors.New("failed to score submission")
 	}
