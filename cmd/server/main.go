@@ -15,6 +15,10 @@ import (
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/dashboard"
+	adminDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/admin"
+	studentDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/student"
+	teacherDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/teacher"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/experience"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
@@ -266,7 +270,7 @@ func main() {
 	teacherHandler := teacherRoadmap.NewTeacherHandler(teacherService)
 
 	userRepo := user.NewUserRepository(db, rdb.Client)
-	userService := user.NewUserService(userRepo)
+	userService := user.NewUserService(userRepo, rdb)
 	userHandler := user.NewUserHandler(userService)
 
 	// Project services and handlers
@@ -281,7 +285,7 @@ func main() {
 
 	// Experience services and handlers
 	experienceRepo := experience.NewRepository(db)
-	experienceService := experience.NewService(experienceRepo)
+	experienceService := experience.NewService(experienceRepo, rdb)
 	experienceHandler := experience.NewHandler(experienceService, userRepo)
 
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
@@ -310,6 +314,17 @@ func main() {
 	// Student challenge
 	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository, rdb)
 	studentChallengeHandler := studentChallenge.NewStudentChallengeHandler(studentChallengeService)
+
+	// Dashboard services and handlers
+	dashboardRepo := dashboard.NewRepository(db)
+
+	studentDashboardService := studentDashboard.NewService(dashboardRepo, rdb)
+	adminDashboardService := adminDashboard.NewService(dashboardRepo, rdb)
+	teacherDashboardService := teacherDashboard.NewService(dashboardRepo, rdb)
+
+	studentDashboardHandler := studentDashboard.NewHandler(studentDashboardService)
+	adminDashboardHandler := adminDashboard.NewHandler(adminDashboardService)
+	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "AICademy API v1.0",
@@ -489,6 +504,9 @@ func main() {
 	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
 	adminAuth.Delete("/challenges/:id", adminChallengeHandler.DeleteChallenge)
 
+	// Admin Dashboard Routes
+	adminAuth.Get("/dashboard", adminDashboardHandler.GetAdminDashboard)
+
 	// Teacher Routes (for reviewing submissions)
 	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
 	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
@@ -508,6 +526,9 @@ func main() {
 	teacherAuth.Get("/challenges/:id", teacherChallengeHandler.GetChallengeByID)
 	teacherAuth.Put("/challenges/:id", teacherChallengeHandler.UpdateChallenge)
 	teacherAuth.Delete("/challenges/:id", teacherChallengeHandler.DeleteChallenge)
+
+	// Teacher Dashboard Routes
+	teacherAuth.Get("/dashboard", teacherDashboardHandler.GetTeacherDashboard)
 
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
@@ -562,6 +583,9 @@ func main() {
 	experienceRoutes.Get("/:id", experienceHandler.GetExperienceByID)
 	experienceRoutes.Put("/:id", experienceHandler.UpdateExperience)
 	experienceRoutes.Delete("/:id", experienceHandler.DeleteExperience)
+
+	// Student Dashboard Routes
+	studentRoutes.Get("/dashboard", studentDashboardHandler.GetStudentDashboard)
 
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)

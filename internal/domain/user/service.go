@@ -16,8 +16,10 @@ import (
 )
 
 type UserService struct {
-	repo     *UserRepository
-	r2Client *utils.R2Client
+	repo         *UserRepository
+	r2Client     *utils.R2Client
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
 type Claims struct {
@@ -27,15 +29,17 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func NewUserService(repo *UserRepository) *UserService {
+func NewUserService(repo *UserRepository, redis *utils.RedisClient) *UserService {
 	r2Client, err := utils.NewR2Client()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
 	}
 
 	return &UserService{
-		repo:     repo,
-		r2Client: r2Client,
+		repo:         repo,
+		r2Client:     r2Client,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
 	}
 }
 
@@ -48,17 +52,34 @@ func (s *UserService) GetUserByToken(c *fiber.Ctx) (*User, error) {
 	if err != nil {
 		return nil, errors.New("failed to get user id")
 	}
-	user, err := s.repo.GetUserByID(userId)
+
+	cacheKey := fmt.Sprintf("user:%s", userId.String())
+
+	var user User
+	if err := s.redis.GetJSON(cacheKey, &user); err == nil {
+		return &user, nil
+	}
+
+	userPtr, err := s.repo.GetUserByID(userId)
 	if err != nil {
 		return nil, errors.New("failed to get user data")
 	}
-	return user, nil
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, *userPtr, "medium")
+	return userPtr, nil
 }
 
 func (s *UserService) GetEnhancedUserProfile(c *fiber.Ctx) (*EnhancedUserResponse, error) {
 	userId, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		return nil, errors.New("failed to get user id")
+	}
+
+	cacheKey := fmt.Sprintf("enhanced_user:%s", userId.String())
+
+	var cachedResponse EnhancedUserResponse
+	if err := s.redis.GetJSON(cacheKey, &cachedResponse); err == nil {
+		return &cachedResponse, nil
 	}
 
 	user, err := s.repo.GetUserByID(userId)
@@ -92,20 +113,26 @@ func (s *UserService) GetEnhancedUserProfile(c *fiber.Ctx) (*EnhancedUserRespons
 		response.Username = s.generateUsername(user.AlumniProfile.Fullname, "alumni")
 	}
 
+	s.cacheManager.SetWithSmartTTL(cacheKey, *response, "short")
 	return response, nil
 }
 
 func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentProfileResponse, error) {
-	// Get student profile by NIS
+	cacheKey := fmt.Sprintf("public_profile:%s", nis)
+
+	var cachedProfile PublicStudentProfileResponse
+	if err := s.redis.GetJSON(cacheKey, &cachedProfile); err == nil {
+		return &cachedProfile, nil
+	}
+
 	studentProfile, err := s.repo.GetStudentProfileByNIS(nis)
 	if err != nil {
 		return nil, errors.New("student not found")
 	}
 
-	// Get projects
 	projects, err := s.repo.GetUserProjectsByStudentProfileID(studentProfile.ID)
 	if err != nil {
-		projects = []UserProjectInfo{} // Empty slice if error
+		projects = []UserProjectInfo{}
 	}
 
 	// Get certifications
@@ -126,7 +153,7 @@ func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentPr
 	// Generate profile URL
 	profileURL := os.Getenv("FRONTEND_URL") + "/profile/" + nis
 
-	return &PublicStudentProfileResponse{
+	response := &PublicStudentProfileResponse{
 		NIS:             studentProfile.NIS,
 		Fullname:        studentProfile.Fullname,
 		Class:           studentProfile.Class,
@@ -143,7 +170,10 @@ func (s *UserService) GetPublicStudentProfileByNIS(nis string) (*PublicStudentPr
 		ShowEmail:       false,
 		ShowCV:          false,
 		IsPublicProfile: true,
-	}, nil
+	}
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, *response, "long")
+	return response, nil
 }
 
 func (s *UserService) buildEnhancedStudentProfile(profile *StudentProfile, userID uuid.UUID) (*EnhancedStudentProfile, error) {
@@ -357,5 +387,20 @@ func (s *UserService) UpdateUserProfile(c *fiber.Ctx) (*StudentProfile, error) {
 		return nil, errors.New(err.Error())
 	}
 
+	s.invalidateUserCache(user.ID, user.StudentProfile.NIS)
 	return user.StudentProfile, nil
+}
+
+func (s *UserService) invalidateUserCache(userID uuid.UUID, nis string) {
+	userKey := fmt.Sprintf("user:%s", userID.String())
+	s.redis.Delete(userKey)
+
+	enhancedKey := fmt.Sprintf("enhanced_user:%s", userID.String())
+	s.redis.Delete(enhancedKey)
+
+	publicKey := fmt.Sprintf("public_profile:%s", nis)
+	s.redis.Delete(publicKey)
+
+	s.redis.Delete("user:statistics")
+	s.cacheManager.InvalidateByPattern("users:*")
 }

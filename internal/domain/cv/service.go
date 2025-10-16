@@ -26,7 +26,7 @@ type Service interface {
 	GetPublicCVs(nis string) ([]CV, error)
 
 	GeneratePDF(cvID uuid.UUID) (string, error)
-	DownloadCV(cvID uuid.UUID) (string, error)
+	DownloadCV(cvID uuid.UUID) (*CV, error)
 
 	AnalyzeATS(content *CVContent) (*ATSScore, error)
 }
@@ -281,7 +281,6 @@ func (s *CVService) PreviewCV(userID uuid.UUID) (*CVContent, error) {
 	}
 
 	s.cacheManager.SetWithSmartTTL(cacheKey, content, "short")
-
 	return &content, nil
 }
 
@@ -431,18 +430,17 @@ func (s *CVService) GeneratePDF(cvID uuid.UUID) (string, error) {
 	return pdfURL, nil
 }
 
-func (s *CVService) DownloadCV(cvID uuid.UUID) (string, error) {
+func (s *CVService) DownloadCV(cvID uuid.UUID) (*CV, error) {
 	cv, err := s.repo.GetCVByID(cvID)
 	if err != nil {
-		return "", errors.New("CV not found")
+		return nil, errors.New("CV not found")
 	}
 
 	if cv.PDFPath == "" {
-		return "", errors.New("PDF file not found")
+		return nil, errors.New("PDF file not found")
 	}
 
-	// Return the R2 URL directly
-	return cv.PDFPath, nil
+	return cv, nil
 }
 
 func (s *CVService) AnalyzeATS(content *CVContent) (*ATSScore, error) {

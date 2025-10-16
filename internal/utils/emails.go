@@ -117,6 +117,8 @@ func SendEmail(user EmailUser, data *EmailData, templateName string) error {
 	d := gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
+	fmt.Printf("Dialing SMTP server: %s:%d with user %s\n", smtpHost, smtpPort, smtpUser)
+
 	if err := d.DialAndSend(m); err != nil {
 		log.Printf("Failed to send email to %s: %v", user.GetEmail(), err)
 		return err
@@ -140,7 +142,7 @@ func SendResetPasswordEmail(user EmailUser, resetToken string) error {
 
 	resetURL := fmt.Sprintf("%s/reset-password/%s", os.Getenv("CLIENT_ORIGIN"), resetToken)
 	if os.Getenv("CLIENT_ORIGIN") == "" {
-		resetURL = fmt.Sprintf("http://localhost:3000/reset-password/%s", resetToken)
+		resetURL = fmt.Sprintf("http://localhost:8000/reset-password/%s", resetToken)
 	}
 
 	emailData := &EmailData{

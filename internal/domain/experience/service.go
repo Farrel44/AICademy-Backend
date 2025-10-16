@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -19,11 +20,17 @@ type Service interface {
 }
 
 type service struct {
-	repo Repository
+	repo         Repository
+	redis        *utils.RedisClient
+	cacheManager *utils.CacheManager
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, redis *utils.RedisClient) Service {
+	return &service{
+		repo:         repo,
+		redis:        redis,
+		cacheManager: utils.NewCacheManager(redis),
+	}
 }
 
 func (s *service) CreateExperience(studentProfileID uuid.UUID, req *CreateExperienceRequest) (*ExperienceResponse, error) {
@@ -61,11 +68,21 @@ func (s *service) CreateExperience(studentProfileID uuid.UUID, req *CreateExperi
 		return nil, fmt.Errorf("failed to create experience: %w", err)
 	}
 
+	s.invalidateExperienceCache(studentProfileID)
 	return s.experienceToResponse(experience), nil
 }
 
 func (s *service) GetExperienceByID(id, studentProfileID uuid.UUID) (*ExperienceResponse, error) {
-	experience, err := s.repo.GetExperienceByID(id)
+	cacheKey := fmt.Sprintf("experience:%s", id.String())
+
+	var experience Experience
+	if err := s.redis.GetJSON(cacheKey, &experience); err == nil {
+		if experience.StudentProfileID == studentProfileID {
+			return s.experienceToResponse(&experience), nil
+		}
+	}
+
+	experience2, err := s.repo.GetExperienceByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("experience not found")
@@ -73,21 +90,27 @@ func (s *service) GetExperienceByID(id, studentProfileID uuid.UUID) (*Experience
 		return nil, fmt.Errorf("failed to get experience: %w", err)
 	}
 
-	// Check if experience belongs to the student
-	if experience.StudentProfileID != studentProfileID {
+	if experience2.StudentProfileID != studentProfileID {
 		return nil, fmt.Errorf("experience not found")
 	}
 
-	return s.experienceToResponse(experience), nil
+	s.cacheManager.SetWithSmartTTL(cacheKey, *experience2, "medium")
+	return s.experienceToResponse(experience2), nil
 }
 
 func (s *service) GetExperiencesByStudentID(studentProfileID uuid.UUID, page, limit int) (*ExperienceListResponse, error) {
-	// Validate pagination parameters
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
 		limit = 10
+	}
+
+	cacheKey := fmt.Sprintf("experiences:%s:page:%d:limit:%d", studentProfileID.String(), page, limit)
+
+	var cachedResponse ExperienceListResponse
+	if err := s.redis.GetJSON(cacheKey, &cachedResponse); err == nil {
+		return &cachedResponse, nil
 	}
 
 	experiences, total, err := s.repo.GetExperiencesByStudentID(studentProfileID, page, limit)
@@ -102,13 +125,16 @@ func (s *service) GetExperiencesByStudentID(studentProfileID uuid.UUID, page, li
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 
-	return &ExperienceListResponse{
+	response := &ExperienceListResponse{
 		Data:       responses,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	s.cacheManager.SetWithSmartTTL(cacheKey, *response, "medium")
+	return response, nil
 }
 
 func (s *service) UpdateExperience(id, studentProfileID uuid.UUID, req *UpdateExperienceRequest) (*ExperienceResponse, error) {
@@ -146,6 +172,7 @@ func (s *service) UpdateExperience(id, studentProfileID uuid.UUID, req *UpdateEx
 		return nil, fmt.Errorf("failed to update experience: %w", err)
 	}
 
+	s.invalidateExperienceCache(studentProfileID)
 	return s.experienceToResponse(experience), nil
 }
 
@@ -163,6 +190,7 @@ func (s *service) DeleteExperience(id, studentProfileID uuid.UUID) error {
 		return fmt.Errorf("failed to delete experience: %w", err)
 	}
 
+	s.invalidateExperienceCache(studentProfileID)
 	return nil
 }
 
@@ -260,4 +288,10 @@ func (s *service) experienceToResponse(experience *Experience) *ExperienceRespon
 		CreatedAt:        experience.CreatedAt,
 		UpdatedAt:        experience.UpdatedAt,
 	}
+}
+
+func (s *service) invalidateExperienceCache(studentProfileID uuid.UUID) {
+	s.redis.Delete("experience:statistics")
+	s.cacheManager.InvalidateByPattern("experiences:*")
+	s.cacheManager.InvalidateByPattern(fmt.Sprintf("experiences:%s:*", studentProfileID.String()))
 }
