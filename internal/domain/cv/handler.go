@@ -149,6 +149,7 @@ func (h *CVHandler) GetCVByID(c *fiber.Ctx) error {
 			CreatedAt:   cv.CreatedAt,
 			UpdatedAt:   cv.UpdatedAt,
 		},
+		PDFLink:  cv.PDFPath,
 		Content:  cv.Content,
 		ATSScore: atsScore,
 	}

@@ -30,6 +30,7 @@ type CVResponse struct {
 
 type CVDetailResponse struct {
 	CVResponse
+	PDFLink  string    `json:"pdf_link"`
 	Content  CVContent `json:"content"`
 	ATSScore *ATSScore `json:"ats_score,omitempty"`
 }
