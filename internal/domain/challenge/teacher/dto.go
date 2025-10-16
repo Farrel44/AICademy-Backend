@@ -7,7 +7,6 @@ import (
 )
 
 type CreateChallengeRequest struct {
-	ThumbnailImage  string    `json:"thumbnail_image" validate:"required"`
 	Title           string    `json:"title" validate:"required"`
 	Description     string    `json:"description" validate:"required"`
 	Deadline        time.Time `json:"deadline" validate:"required"`
@@ -16,7 +15,6 @@ type CreateChallengeRequest struct {
 }
 
 type UpdateChallengeRequest struct {
-	ThumbnailImage  *string    `json:"thumbnail_image"`
 	Title           *string    `json:"title"`
 	Description     *string    `json:"description"`
 	Deadline        *time.Time `json:"deadline"`

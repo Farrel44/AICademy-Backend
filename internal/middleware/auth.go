@@ -43,6 +43,7 @@ func AuthRequired() fiber.Handler {
 
 		claims, err := utils.ValidateToken(token)
 		if err != nil {
+			utils.CaptureError(c, err)
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Invalid or expired token",
@@ -60,6 +61,10 @@ func AuthRequired() fiber.Handler {
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_role", user.UserRole(claims.Role))
 
+		utils.SetUserContext(c, claims.UserID.String(), claims.Email, claims.Role)
+		utils.SetTag(c, "endpoint", c.Path())
+		utils.SetTag(c, "method", c.Method())
+
 		return c.Next()
 	}
 }
@@ -68,6 +73,7 @@ func AdminRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		role := c.Locals("user_role")
 		if role != user.RoleAdmin {
+			utils.AddBreadcrumb(c, "Access denied - Admin required", "auth")
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Admin access required",
@@ -81,6 +87,7 @@ func TeacherOrAdminRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		role := c.Locals("user_role")
 		if role != user.RoleAdmin && role != user.RoleTeacher {
+			utils.AddBreadcrumb(c, "Access denied - Teacher or Admin required", "auth")
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Teacher or Admin access required",
@@ -94,6 +101,7 @@ func StudentRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		role := c.Locals("user_role")
 		if role != user.RoleStudent {
+			utils.AddBreadcrumb(c, "Access denied - Student required", "auth")
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Student access required",
@@ -107,6 +115,7 @@ func AlumniRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		role := c.Locals("user_role")
 		if role != user.RoleAlumni {
+			utils.AddBreadcrumb(c, "Access denied - Alumni required", "auth")
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Alumni access required",
@@ -120,6 +129,7 @@ func CompanyRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		role := c.Locals("user_role")
 		if role != user.RoleCompany {
+			utils.AddBreadcrumb(c, "Access denied - Company required", "auth")
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"error":   "Company access required",

@@ -28,11 +28,11 @@ func getConnectionPoolConfig() (maxOpen, maxIdle int, maxLifetime, maxIdleTime t
 	case "production":
 		return 100, 25, 2 * time.Hour, time.Hour // Production: balanced for high load
 	case "staging":
-		return 50, 15, time.Hour, 30 * time.Minute // Staging: moderate
+		return 50, 15, time.Hour, 30 * time.Minute
 	case "development":
-		return 20, 5, 30 * time.Minute, 15 * time.Minute // Development: conservative
+		return 20, 5, 30 * time.Minute, 15 * time.Minute
 	default:
-		return 30, 10, time.Hour, 30 * time.Minute // Default: safe moderate
+		return 30, 10, time.Hour, 30 * time.Minute
 	}
 }
 

@@ -6,7 +6,12 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/getsentry/sentry-go"
+	sentryfiber "github.com/getsentry/sentry-go/fiber"
 
 	"github.com/Farrel44/AICademy-Backend/internal/config"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/admin"
@@ -185,14 +190,77 @@ var (
 	routePrefixFlag = flag.String("route:prefix", "", "optional prefix filter, e.g. /api/v1/admin")
 )
 
+func initSentry() error {
+	dsn := os.Getenv("SENTRY_DSN")
+	if dsn == "" {
+		return nil
+	}
+
+	environment := os.Getenv("SENTRY_ENVIRONMENT")
+	if environment == "" {
+		environment = "production"
+	}
+
+	release := os.Getenv("SENTRY_RELEASE")
+	sampleRate := 1.0
+	tracesSampleRate := 0.1
+
+	if sampleRateStr := os.Getenv("SENTRY_SAMPLE_RATE"); sampleRateStr != "" {
+		if rate, err := strconv.ParseFloat(sampleRateStr, 64); err == nil {
+			sampleRate = rate
+		}
+	}
+
+	if tracesSampleRateStr := os.Getenv("SENTRY_TRACES_SAMPLE_RATE"); tracesSampleRateStr != "" {
+		if rate, err := strconv.ParseFloat(tracesSampleRateStr, 64); err == nil {
+			tracesSampleRate = rate
+		}
+	}
+
+	return sentry.Init(sentry.ClientOptions{
+		Dsn:              dsn,
+		Environment:      environment,
+		Release:          release,
+		SampleRate:       sampleRate,
+		TracesSampleRate: tracesSampleRate,
+		AttachStacktrace: true,
+		EnableTracing:    true,
+		Debug:            environment == "development",
+		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
+			if event.Request != nil {
+				if strings.Contains(event.Request.URL, "/health") {
+					return nil
+				}
+
+				event.Request.Cookies = ""
+				if event.Request.Headers != nil {
+					sensitiveHeaders := []string{"authorization", "cookie", "x-api-key"}
+					for _, header := range sensitiveHeaders {
+						delete(event.Request.Headers, header)
+					}
+				}
+			}
+
+			if event.Level == sentry.LevelInfo {
+				return nil
+			}
+
+			return event
+		},
+	})
+}
+
 func main() {
-	// Parse CLI flags early
 	flag.Parse()
 
-	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
+
+	if err := initSentry(); err != nil {
+		log.Printf("Sentry initialization failed: %v", err)
+	}
+	defer sentry.Flush(2 * time.Second)
 
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 
@@ -203,6 +271,7 @@ func main() {
 
 	db, err := config.InitDatabase()
 	if err != nil {
+		sentry.CaptureException(err)
 		log.Fatal("Failed to connect to database:", err)
 	}
 
@@ -327,10 +396,14 @@ func main() {
 	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
 
 	app := fiber.New(fiber.Config{
-		BodyLimit:    10 * 1024 * 1024, // 10MB limit
+		BodyLimit:    10 * 1024 * 1024,
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			if hub := sentryfiber.GetHubFromContext(c); hub != nil {
+				hub.CaptureException(err)
+			}
+
 			code := fiber.StatusInternalServerError
 			message := "Internal Server Error"
 
@@ -356,7 +429,6 @@ func main() {
 				}
 			}
 
-			// Handle specific errors
 			if strings.Contains(err.Error(), "request body too large") {
 				code = fiber.StatusRequestEntityTooLarge
 				message = "File terlalu besar, maksimal 10MB"
@@ -368,6 +440,14 @@ func main() {
 			})
 		},
 	})
+
+	if os.Getenv("SENTRY_DSN") != "" {
+		app.Use(sentryfiber.New(sentryfiber.Options{
+			Repanic:         true,
+			WaitForDelivery: false,
+			Timeout:         5 * time.Second,
+		}))
+	}
 
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
@@ -387,7 +467,6 @@ func main() {
 	app.Options("/*", func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})
-
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message": "AICademy API v1.0",
@@ -404,6 +483,25 @@ func main() {
 	// Health check endpoints
 	app.Get("/health", utils.HealthCheck(sqlDB))
 	app.Get("/health/db", utils.DetailedDBStats(sqlDB))
+
+	if os.Getenv("APP_ENV") == "development" {
+		app.Get("/test/sentry-error", func(c *fiber.Ctx) error {
+			return fiber.NewError(fiber.StatusInternalServerError, "Test Sentry error capture")
+		})
+
+		app.Get("/test/sentry-panic", func(c *fiber.Ctx) error {
+			panic("Test Sentry panic capture")
+		})
+
+		app.Get("/test/sentry-message", func(c *fiber.Ctx) error {
+			utils.CaptureMessage(c, "Test Sentry message capture")
+			return c.JSON(fiber.Map{"message": "Sentry message sent"})
+		})
+
+		app.Get("/test/sentry-auth-error", middleware.AuthRequired(), func(c *fiber.Ctx) error {
+			return fiber.NewError(fiber.StatusInternalServerError, "Test authenticated Sentry error")
+		})
+	}
 
 	api := app.Group("/api/v1")
 
@@ -666,5 +764,8 @@ func main() {
 	}
 	log.Printf("📋 Total registered routes: %d", routeCount)
 
-	log.Fatal(app.Listen(":" + port))
+	if err := app.Listen(":" + port); err != nil {
+		sentry.CaptureException(err)
+		log.Fatal("Failed to start server:", err)
+	}
 }

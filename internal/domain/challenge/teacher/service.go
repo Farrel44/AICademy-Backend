@@ -23,19 +23,25 @@ func NewTeacherChallengeService(repo *challenge.ChallengeRepository, redisClient
 	}
 }
 
-func (s *TeacherChallengeService) CreateChallenge(teacherID uuid.UUID, req *CreateChallengeRequest) (*challenge.Challenge, error) {
+func (s *TeacherChallengeService) CreateChallenge(userID uuid.UUID, req *CreateChallengeRequest) (*challenge.Challenge, error) {
+	// Get teacher profile ID from user ID
+	teacherProfileID, err := s.repo.GetTeacherProfileByUserID(userID)
+	if err != nil {
+		return nil, errors.New("teacher profile not found")
+	}
+
 	newChallenge := &challenge.Challenge{
 		Title:              req.Title,
 		Description:        req.Description,
 		Deadline:           req.Deadline,
 		Prize:              req.Prize,
 		MaxParticipants:    req.MaxParticipants,
-		CreatedByTeacherID: &teacherID,
+		CreatedByTeacherID: teacherProfileID,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
-	err := s.repo.CreateChallenge(newChallenge)
+	err = s.repo.CreateChallenge(newChallenge)
 	if err != nil {
 		return nil, errors.New("failed to create challenge")
 	}
@@ -43,9 +49,15 @@ func (s *TeacherChallengeService) CreateChallenge(teacherID uuid.UUID, req *Crea
 	return newChallenge, nil
 }
 
-func (s *TeacherChallengeService) UpdateChallenge(teacherID uuid.UUID, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
+func (s *TeacherChallengeService) UpdateChallenge(userID uuid.UUID, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
+	// Get teacher profile ID from user ID
+	teacherProfileID, err := s.repo.GetTeacherProfileByUserID(userID)
+	if err != nil {
+		return nil, errors.New("teacher profile not found")
+	}
+
 	// Get existing challenge and verify ownership
-	existingChallenge, err := s.repo.GetTeacherChallengeByID(challengeID, teacherID)
+	existingChallenge, err := s.repo.GetTeacherChallengeByID(challengeID, *teacherProfileID)
 	if err != nil {
 		return nil, errors.New("challenge not found or access denied")
 	}
@@ -76,9 +88,15 @@ func (s *TeacherChallengeService) UpdateChallenge(teacherID uuid.UUID, challenge
 	return existingChallenge, nil
 }
 
-func (s *TeacherChallengeService) DeleteChallenge(teacherID uuid.UUID, challengeID uuid.UUID) error {
+func (s *TeacherChallengeService) DeleteChallenge(userID uuid.UUID, challengeID uuid.UUID) error {
+	// Get teacher profile ID from user ID
+	teacherProfileID, err := s.repo.GetTeacherProfileByUserID(userID)
+	if err != nil {
+		return errors.New("teacher profile not found")
+	}
+
 	// Verify ownership
-	_, err := s.repo.GetTeacherChallengeByID(challengeID, teacherID)
+	_, err = s.repo.GetTeacherChallengeByID(challengeID, *teacherProfileID)
 	if err != nil {
 		return errors.New("challenge not found or access denied")
 	}
@@ -91,7 +109,13 @@ func (s *TeacherChallengeService) DeleteChallenge(teacherID uuid.UUID, challenge
 	return nil
 }
 
-func (s *TeacherChallengeService) GetMyChallenges(teacherID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
+func (s *TeacherChallengeService) GetMyChallenges(userID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
+	// Get teacher profile ID from user ID
+	teacherProfileID, err := s.repo.GetTeacherProfileByUserID(userID)
+	if err != nil {
+		return nil, errors.New("teacher profile not found")
+	}
+
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -105,7 +129,7 @@ func (s *TeacherChallengeService) GetMyChallenges(teacherID uuid.UUID, page, lim
 	limit = validation.Limit
 	search = validation.Query
 
-	cacheKey := fmt.Sprintf("teacher_challenges:%s:%d:%d:%s", teacherID.String(), page, limit, search)
+	cacheKey := fmt.Sprintf("teacher_challenges:%s:%d:%d:%s", teacherProfileID.String(), page, limit, search)
 
 	if cached, err := s.redisClient.Get(cacheKey); err == nil {
 		var result utils.PaginationResponse
@@ -115,7 +139,7 @@ func (s *TeacherChallengeService) GetMyChallenges(teacherID uuid.UUID, page, lim
 	}
 
 	offset := (page - 1) * limit
-	challenges, total, err := s.repo.GetChallengesByTeacherOptimized(teacherID, offset, limit, search)
+	challenges, total, err := s.repo.GetChallengesByTeacherOptimized(*teacherProfileID, offset, limit, search)
 	if err != nil {
 		return nil, errors.New("failed to fetch challenges")
 	}

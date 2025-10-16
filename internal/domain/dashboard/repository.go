@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -11,8 +13,14 @@ type Repository interface {
 	GetStudentSummary(studentProfileID uuid.UUID) (*StudentSummary, error)
 	GetAdminTotals() (*AdminTotals, error)
 	GetStudentStatistics() (*StudentStatistics, error)
+	GetAdminChallenges() ([]AdminChallenge, error)
+	GetAdminRoadmapSubmissions() ([]RoadmapStepSubmission, error)
 	GetTeacherChallengeStats(teacherProfileID uuid.UUID) (*TeacherChallengeStats, error)
 	GetTeacherSubmissionStats(teacherProfileID uuid.UUID) (*TeacherSubmissionStats, error)
+	GetTeacherRoadmapStats(teacherProfileID uuid.UUID) (*TeacherRoadmapStats, error)
+	GetTeacherChallenges(teacherProfileID uuid.UUID) ([]TeacherChallenge, error)
+	GetTeacherChallengeSubmissions(teacherProfileID uuid.UUID) ([]ChallengeSubmissionItem, error)
+	GetTeacherRoadmapSubmissions(teacherProfileID uuid.UUID) ([]RoadmapStepSubmission, error)
 	GetStudentProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error)
 	GetTeacherProfileIDByUserID(userID uuid.UUID) (uuid.UUID, error)
 }
@@ -640,6 +648,69 @@ type TeacherSubmissionStats struct {
 	PendingSubmissions int `json:"pending_submissions"`
 }
 
+type TeacherRoadmapStats struct {
+	TotalStepSubmissions int `json:"total_step_submissions"`
+	ValidatedSubmissions int `json:"validated_submissions"`
+	PendingValidations   int `json:"pending_validations"`
+}
+
+type AdminChallenge struct {
+	ID                  uuid.UUID `json:"id"`
+	Title               string    `json:"title"`
+	Description         string    `json:"description"`
+	Deadline            time.Time `json:"deadline"`
+	Prize               *string   `json:"prize"`
+	MaxParticipants     int       `json:"max_participants"`
+	CurrentParticipants int       `json:"current_participants"`
+	IsActive            bool      `json:"is_active"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type TeacherChallenge struct {
+	ID                  uuid.UUID `json:"id"`
+	Title               string    `json:"title"`
+	Description         string    `json:"description"`
+	Deadline            time.Time `json:"deadline"`
+	Prize               *string   `json:"prize"`
+	MaxParticipants     int       `json:"max_participants"`
+	CurrentParticipants int       `json:"current_participants"`
+	IsActive            bool      `json:"is_active"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type ChallengeSubmissionItem struct {
+	ID               uuid.UUID  `json:"id"`
+	ChallengeID      uuid.UUID  `json:"challenge_id"`
+	ChallengeTitle   string     `json:"challenge_title"`
+	Title            string     `json:"title"`
+	TeamID           *uuid.UUID `json:"team_id"`
+	TeamName         *string    `json:"team_name"`
+	StudentProfileID *uuid.UUID `json:"student_profile_id"`
+	StudentName      *string    `json:"student_name"`
+	ImageURL         *string    `json:"image_url"`
+	RepoURL          *string    `json:"repo_url"`
+	DocsURL          *string    `json:"docs_url"`
+	SubmittedAt      time.Time  `json:"submitted_at"`
+	Points           *int       `json:"points"`
+	IsScored         bool       `json:"is_scored"`
+}
+
+type RoadmapStepSubmission struct {
+	ID               uuid.UUID  `json:"id"`
+	RoadmapStepID    uuid.UUID  `json:"roadmap_step_id"`
+	StepTitle        string     `json:"step_title"`
+	StudentProfileID uuid.UUID  `json:"student_profile_id"`
+	StudentName      string     `json:"student_name"`
+	EvidenceLink     *string    `json:"evidence_link"`
+	EvidenceType     *string    `json:"evidence_type"`
+	SubmissionNotes  *string    `json:"submission_notes"`
+	ValidationNotes  *string    `json:"validation_notes"`
+	ValidationScore  *int       `json:"validation_score"`
+	Status           string     `json:"status"`
+	SubmittedAt      *time.Time `json:"submitted_at"`
+	IsValidated      bool       `json:"is_validated"`
+}
+
 // Dashboard roadmap data - internal struct for repository
 type DashboardRoadmapData struct {
 	ID                uuid.UUID `json:"id"`
@@ -683,4 +754,158 @@ type DashboardStepData struct {
 	StartedAt       *string `json:"started_at"`
 	SubmittedAt     *string `json:"submitted_at"`
 	CompletedAt     *string `json:"completed_at"`
+}
+
+func (r *repository) GetTeacherRoadmapStats(teacherProfileID uuid.UUID) (*TeacherRoadmapStats, error) {
+	stats := &TeacherRoadmapStats{}
+
+	err := r.db.Table("student_step_progress ssp").
+		Select(`
+			COUNT(ssp.id) as total_step_submissions,
+			COUNT(CASE WHEN ssp.validated_by_teacher_id IS NOT NULL THEN 1 END) as validated_submissions,
+			COUNT(CASE WHEN ssp.status = 'submitted' AND ssp.validated_by_teacher_id IS NULL THEN 1 END) as pending_validations
+		`).
+		Where("ssp.validated_by_teacher_id = ? OR ssp.status = 'submitted'", teacherProfileID).
+		Scan(stats).Error
+
+	return stats, err
+}
+
+func (r *repository) GetTeacherChallenges(teacherProfileID uuid.UUID) ([]TeacherChallenge, error) {
+	var challenges []TeacherChallenge
+
+	err := r.db.Table("challenges").
+		Select(`
+			id,
+			title,
+			description,
+			deadline,
+			prize,
+			max_participants,
+			current_participants,
+			(deadline > NOW()) as is_active,
+			created_at
+		`).
+		Where("created_by_teacher_id = ?", teacherProfileID).
+		Order("created_at DESC").
+		Limit(10).
+		Scan(&challenges).Error
+
+	return challenges, err
+}
+
+func (r *repository) GetTeacherChallengeSubmissions(teacherProfileID uuid.UUID) ([]ChallengeSubmissionItem, error) {
+	var submissions []ChallengeSubmissionItem
+
+	err := r.db.Table("submissions s").
+		Select(`
+			s.id,
+			s.challenge_id,
+			c.title as challenge_title,
+			s.title,
+			s.team_id,
+			t.team_name,
+			s.student_profile_id,
+			CASE 
+				WHEN s.team_id IS NOT NULL THEN NULL
+				ELSE sp.fullname
+			END as student_name,
+			s.image_url,
+			s.repo_url,
+			s.docs_url,
+			s.submitted_at,
+			s.points,
+			(s.points IS NOT NULL) as is_scored
+		`).
+		Joins("JOIN challenges c ON s.challenge_id = c.id").
+		Joins("LEFT JOIN teams t ON s.team_id = t.id").
+		Joins("LEFT JOIN student_profiles sp ON s.student_profile_id = sp.id").
+		Where("c.created_by_teacher_id = ?", teacherProfileID).
+		Order("s.submitted_at DESC").
+		Limit(20).
+		Scan(&submissions).Error
+
+	return submissions, err
+}
+
+func (r *repository) GetTeacherRoadmapSubmissions(teacherProfileID uuid.UUID) ([]RoadmapStepSubmission, error) {
+	var submissions []RoadmapStepSubmission
+
+	err := r.db.Table("student_step_progress ssp").
+		Select(`
+			ssp.id,
+			ssp.roadmap_step_id,
+			rs.title as step_title,
+			sp.id as student_profile_id,
+			sp.fullname as student_name,
+			ssp.evidence_link,
+			ssp.evidence_type,
+			ssp.submission_notes,
+			ssp.validation_notes,
+			ssp.validation_score,
+			ssp.status,
+			ssp.submitted_at,
+			(ssp.validated_by_teacher_id IS NOT NULL) as is_validated
+		`).
+		Joins("JOIN roadmap_steps rs ON ssp.roadmap_step_id = rs.id").
+		Joins("JOIN student_roadmap_progress srp ON ssp.student_roadmap_progress_id = srp.id").
+		Joins("JOIN student_profiles sp ON srp.student_profile_id = sp.id").
+		Where("ssp.status IN ('submitted', 'approved', 'rejected') OR ssp.validated_by_teacher_id = ?", teacherProfileID).
+		Order("ssp.submitted_at DESC").
+		Limit(20).
+		Scan(&submissions).Error
+
+	return submissions, err
+}
+
+func (r *repository) GetAdminChallenges() ([]AdminChallenge, error) {
+	var challenges []AdminChallenge
+
+	err := r.db.Table("challenges").
+		Select(`
+			id,
+			title,
+			description,
+			deadline,
+			prize,
+			max_participants,
+			current_participants,
+			(deadline > NOW()) as is_active,
+			created_at
+		`).
+		Order("created_at DESC").
+		Limit(20).
+		Scan(&challenges).Error
+
+	return challenges, err
+}
+
+func (r *repository) GetAdminRoadmapSubmissions() ([]RoadmapStepSubmission, error) {
+	var submissions []RoadmapStepSubmission
+
+	err := r.db.Table("student_step_progress ssp").
+		Select(`
+			ssp.id,
+			ssp.roadmap_step_id,
+			rs.title as step_title,
+			srp.student_profile_id,
+			sp.fullname as student_name,
+			ssp.evidence_link,
+			ssp.evidence_type,
+			ssp.submission_notes,
+			ssp.validation_notes,
+			ssp.validation_score,
+			ssp.status,
+			ssp.submitted_at,
+			(ssp.validated_by_teacher_id IS NOT NULL) as is_validated
+		`).
+		Joins("JOIN roadmap_steps rs ON ssp.roadmap_step_id = rs.id").
+		Joins("JOIN student_roadmap_progress srp ON ssp.student_roadmap_progress_id = srp.id").
+		Joins("JOIN student_profiles sp ON srp.student_profile_id = sp.id").
+		Where("ssp.status IN ('submitted', 'approved', 'rejected')").
+		Order("ssp.submitted_at DESC").
+		Limit(50).
+		Scan(&submissions).Error
+
+	return submissions, err
 }
