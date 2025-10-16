@@ -395,51 +395,8 @@ func main() {
 	adminDashboardHandler := adminDashboard.NewHandler(adminDashboardService)
 	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
 
-	app := fiber.New(fiber.Config{
-		BodyLimit:    10 * 1024 * 1024,
-		AppName:      "AICademy API v1.0",
-		ServerHeader: "Fiber",
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			if hub := sentryfiber.GetHubFromContext(c); hub != nil {
-				hub.CaptureException(err)
-			}
-
-			code := fiber.StatusInternalServerError
-			message := "Internal Server Error"
-
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-				message = e.Message
-			}
-
-			switch code {
-			case fiber.StatusMethodNotAllowed:
-				message = "Method not allowed for this endpoint"
-			case fiber.StatusNotFound:
-				message = "Endpoint not found"
-			case fiber.StatusUnauthorized:
-				message = "Unauthorized access"
-			case fiber.StatusForbidden:
-				message = "Access forbidden"
-			case fiber.StatusBadRequest:
-				message = "Bad request"
-			default:
-				if err != nil {
-					message = err.Error()
-				}
-			}
-
-			if strings.Contains(err.Error(), "request body too large") {
-				code = fiber.StatusRequestEntityTooLarge
-				message = "File terlalu besar, maksimal 10MB"
-			}
-
-			return c.Status(code).JSON(fiber.Map{
-				"success": false,
-				"error":   message,
-			})
-		},
-	})
+	app := fiber.New()
+	app.Use(middleware.JWTCookieBridge())
 
 	if os.Getenv("SENTRY_DSN") != "" {
 		app.Use(sentryfiber.New(sentryfiber.Options{
