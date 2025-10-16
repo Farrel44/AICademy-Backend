@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
+	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -41,6 +42,7 @@ func (r *AuthRepository) GetUserByEmail(email string) (*user.User, error) {
 	var u user.User
 	err := r.db.Where("email = ?", email).First(&u).Error
 	if err != nil {
+		utils.CaptureDBError(err, "GetUserByEmail")
 		return nil, err
 	}
 	return &u, nil
@@ -50,21 +52,34 @@ func (r *AuthRepository) GetUserByID(id uuid.UUID) (*user.User, error) {
 	var u user.User
 	err := r.db.First(&u, "id = ?", id).Error
 	if err != nil {
+		utils.CaptureDBError(err, "GetUserByID")
 		return nil, err
 	}
 	return &u, nil
 }
 
 func (r *AuthRepository) UpdatePassword(userID uuid.UUID, hashedPassword string) error {
-	return r.db.Model(&user.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error
+	err := r.db.Model(&user.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error
+	if err != nil {
+		utils.CaptureDBError(err, "UpdatePassword")
+	}
+	return err
 }
 
 func (r *AuthRepository) CreateAlumniProfile(profile *user.AlumniProfile) error {
-	return r.db.Create(profile).Error
+	err := r.db.Create(profile).Error
+	if err != nil {
+		utils.CaptureDBError(err, "CreateAlumniProfile")
+	}
+	return err
 }
 
 func (r *AuthRepository) CreateStudentProfile(profile *user.StudentProfile) error {
-	return r.db.Create(profile).Error
+	err := r.db.Create(profile).Error
+	if err != nil {
+		utils.CaptureDBError(err, "CreateStudentProfile")
+	}
+	return err
 }
 
 func (r *AuthRepository) CreateTeacherProfile(profile *user.TeacherProfile) error {
