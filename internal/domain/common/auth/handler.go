@@ -197,8 +197,8 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    token,
 		Expires:  time.Now().Add(15 * time.Minute), // 15 menit
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE untuk local dan production
-		SameSite: "Lax",
+		Secure:   true, // SECURE TRUE untuk local dan production
+		SameSite: "None",
 		Path:     "/",
 	})
 
@@ -208,8 +208,8 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE
-		SameSite: "Lax",
+		Secure:   true, // SECURE TRUE
+		SameSite: "None",
 		Path:     "/",
 	})
 
@@ -219,8 +219,8 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    refresh,
 		Expires:  time.Now().Add(7 * 24 * time.Hour), // 7 hari
 		HTTPOnly: true,                               // HTTPOnly untuk refresh token
-		Secure:   false,                              // SECURE TRUE
-		SameSite: "Lax",
+		Secure:   true,                               // SECURE TRUE
+		SameSite: "None",
 		Path:     "/",
 	})
 
@@ -230,8 +230,8 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    token,
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE
-		SameSite: "Lax",
+		Secure:   true, // SECURE TRUE
+		SameSite: "None",
 		Path:     "/",
 	})
 }
@@ -247,7 +247,7 @@ func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
 			Expires:  time.Now().Add(-time.Hour),
 			HTTPOnly: httpOnly,
 			Secure:   false, // SECURE TRUE
-			SameSite: "Lax",
+			SameSite: "None",
 			Path:     "/",
 		})
 	}
@@ -296,7 +296,7 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
 		Secure:   true, // SECURE TRUE
-		SameSite: "Lax",
+		SameSite: "None",
 		Path:     "/",
 	})
 
@@ -306,7 +306,7 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
 		Secure:   true, // SECURE TRUE
-		SameSite: "Lax",
+		SameSite: "None",
 		Path:     "/",
 	})
 
