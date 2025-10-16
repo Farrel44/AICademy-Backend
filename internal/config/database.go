@@ -203,7 +203,8 @@ func addIndexes(db *gorm.DB) {
 	// Refresh token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_expires ON refresh_tokens(token, expires_at)")
 
 	// Reset password token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_user_id ON reset_password_tokens(user_id)")
@@ -361,14 +362,32 @@ func setupQueryMonitoring(db *gorm.DB) {
 
 	log.Println("📊 Query monitoring enabled")
 }
-
 func monitorConnectionPool(sqlDB *sql.DB) {
 	ticker := time.NewTicker(10 * time.Second)
+
 	go func() {
+		defer ticker.Stop()
+
+		var lastWaitCount int64
 		for range ticker.C {
 			stats := sqlDB.Stats()
-			if stats.WaitCount > 10 {
-				log.Printf("High DB wait count: %d", stats.WaitCount)
+
+			newWaits := stats.WaitCount - lastWaitCount
+			lastWaitCount = stats.WaitCount
+
+			// Skip log kalau gak ada peningkatan
+			if newWaits == 0 {
+				continue
+			}
+
+			if newWaits > 10 {
+				log.Printf("[DB Pool] High wait activity detected — NewWaits: %d | InUse: %d | Idle: %d | Open: %d | WaitDuration: %s",
+					newWaits,
+					stats.InUse,
+					stats.Idle,
+					stats.OpenConnections,
+					stats.WaitDuration,
+				)
 			}
 		}
 	}()

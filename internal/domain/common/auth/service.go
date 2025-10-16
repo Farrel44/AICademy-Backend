@@ -41,9 +41,10 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
 
-	go func() {
-		s.repo.CreateRefreshToken(refreshTokenRecord)
-	}()
+	err = s.repo.CreateRefreshToken(refreshTokenRecord)
+	if err != nil {
+		return nil, errors.New("failed to save refresh token")
+	}
 
 	var userName string
 	switch foundUser.Role {
@@ -271,19 +272,16 @@ func (s *CommonAuthService) Logout(refreshToken string) error {
 }
 
 func (s *CommonAuthService) RefreshToken(req RefreshTokenRequest) (*RefreshTokenResponse, error) {
-	// Validate refresh token
 	refreshTokenRecord, err := s.repo.GetRefreshTokenByToken(req.RefreshToken)
 	if err != nil {
 		return nil, errors.New("invalid or expired refresh token")
 	}
 
-	// Get user data
 	foundUser, err := s.repo.GetUserByID(refreshTokenRecord.UserID)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	// Generate new access token
 	accessToken, err := utils.GenerateAccessToken(foundUser)
 	if err != nil {
 		return nil, errors.New("failed to generate access token")
@@ -292,6 +290,6 @@ func (s *CommonAuthService) RefreshToken(req RefreshTokenRequest) (*RefreshToken
 	return &RefreshTokenResponse{
 		AccessToken: accessToken,
 		TokenType:   "Bearer",
-		ExpiresIn:   15 * 60, // 15 menit dalam detik
+		ExpiresIn:   15 * 60,
 	}, nil
 }

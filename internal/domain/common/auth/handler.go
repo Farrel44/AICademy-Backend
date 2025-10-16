@@ -270,16 +270,16 @@ func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
 }
 
 func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
-	// Coba ambil refresh token dari cookie dulu
-	refreshToken := c.Cookies("refresh_token")
+	var refreshToken string
 
-	// Jika tidak ada di cookie, coba dari request body
-	if refreshToken == "" {
-		var req RefreshTokenRequest
-		if err := c.BodyParser(&req); err != nil {
-			return utils.SendError(c, 400, "Invalid request body")
-		}
-		refreshToken = req.RefreshToken
+	var reqBody struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := c.BodyParser(&reqBody); err == nil && reqBody.RefreshToken != "" {
+		refreshToken = reqBody.RefreshToken
+	} else {
+		refreshToken = c.Cookies("refresh_token")
 	}
 
 	if refreshToken == "" {
