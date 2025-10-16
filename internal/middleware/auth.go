@@ -31,7 +31,11 @@ func AuthRequired() fiber.Handler {
 		}
 
 		if token == "" {
-			token = c.Cookies("token")
+			// Try access_token cookie first (primary), then fallback to token (legacy)
+			token = c.Cookies("access_token")
+			if token == "" {
+				token = c.Cookies("token")
+			}
 		}
 
 		if token == "" {
