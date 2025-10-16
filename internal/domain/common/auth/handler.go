@@ -194,62 +194,54 @@ func isProduction() bool {
 
 // Helper methods - UPDATED
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh string) {
-	if token == "" || role == "" {
-		return
-	}
-
-	// Determine security settings based on environment
-	isSecure := isProduction()
+	secure := isProduction()
 	sameSite := "Lax"
-	if isSecure {
-		sameSite = "None" // Only use None in production with HTTPS
+	if secure {
+		sameSite = "None"
 	}
 
-	// Set access token cookie
+	// Access token (readable by FE jika perlu; bisa dipertimbangkan HttpOnly=false/true sesuai desain)
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    token,
+		Path:     "/",
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
 		Expires:  time.Now().Add(15 * time.Minute),
-		HTTPOnly: false,
-		Secure:   isSecure,
-		SameSite: sameSite,
-		Path:     "/",
-		Domain:   "", // Let browser decide
 	})
 
-	// Set role cookie
-	c.Cookie(&fiber.Cookie{
-		Name:     "role",
-		Value:    role,
-		Expires:  time.Now().Add(24 * time.Hour),
-		HTTPOnly: false,
-		Secure:   isSecure,
-		SameSite: sameSite,
-		Path:     "/",
-		Domain:   "",
-	})
-
-	// Set refresh token cookie - HTTPOnly untuk keamanan
-	c.Cookie(&fiber.Cookie{
-		Name:     "refresh_token",
-		Value:    refresh,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
-		HTTPOnly: true,
-		Secure:   isSecure,
-		SameSite: sameSite,
-		Path:     "/",
-		Domain:   "",
-	})
-
+	// Legacy token
 	c.Cookie(&fiber.Cookie{
 		Name:     "token",
 		Value:    token,
-		Expires:  time.Now().Add(15 * time.Minute),
-		HTTPOnly: false,
-		Secure:   isSecure,
-		SameSite: sameSite,
 		Path:     "/",
-		Domain:   "",
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(15 * time.Minute),
+	})
+
+	// Role (opsional)
+	c.Cookie(&fiber.Cookie{
+		Name:     "role",
+		Value:    role,
+		Path:     "/",
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+
+	// Refresh token (HttpOnly)
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refresh,
+		Path:     "/",
+		Secure:   secure,
+		HTTPOnly: true,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 }
 
