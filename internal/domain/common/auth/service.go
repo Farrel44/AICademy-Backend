@@ -35,33 +35,28 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 		return nil, errors.New("failed to generate token")
 	}
 
-	// Simpan refresh token ke database
 	refreshTokenRecord := &user.RefreshToken{
 		UserID:    foundUser.ID,
 		Token:     tokenPair.RefreshToken,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 hari
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
 
-	err = s.repo.CreateRefreshToken(refreshTokenRecord)
-	if err != nil {
-		return nil, errors.New("failed to save refresh token")
-	}
+	go func() {
+		s.repo.CreateRefreshToken(refreshTokenRecord)
+	}()
 
 	var userName string
 	switch foundUser.Role {
 	case user.RoleStudent:
-		profile, err := s.repo.GetStudentProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetStudentProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	case user.RoleAlumni:
-		profile, err := s.repo.GetAlumniProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetAlumniProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	case user.RoleTeacher:
-		profile, err := s.repo.GetTeacherProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetTeacherProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	}

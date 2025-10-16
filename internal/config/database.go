@@ -1,6 +1,7 @@
 package config
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -26,11 +27,13 @@ func getConnectionPoolConfig() (maxOpen, maxIdle int, maxLifetime, maxIdleTime t
 
 	switch env {
 	case "production":
-		return 100, 25, 2 * time.Hour, time.Hour // Production: balanced for high load
+		return 100, 25, 2 * time.Hour, time.Hour
 	case "staging":
 		return 50, 15, time.Hour, 30 * time.Minute
+	case "testing":
+		return 150, 50, 15 * time.Minute, 5 * time.Minute
 	case "development":
-		return 20, 5, 30 * time.Minute, 15 * time.Minute
+		return 50, 15, 30 * time.Minute, 15 * time.Minute
 	default:
 		return 30, 10, time.Hour, 30 * time.Minute
 	}
@@ -90,6 +93,8 @@ func InitDatabase() (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(maxIdle)
 	sqlDB.SetConnMaxLifetime(maxLifetime)
 	sqlDB.SetConnMaxIdleTime(maxIdleTime)
+
+	monitorConnectionPool(sqlDB)
 
 	// Test connection
 	if err := sqlDB.Ping(); err != nil {
@@ -355,4 +360,16 @@ func setupQueryMonitoring(db *gorm.DB) {
 	})
 
 	log.Println("📊 Query monitoring enabled")
+}
+
+func monitorConnectionPool(sqlDB *sql.DB) {
+	ticker := time.NewTicker(10 * time.Second)
+	go func() {
+		for range ticker.C {
+			stats := sqlDB.Stats()
+			if stats.WaitCount > 10 {
+				log.Printf("High DB wait count: %d", stats.WaitCount)
+			}
+		}
+	}()
 }

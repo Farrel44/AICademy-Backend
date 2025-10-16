@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,7 +14,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Interface to avoid importing user package
 type JWTUser interface {
 	GetID() uuid.UUID
 	GetEmail() string
@@ -30,17 +30,27 @@ type Claims struct {
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"` // dalam detik
+	ExpiresIn    int64  `json:"expires_in"`
 }
 
-// GenerateAccessToken membuat JWT access token dengan expire time pendek (15 menit)
+var (
+	jwtSecretBytes []byte
+	jwtOnce        sync.Once
+)
+
+func initJWTSecret() {
+	jwtOnce.Do(func() {
+		jwtSecretBytes = []byte(os.Getenv("JWT_SECRET"))
+	})
+}
+
 func GenerateAccessToken(user JWTUser) (string, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
+	initJWTSecret()
+
+	if len(jwtSecretBytes) == 0 {
 		return "", errors.New("JWT_SECRET not set")
 	}
 
-	// Access token expire dalam 15 menit
 	expireTime := time.Now().Add(15 * time.Minute)
 
 	claims := Claims{
@@ -55,7 +65,7 @@ func GenerateAccessToken(user JWTUser) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(jwtSecret))
+	tokenString, err := token.SignedString(jwtSecretBytes)
 	if err != nil {
 		return "", err
 	}
@@ -63,9 +73,8 @@ func GenerateAccessToken(user JWTUser) (string, error) {
 	return tokenString, nil
 }
 
-// GenerateRefreshToken membuat random refresh token untuk disimpan di database
 func GenerateRefreshToken() (string, error) {
-	bytes := make([]byte, 32)
+	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
@@ -97,13 +106,13 @@ func GenerateToken(user JWTUser) (string, error) {
 }
 
 func ValidateToken(tokenString string) (*Claims, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
+	initJWTSecret()
+	if len(jwtSecretBytes) == 0 {
 		return nil, errors.New("JWT_SECRET not set")
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
+		return jwtSecretBytes, nil
 	})
 
 	if err != nil {
