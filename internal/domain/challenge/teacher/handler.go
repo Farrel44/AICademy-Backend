@@ -17,16 +17,21 @@ func NewTeacherChallengeHandler(service *TeacherChallengeService) *TeacherChalle
 }
 
 func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	var req CreateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		return utils.ValidationErrorResponse(c, err)
 	}
 
-	challenge, err := h.service.CreateChallenge(c, &req)
+	challenge, err := h.service.CreateChallenge(userID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -35,6 +40,11 @@ func (h *TeacherChallengeHandler) CreateChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	challengeID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
@@ -42,10 +52,10 @@ func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 
 	var req UpdateChallengeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
-	challenge, err := h.service.UpdateChallenge(c, challengeID, &req)
+	challenge, err := h.service.UpdateChallenge(userID, challengeID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -54,12 +64,17 @@ func (h *TeacherChallengeHandler) UpdateChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	challengeID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
 	}
 
-	err = h.service.DeleteChallenge(c, challengeID)
+	err = h.service.DeleteChallenge(userID, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -68,6 +83,11 @@ func (h *TeacherChallengeHandler) DeleteChallenge(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 10)
 	search := c.Query("search", "")
@@ -79,7 +99,7 @@ func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	challenges, err := h.service.GetMyChallenges(c, page, limit, search)
+	challenges, err := h.service.GetMyChallenges(userID, page, limit, search)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -88,12 +108,17 @@ func (h *TeacherChallengeHandler) GetMyChallenges(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	challengeID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "Invalid challenge ID")
 	}
 
-	challenge, err := h.service.GetChallengeByID(c, challengeID)
+	challenge, err := h.service.GetChallengeByID(userID, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -102,6 +127,11 @@ func (h *TeacherChallengeHandler) GetChallengeByID(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 10)
 	search := c.Query("search", "")
@@ -122,7 +152,7 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 		challengeID = &id
 	}
 
-	submissions, err := h.service.GetMySubmissions(c, page, limit, search, challengeID)
+	submissions, err := h.service.GetMySubmissions(userID, page, limit, search, challengeID)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -131,16 +161,21 @@ func (h *TeacherChallengeHandler) GetMySubmissions(c *fiber.Ctx) error {
 }
 
 func (h *TeacherChallengeHandler) ScoreSubmission(c *fiber.Ctx) error {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, 401, err.Error())
+	}
+
 	var req ScoreSubmissionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
 		return utils.ValidationErrorResponse(c, err)
 	}
 
-	err := h.service.ScoreSubmission(c, &req)
+	err = h.service.ScoreSubmission(userID, &req)
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}

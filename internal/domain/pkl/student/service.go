@@ -113,9 +113,6 @@ func (s *StudentPklService) ApplyStudentInternshipPosition(c *fiber.Ctx, interns
 		return nil, errors.New("Failed to get user data")
 	}
 
-	fmt.Print("internship id")
-	fmt.Print(internshipId)
-
 	var req ApplyInternshipRequest
 	if err := c.BodyParser(&req); err != nil {
 		return nil, errors.New("invalid request body")
@@ -123,9 +120,14 @@ func (s *StudentPklService) ApplyStudentInternshipPosition(c *fiber.Ctx, interns
 	if err := utils.ValidateStruct(req); err != nil {
 		return nil, err
 	}
+
 	user, err := s.repo.GetUserByID(userID)
 	if err != nil {
 		return nil, errors.New("failed to get user data")
+	}
+
+	if user.StudentProfile.CVFile == nil || *user.StudentProfile.CVFile == "" {
+		return nil, errors.New("CV is required to apply for internship. Please generate your CV first")
 	}
 
 	internship, err := s.repo.GetInternshipByID(internshipId)

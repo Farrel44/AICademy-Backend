@@ -22,7 +22,7 @@ func (h *PklHandler) CreateInternshipPosition(c *fiber.Ctx) error {
 	var req CreateInternshipRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -33,15 +33,15 @@ func (h *PklHandler) CreateInternshipPosition(c *fiber.Ctx) error {
 	if err != nil {
 		switch err.Error() {
 		case "Companies Not Found":
-			return utils.ErrorResponse(c, 404, "Company not found")
+			return utils.SendError(c, 404, "Company not found")
 		case "failed to create intership position":
-			return utils.ErrorResponse(c, 500, "Failed to create internship position")
+			return utils.SendError(c, 500, "Failed to create internship position")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c.Status(fiber.StatusCreated), internship, "Internship position created successfully")
+	return utils.SendSuccess(c, "Internship position created successfully", internship)
 }
 
 func (h *PklHandler) GetInternshipPositions(c *fiber.Ctx) error {
@@ -58,37 +58,37 @@ func (h *PklHandler) GetInternshipPositions(c *fiber.Ctx) error {
 
 	result, err := h.service.GetInternshipPositions(page, limit, search)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get internship positions")
+		return utils.SendError(c, 500, "Failed to get internship positions")
 	}
 
-	return utils.SuccessResponse(c, result, "Internship positions retrieved successfully")
+	return utils.SendSuccess(c, "Internship positions retrieved successfully", result)
 }
 
 func (h *PklHandler) GetInternshipByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	internship, err := h.service.GetInternshipByID(id)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "Internship position not found")
+		return utils.SendError(c, 404, "Internship position not found")
 	}
 
-	return utils.SuccessResponse(c, internship, "Internship position retrieved successfully")
+	return utils.SendSuccess(c, "Internship position retrieved successfully", internship)
 }
 
 func (h *PklHandler) UpdateInternshipPosition(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	var req UpdateInternshipRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -99,98 +99,98 @@ func (h *PklHandler) UpdateInternshipPosition(c *fiber.Ctx) error {
 	if err != nil {
 		switch err.Error() {
 		case "internship position not found":
-			return utils.ErrorResponse(c, 404, "Internship position not found")
+			return utils.SendError(c, 404, "Internship position not found")
 		case "company not found":
-			return utils.ErrorResponse(c, 404, "Company not found")
+			return utils.SendError(c, 404, "Company not found")
 		case "failed to update internship position":
-			return utils.ErrorResponse(c, 500, "Failed to update internship position")
+			return utils.SendError(c, 500, "Failed to update internship position")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c, updatedInternship, "Internship position updated successfully")
+	return utils.SendSuccess(c, "Internship position updated successfully", updatedInternship)
 }
 
 func (h *PklHandler) DeleteInternshipPosition(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	err = h.service.DeleteInternshipPosition(id)
 	if err != nil {
 		switch err.Error() {
 		case "internship position not found":
-			return utils.ErrorResponse(c, 404, "Internship position not found")
+			return utils.SendError(c, 404, "Internship position not found")
 		case "failed to delete internship position":
-			return utils.ErrorResponse(c, 500, "Failed to delete internship position")
+			return utils.SendError(c, 500, "Failed to delete internship position")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
-	return utils.SuccessResponse(c, commonAuth.MessageResponse{
+	return utils.SendSuccess(c, "Internship position deleted successfully", commonAuth.MessageResponse{
 		Message: "Internship position deleted successfully",
-	}, "Internship position deleted successfully")
+	})
 }
 
 func (h *PklHandler) GetSubmissionsByInternshipID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	internshipID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	submissions, err := h.service.GetSubmissionsByInternshipID(internshipID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get submissions")
+		return utils.SendError(c, 500, "Failed to get submissions")
 	}
 
-	return utils.SuccessResponse(c, submissions, "Submissions retrieved successfully")
+	return utils.SendSuccess(c, "Submissions retrieved successfully", submissions)
 }
 
 func (h *PklHandler) GetInternshipsWithSubmissionsByCompanyID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	companyID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid company ID")
+		return utils.SendError(c, 400, "Invalid company ID")
 	}
 
 	internships, err := h.service.GetInternshipsWithSubmissionsByCompanyID(companyID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get internships with submissions")
+		return utils.SendError(c, 500, "Failed to get internships with submissions")
 	}
 
-	return utils.SuccessResponse(c, internships, "Internships with submissions retrieved successfully")
+	return utils.SendSuccess(c, "Internships with submissions retrieved successfully", internships)
 }
 
 func (h *PklHandler) GetSubmissionByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	submissionID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid submission ID")
+		return utils.SendError(c, 400, "Invalid submission ID")
 	}
 
 	submission, err := h.service.GetSubmissionByID(submissionID)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "Submission not found")
+		return utils.SendError(c, 404, "Submission not found")
 	}
 
-	return utils.SuccessResponse(c, submission, "Submission retrieved successfully")
+	return utils.SendSuccess(c, "Submission retrieved successfully", submission)
 }
 
 func (h *PklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	submissionID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid submission ID")
+		return utils.SendError(c, 400, "Invalid submission ID")
 	}
 
 	var req UpdateSubmissionStatusRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -199,23 +199,23 @@ func (h *PklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 
 	userIDRaw, ok := c.Locals("user_id").(string)
 	if !ok || userIDRaw == "" {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 	adminID, err := uuid.Parse(userIDRaw)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	if err := h.service.UpdateSubmissionStatus(submissionID, req.Status, adminID); err != nil {
 		switch err.Error() {
 		case "invalid status":
-			return utils.ErrorResponse(c, 400, "Invalid status value")
+			return utils.SendError(c, 400, "Invalid status value")
 		case "submission not found":
-			return utils.ErrorResponse(c, 404, "Submission not found")
+			return utils.SendError(c, 404, "Submission not found")
 		case "failed to update submission status":
-			return utils.ErrorResponse(c, 500, "Failed to update submission status")
+			return utils.SendError(c, 500, "Failed to update submission status")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
@@ -224,7 +224,7 @@ func (h *PklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 		statusMessage = "rejected"
 	}
 
-	return utils.SuccessResponse(c, commonAuth.MessageResponse{
+	return utils.SendSuccess(c, fmt.Sprintf("Submission %s successfully", statusMessage), commonAuth.MessageResponse{
 		Message: fmt.Sprintf("Submission %s successfully", statusMessage),
-	}, fmt.Sprintf("Submission %s successfully", statusMessage))
+	})
 }

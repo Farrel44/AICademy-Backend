@@ -22,7 +22,7 @@ func (h *AlumniPklHandler) ApplyPklPosition(c *fiber.Ctx) error {
 	var req ApplyInternshipRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -104,7 +104,7 @@ func (h *AlumniPklHandler) GetApplicationByID(c *fiber.Ctx) error {
 	applicationIDParam := c.Params("id")
 	applicationID, err := uuid.Parse(applicationIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid application ID")
+		return utils.SendError(c, 400, "Invalid application ID")
 	}
 
 	application, err := h.service.GetApplicationByID(c, applicationID)

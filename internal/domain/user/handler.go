@@ -28,12 +28,11 @@ func (h *UserHandler) GetUserByToken(c *fiber.Ctx) error {
 func (h *UserHandler) GetPublicStudentProfileByNIS(c *fiber.Ctx) error {
 	nis := c.Params("nis")
 	if nis == "" {
-		return utils.ErrorResponse(c, 400, "NIS is required")
+		return utils.SendError(c, 400, "NIS is required")
 	}
 
-	// Validate NIS format (optional)
 	if len(nis) < 4 || len(nis) > 20 {
-		return utils.ErrorResponse(c, 400, "Invalid NIS format")
+		return utils.SendError(c, 400, "Invalid NIS format")
 	}
 
 	profile, err := h.service.GetPublicStudentProfileByNIS(nis)

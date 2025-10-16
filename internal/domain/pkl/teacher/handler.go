@@ -34,67 +34,67 @@ func (h *TeacherPklHandler) GetAllInternships(c *fiber.Ctx) error {
 
 	result, err := h.service.GetInternshipPositions(page, limit, search)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get internship positions")
+		return utils.SendError(c, 500, "Failed to get internship positions")
 	}
 
-	return utils.SuccessResponse(c, result, "Internship positions retrieved successfully")
+	return utils.SendSuccess(c, "Internship positions retrieved successfully", result)
 }
 
 func (h *TeacherPklHandler) GetInternshipsWithSubmissionsByCompanyID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	companyID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid company ID")
+		return utils.SendError(c, 400, "Invalid company ID")
 	}
 
 	internships, err := h.service.GetInternshipsWithSubmissionsByCompanyID(companyID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get internships with submissions")
+		return utils.SendError(c, 500, "Failed to get internships with submissions")
 	}
 
-	return utils.SuccessResponse(c, internships, "Internships with submissions retrieved successfully")
+	return utils.SendSuccess(c, "Internships with submissions retrieved successfully", internships)
 }
 
 func (h *TeacherPklHandler) GetSubmissionByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	submissionID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid submission ID")
+		return utils.SendError(c, 400, "Invalid submission ID")
 	}
 
 	submission, err := h.service.GetSubmissionByID(submissionID)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "Submission not found")
+		return utils.SendError(c, 404, "Submission not found")
 	}
 
-	return utils.SuccessResponse(c, submission, "Submission retrieved successfully")
+	return utils.SendSuccess(c, "Submission retrieved successfully", submission)
 }
 
 func (h *TeacherPklHandler) GetApplicationByID(c *fiber.Ctx) error {
 	applicationIDParam := c.Params("id")
 	applicationID, err := uuid.Parse(applicationIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid application ID")
+		return utils.SendError(c, 400, "Invalid application ID")
 	}
 
 	application, err := h.service.GetApplicationByID(applicationID)
 	if err != nil {
-		return utils.ErrorResponse(c, 404, "Application not found")
+		return utils.SendError(c, 404, "Application not found")
 	}
 
-	return utils.SuccessResponse(c, application, "Application retrieved successfully")
+	return utils.SendSuccess(c, "Application retrieved successfully", application)
 }
 
 func (h *TeacherPklHandler) UpdateApplicationStatus(c *fiber.Ctx) error {
 	applicationIDParam := c.Params("id")
 	applicationID, err := uuid.Parse(applicationIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid application ID")
+		return utils.SendError(c, 400, "Invalid application ID")
 	}
 
 	var req UpdateApplicationStatusRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -103,23 +103,23 @@ func (h *TeacherPklHandler) UpdateApplicationStatus(c *fiber.Ctx) error {
 
 	userIDRaw, ok := c.Locals("user_id").(string)
 	if !ok || userIDRaw == "" {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 	teacherID, err := uuid.Parse(userIDRaw)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	if err := h.service.UpdateApplicationStatus(applicationID, req.Status, teacherID); err != nil {
 		switch err.Error() {
 		case "invalid status":
-			return utils.ErrorResponse(c, 400, "Invalid status value")
+			return utils.SendError(c, 400, "Invalid status value")
 		case "submission not found":
-			return utils.ErrorResponse(c, 404, "Application not found")
+			return utils.SendError(c, 404, "Application not found")
 		case "failed to update submission status":
-			return utils.ErrorResponse(c, 500, "Failed to update application status")
+			return utils.SendError(c, 500, "Failed to update application status")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
@@ -128,51 +128,51 @@ func (h *TeacherPklHandler) UpdateApplicationStatus(c *fiber.Ctx) error {
 		statusMessage = "rejected"
 	}
 
-	return utils.SuccessResponse(c, commonAuth.MessageResponse{
+	return utils.SendSuccess(c, fmt.Sprintf("Application %s successfully", statusMessage), commonAuth.MessageResponse{
 		Message: fmt.Sprintf("Application %s successfully", statusMessage),
-	}, fmt.Sprintf("Application %s successfully", statusMessage))
+	})
 }
 
 func (h *TeacherPklHandler) GetInternshipApplications(c *fiber.Ctx) error {
 	internshipIDParam := c.Params("id")
 	internshipID, err := uuid.Parse(internshipIDParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	applications, err := h.service.GetInternshipApplications(internshipID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get applications")
+		return utils.SendError(c, 500, "Failed to get applications")
 	}
 
-	return utils.SuccessResponse(c, applications, "Applications retrieved successfully")
+	return utils.SendSuccess(c, "Applications retrieved successfully", applications)
 }
 
 func (h *TeacherPklHandler) GetSubmissionsByInternshipID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	internshipID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid internship ID")
+		return utils.SendError(c, 400, "Invalid internship ID")
 	}
 
 	submissions, err := h.service.GetSubmissionsByInternshipID(internshipID)
 	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to get submissions")
+		return utils.SendError(c, 500, "Failed to get submissions")
 	}
 
-	return utils.SuccessResponse(c, submissions, "Submissions retrieved successfully")
+	return utils.SendSuccess(c, "Submissions retrieved successfully", submissions)
 }
 
 func (h *TeacherPklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	submissionID, err := uuid.Parse(idParam)
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid submission ID")
+		return utils.SendError(c, 400, "Invalid submission ID")
 	}
 
 	var req UpdateSubmissionStatusRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {
@@ -181,23 +181,23 @@ func (h *TeacherPklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 
 	userIDRaw, ok := c.Locals("user_id").(string)
 	if !ok || userIDRaw == "" {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 	teacherID, err := uuid.Parse(userIDRaw)
 	if err != nil {
-		return utils.ErrorResponse(c, 401, "Unauthorized")
+		return utils.SendError(c, 401, "Unauthorized")
 	}
 
 	if err := h.service.UpdateSubmissionStatus(submissionID, req.Status, teacherID); err != nil {
 		switch err.Error() {
 		case "invalid status":
-			return utils.ErrorResponse(c, 400, "Invalid status value")
+			return utils.SendError(c, 400, "Invalid status value")
 		case "submission not found":
-			return utils.ErrorResponse(c, 404, "Submission not found")
+			return utils.SendError(c, 404, "Submission not found")
 		case "failed to update submission status":
-			return utils.ErrorResponse(c, 500, "Failed to update submission status")
+			return utils.SendError(c, 500, "Failed to update submission status")
 		default:
-			return utils.ErrorResponse(c, 500, "Internal server error")
+			return utils.SendError(c, 500, "Internal server error")
 		}
 	}
 
@@ -206,7 +206,7 @@ func (h *TeacherPklHandler) UpdateSubmissionStatus(c *fiber.Ctx) error {
 		statusMessage = "rejected"
 	}
 
-	return utils.SuccessResponse(c, commonAuth.MessageResponse{
+	return utils.SendSuccess(c, fmt.Sprintf("Submission %s successfully", statusMessage), commonAuth.MessageResponse{
 		Message: fmt.Sprintf("Submission %s successfully", statusMessage),
-	}, fmt.Sprintf("Submission %s successfully", statusMessage))
+	})
 }

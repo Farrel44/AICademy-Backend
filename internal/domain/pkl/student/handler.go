@@ -42,7 +42,7 @@ func (h *StudentPklHandler) ApplyPklPosition(c *fiber.Ctx) error {
 	var req ApplyInternshipRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
+		return utils.SendError(c, 400, "Invalid request body")
 	}
 
 	if err := utils.ValidateStruct(req); err != nil {

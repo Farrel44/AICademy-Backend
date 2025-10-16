@@ -15,6 +15,11 @@ import (
 	authStudent "github.com/Farrel44/AICademy-Backend/internal/domain/auth/student"
 	commonAuth "github.com/Farrel44/AICademy-Backend/internal/domain/common/auth"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/dashboard"
+	adminDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/admin"
+	studentDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/student"
+	teacherDashboard "github.com/Farrel44/AICademy-Backend/internal/domain/dashboard/teacher"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/experience"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	pklAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/admin"
 	pklAlumni "github.com/Farrel44/AICademy-Backend/internal/domain/pkl/alumni"
@@ -30,15 +35,13 @@ import (
 	studentRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/student"
 	teacherRoadmap "github.com/Farrel44/AICademy-Backend/internal/domain/roadmap/teacher"
 
-	// "github.com/Farrel44/AICademy-Backend/internal/domain/trend"
-	// trendAdmin "github.com/Farrel44/AICademy-Backend/internal/domain/trend/admin"
-	// trendStudent "github.com/Farrel44/AICademy-Backend/internal/domain/trend/student"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
 	"github.com/Farrel44/AICademy-Backend/internal/services/ai"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
@@ -115,7 +118,6 @@ func RouteList(app *fiber.App, filterPrefix string) {
 			group = pathParts[0]
 		}
 
-		// Print group separator
 		if group != currentGroup && group != "" {
 			if currentGroup != "" {
 				fmt.Println(strings.Repeat("-", 80))
@@ -218,7 +220,6 @@ func main() {
 			aiService = ai.NewNoAIService()
 		}
 	} else {
-		log.Println("GEMINI_API_KEY not found in environment")
 		log.Println("Using NoAI service - AI features will be disabled")
 		aiService = ai.NewNoAIService()
 	}
@@ -269,7 +270,7 @@ func main() {
 	teacherHandler := teacherRoadmap.NewTeacherHandler(teacherService)
 
 	userRepo := user.NewUserRepository(db, rdb.Client)
-	userService := user.NewUserService(userRepo)
+	userService := user.NewUserService(userRepo, rdb)
 	userHandler := user.NewUserHandler(userService)
 
 	// Project services and handlers
@@ -281,6 +282,11 @@ func main() {
 	cvRepo := cv.NewCVRepository(db, rdb.Client)
 	cvService := cv.NewCVService(cvRepo, aiService, rdb)
 	cvHandler := cv.NewCVHandler(cvService)
+
+	// Experience services and handlers
+	experienceRepo := experience.NewRepository(db)
+	experienceService := experience.NewService(experienceRepo, rdb)
+	experienceHandler := experience.NewHandler(experienceService, userRepo)
 
 	pklStudentRepo := pkl.NewPklRepository(db, rdb.Client)
 	pklStudentService := pklStudent.NewStudentPklService(pklStudentRepo, rdb)
@@ -301,14 +307,6 @@ func main() {
 	adminChallengeService := adminChallenge.NewAdminChallengeService(challengeRepository, rdb)
 	adminChallengeHandler := adminChallenge.NewAdminChallengeHandler(adminChallengeService)
 
-	// // Trend services and handlers
-	// trendRepo := trend.NewTrendRepository(db, rdb.Client)
-	// adminTrendService := trendAdmin.NewAdminTrendService(trendRepo, rdb.Client, aiService)
-	// adminTrendHandler := trendAdmin.NewAdminTrendHandler(adminTrendService)
-
-	// studentTrendService := trendStudent.NewTrendService(trendRepo, rdb.Client)
-	// studentTrendHandler := trendStudent.NewTrendHandler(studentTrendService)
-
 	// Teacher challenge
 	teacherChallengeService := teacherChallenge.NewTeacherChallengeService(challengeRepository, rdb)
 	teacherChallengeHandler := teacherChallenge.NewTeacherChallengeHandler(teacherChallengeService)
@@ -317,17 +315,56 @@ func main() {
 	studentChallengeService := studentChallenge.NewStudentChallengeService(challengeRepository, rdb)
 	studentChallengeHandler := studentChallenge.NewStudentChallengeHandler(studentChallengeService)
 
+	// Dashboard services and handlers
+	dashboardRepo := dashboard.NewRepository(db)
+
+	studentDashboardService := studentDashboard.NewService(dashboardRepo, rdb)
+	adminDashboardService := adminDashboard.NewService(dashboardRepo, rdb)
+	teacherDashboardService := teacherDashboard.NewService(dashboardRepo, rdb)
+
+	studentDashboardHandler := studentDashboard.NewHandler(studentDashboardService)
+	adminDashboardHandler := adminDashboard.NewHandler(adminDashboardService)
+	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
+
 	app := fiber.New(fiber.Config{
+		BodyLimit:    10 * 1024 * 1024, // 10MB limit
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
+			message := "Internal Server Error"
+
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
+				message = e.Message
 			}
+
+			switch code {
+			case fiber.StatusMethodNotAllowed:
+				message = "Method not allowed for this endpoint"
+			case fiber.StatusNotFound:
+				message = "Endpoint not found"
+			case fiber.StatusUnauthorized:
+				message = "Unauthorized access"
+			case fiber.StatusForbidden:
+				message = "Access forbidden"
+			case fiber.StatusBadRequest:
+				message = "Bad request"
+			default:
+				if err != nil {
+					message = err.Error()
+				}
+			}
+
+			// Handle specific errors
+			if strings.Contains(err.Error(), "request body too large") {
+				code = fiber.StatusRequestEntityTooLarge
+				message = "File terlalu besar, maksimal 10MB"
+			}
+
 			return c.Status(code).JSON(fiber.Map{
 				"success": false,
-				"error":   err.Error(),
+				"error":   message,
 			})
 		},
 	})
@@ -335,6 +372,16 @@ func main() {
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
+	}))
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelDefault,
+		Next: func(c *fiber.Ctx) bool {
+			contentType := c.Get("Content-Type")
+			return strings.Contains(contentType, "image/") ||
+				strings.Contains(contentType, "video/") ||
+				strings.Contains(contentType, "application/pdf") ||
+				strings.Contains(contentType, "multipart/form-data")
+		},
 	}))
 	app.Use(config.SetupCors())
 	app.Options("/*", func(c *fiber.Ctx) error {
@@ -348,12 +395,15 @@ func main() {
 		})
 	})
 
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":  "OK",
-			"message": "AICademy API is healthy",
-		})
-	})
+	// Get SQL DB for health check
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal("Failed to get SQL DB instance:", err)
+	}
+
+	// Health check endpoints
+	app.Get("/health", utils.HealthCheck(sqlDB))
+	app.Get("/health/db", utils.DetailedDBStats(sqlDB))
 
 	api := app.Group("/api/v1")
 
@@ -461,6 +511,9 @@ func main() {
 	adminAuth.Put("/challenges/:id", adminChallengeHandler.UpdateChallenge)
 	adminAuth.Delete("/challenges/:id", adminChallengeHandler.DeleteChallenge)
 
+	// Admin Dashboard Routes
+	adminAuth.Get("/dashboard", adminDashboardHandler.GetAdminDashboard)
+
 	// Teacher Routes (for reviewing submissions)
 	teacherAuth := api.Group("/teacher", middleware.AuthRequired(), middleware.TeacherOrAdminRequired())
 	teacherAuth.Get("/roadmaps/submissions", teacherHandler.GetPendingSubmissions)
@@ -475,11 +528,14 @@ func main() {
 	// Teacher Challenge Routes
 	teacherAuth.Post("/challenges", teacherChallengeHandler.CreateChallenge)
 	teacherAuth.Get("/challenges", teacherChallengeHandler.GetMyChallenges)
+	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
+	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
 	teacherAuth.Get("/challenges/:id", teacherChallengeHandler.GetChallengeByID)
 	teacherAuth.Put("/challenges/:id", teacherChallengeHandler.UpdateChallenge)
 	teacherAuth.Delete("/challenges/:id", teacherChallengeHandler.DeleteChallenge)
-	teacherAuth.Get("/challenges/submissions", teacherChallengeHandler.GetMySubmissions)
-	teacherAuth.Post("/challenges/submissions/score", teacherChallengeHandler.ScoreSubmission)
+
+	// Teacher Dashboard Routes
+	teacherAuth.Get("/dashboard", teacherDashboardHandler.GetTeacherDashboard)
 
 	// Student Questionnaire Routes
 	studentRoutes := api.Group("/student", middleware.AuthRequired(), middleware.StudentRequired())
@@ -527,18 +583,30 @@ func main() {
 	cvRoutes.Get("/:id/download", cvHandler.DownloadCV)
 	cvRoutes.Get("/:id/analyze", cvHandler.AnalyzeATS)
 
+	// Debug route (only for development)
+	// Student Experience Routes
+	experienceRoutes := studentRoutes.Group("/experiences")
+	experienceRoutes.Post("/", experienceHandler.CreateExperience)
+	experienceRoutes.Get("/", experienceHandler.GetExperiences)
+	experienceRoutes.Get("/:id", experienceHandler.GetExperienceByID)
+	experienceRoutes.Put("/:id", experienceHandler.UpdateExperience)
+	experienceRoutes.Delete("/:id", experienceHandler.DeleteExperience)
+
+	// Student Dashboard Routes
+	studentRoutes.Get("/dashboard", studentDashboardHandler.GetStudentDashboard)
+
 	studentRoutes.Get("/internships", pklStudentHandler.GetInternships)
 	studentRoutes.Get("/internship/:id", pklAdminHandler.GetInternshipByID)
 	studentRoutes.Post("/internship/apply", pklStudentHandler.ApplyPklPosition)
 
 	studentRoutes.Post("/challenges/teams", studentChallengeHandler.CreateTeam)
 	studentRoutes.Get("/challenges/teams", studentChallengeHandler.GetMyTeams)
-	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
 	studentRoutes.Get("/challenges", studentChallengeHandler.GetAvailableChallenges)
 	studentRoutes.Post("/challenges/register", studentChallengeHandler.AutoRegisterToChallenge) // Changed to auto register
 	studentRoutes.Post("/challenges/submit", studentChallengeHandler.SubmitChallenge)           // Added submit route
 	studentRoutes.Get("/challenges/submissions", studentChallengeHandler.GetMySubmissions)      // Added get submissions
 	studentRoutes.Post("/challenges/students/search", studentChallengeHandler.SearchStudents)
+	studentRoutes.Get("/challenges/:id", studentChallengeHandler.GetChallengeByID)
 
 	studentRoutes.Get("/users/students", adminUserHandler.GetStudents)
 	studentRoutes.Get("/questionnaires/target-roles", adminQuestionnaireHandler.GetTargetRoles)
@@ -563,19 +631,26 @@ func main() {
 	alumniRoutes.Put("/certifications/:id", projectHandler.UpdateCertification)
 	alumniRoutes.Delete("/certifications/:id", projectHandler.DeleteCertification)
 
+	// Add 404 handler for unmatched routes
+	app.Use(func(c *fiber.Ctx) error {
+		return c.Status(404).JSON(fiber.Map{
+			"success": false,
+			"error":   "Endpoint not found",
+		})
+	})
+
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8000"
 	}
 
-	// Check for route listing flags/env vars AFTER all routes are registered
 	if *routeListFlag || os.Getenv("ROUTE_LIST") == "1" {
 		prefix := *routePrefixFlag
 		if envPrefix := os.Getenv("ROUTE_PREFIX"); envPrefix != "" {
 			prefix = envPrefix
 		}
 		RouteList(app, prefix)
-		return // Exit after displaying routes
+		return
 	}
 
 	// Start server

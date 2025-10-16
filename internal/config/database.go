@@ -5,9 +5,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/cv"
+	"github.com/Farrel44/AICademy-Backend/internal/domain/experience"
 	pkl_model "github.com/Farrel44/AICademy-Backend/internal/domain/pkl"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/project"
 	"github.com/Farrel44/AICademy-Backend/internal/domain/questionnaire"
@@ -18,6 +20,21 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+func getConnectionPoolConfig() (maxOpen, maxIdle int, maxLifetime, maxIdleTime time.Duration) {
+	env := os.Getenv("APP_ENV")
+
+	switch env {
+	case "production":
+		return 100, 25, 2 * time.Hour, time.Hour // Production: balanced for high load
+	case "staging":
+		return 50, 15, time.Hour, 30 * time.Minute // Staging: moderate
+	case "development":
+		return 20, 5, 30 * time.Minute, 15 * time.Minute // Development: conservative
+	default:
+		return 30, 10, time.Hour, 30 * time.Minute // Default: safe moderate
+	}
+}
 
 func InitDatabase() (*gorm.DB, error) {
 	host := os.Getenv("DB_HOST")
@@ -52,11 +69,46 @@ func InitDatabase() (*gorm.DB, error) {
 		host, username, password, databaseName, portInt, sslMode)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:                                   logger.Default.LogMode(logger.Info),
+		PrepareStmt:                              true,
+		DisableForeignKeyConstraintWhenMigrating: false,
 	})
 
 	if err != nil {
 		return nil, err
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	maxOpen, maxIdle, maxLifetime, maxIdleTime := getConnectionPoolConfig()
+
+	// Apply connection pool settings
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetConnMaxLifetime(maxLifetime)
+	sqlDB.SetConnMaxIdleTime(maxIdleTime)
+
+	// Test connection
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %v", err)
+	}
+
+	// ✅ SMART LOGGING: Only detailed logs in development
+	env := os.Getenv("APP_ENV")
+	if env == "development" {
+		log.Printf("🔧 Connection pool configured for %s:", env)
+		log.Printf("   - Max Open: %d, Max Idle: %d", maxOpen, maxIdle)
+		log.Printf("   - Max Lifetime: %v, Idle Timeout: %v", maxLifetime, maxIdleTime)
+	} else {
+		log.Printf("✅ Database connected with optimized connection pool (%s)", env)
+	}
+
+	// ✅ SLOW QUERY MONITORING (only in dev/staging)
+	if env == "development" || env == "staging" {
+		setupQueryMonitoring(db)
 	}
 
 	err = db.AutoMigrate(
@@ -97,6 +149,9 @@ func InitDatabase() (*gorm.DB, error) {
 
 		// CV models
 		&cv.CV{},
+
+		// Experience models
+		&experience.Experience{},
 
 		// Challenge models
 		&challenge.Team{},
@@ -282,4 +337,22 @@ func addIndexes(db *gorm.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_challenges_search ON challenges(LOWER(title), deadline, created_at)")
 
 	log.Println("Database indexes created successfully")
+}
+
+func setupQueryMonitoring(db *gorm.DB) {
+	// Monitor slow queries
+	db.Callback().Query().Before("gorm:query").Register("monitor:before", func(db *gorm.DB) {
+		db.InstanceSet("start_time", time.Now())
+	})
+
+	db.Callback().Query().After("gorm:query").Register("monitor:after", func(db *gorm.DB) {
+		if startTime, ok := db.InstanceGet("start_time"); ok {
+			duration := time.Since(startTime.(time.Time))
+			if duration > 1*time.Second {
+				log.Printf("🐌 Slow query detected: %v - %s", duration, db.Statement.SQL.String())
+			}
+		}
+	})
+
+	log.Println("📊 Query monitoring enabled")
 }

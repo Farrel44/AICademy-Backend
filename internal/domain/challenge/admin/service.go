@@ -8,7 +8,6 @@ import (
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -51,19 +50,7 @@ func (s *AdminChallengeService) invalidateSubmissionCache(submissionID uuid.UUID
 }
 
 // Update CreateChallenge
-func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallengeRequest) (*challenge.Challenge, error) {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("access denied: admin role required")
-	}
-
-	adminID := claims.UserID
-
+func (s *AdminChallengeService) CreateChallenge(adminID uuid.UUID, req *CreateChallengeRequest) (*challenge.Challenge, error) {
 	newChallenge := &challenge.Challenge{
 		Title:            req.Title,
 		Description:      req.Description,
@@ -75,7 +62,7 @@ func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallen
 		UpdatedAt:        time.Now(),
 	}
 
-	err = s.repo.CreateChallenge(newChallenge)
+	err := s.repo.CreateChallenge(newChallenge)
 	if err != nil {
 		return nil, errors.New("failed to create challenge")
 	}
@@ -86,19 +73,9 @@ func (s *AdminChallengeService) CreateChallenge(c *fiber.Ctx, req *CreateChallen
 	return newChallenge, nil
 }
 
-func (s *AdminChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) UpdateChallenge(adminID uuid.UUID, challengeID uuid.UUID, req *UpdateChallengeRequest) (*challenge.Challenge, error) {
 	// Get existing challenge and verify ownership
-	existingChallenge, err := s.repo.GetAdminChallengeByID(challengeID, claims.UserID)
+	existingChallenge, err := s.repo.GetAdminChallengeByID(challengeID, adminID)
 	if err != nil {
 		return nil, errors.New("challenge not found or access denied")
 	}
@@ -129,19 +106,9 @@ func (s *AdminChallengeService) UpdateChallenge(c *fiber.Ctx, challengeID uuid.U
 	return existingChallenge, nil
 }
 
-func (s *AdminChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid.UUID) error {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) DeleteChallenge(adminID uuid.UUID, challengeID uuid.UUID) error {
 	// Verify ownership
-	_, err = s.repo.GetAdminChallengeByID(challengeID, claims.UserID)
+	_, err := s.repo.GetAdminChallengeByID(challengeID, adminID)
 	if err != nil {
 		return errors.New("challenge not found or access denied")
 	}
@@ -155,16 +122,7 @@ func (s *AdminChallengeService) DeleteChallenge(c *fiber.Ctx, challengeID uuid.U
 }
 
 // Optimized GetAllChallenges
-func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("akses ditolak: diperlukan role admin")
-	}
-
+func (s *AdminChallengeService) GetAllChallenges(page, limit int, search string) (*utils.PaginationResponse, error) {
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -197,8 +155,6 @@ func (s *AdminChallengeService) GetAllChallenges(c *fiber.Ctx, page, limit int, 
 	s.cacheManager.SetWithSmartTTL(cacheKey, result, "list")
 
 	return result, nil
-
-	return result, nil
 }
 
 func (s *AdminChallengeService) getChallengesFromDB(page, limit int, search string) (*utils.PaginationResponse, error) {
@@ -224,17 +180,7 @@ func (s *AdminChallengeService) getChallengesFromDB(page, limit int, search stri
 	}, nil
 }
 
-func (s *AdminChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) GetChallengeByID(challengeID uuid.UUID) (*challenge.Challenge, error) {
 	// Use the new method with auto winner check
 	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
@@ -244,16 +190,7 @@ func (s *AdminChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.
 	return challengeData, nil
 }
 
-func (s *AdminChallengeService) GetSubmissionsByChallengeID(c *fiber.Ctx, challengeID uuid.UUID, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) GetSubmissionsByChallengeID(challengeID uuid.UUID, page, limit int, search string) (*PaginatedSubmissionsResponse, error) {
 	// Validate search parameters
 	validation, err := utils.ValidateSearchParams(search, page, limit)
 	if err != nil {
@@ -319,23 +256,13 @@ func (s *AdminChallengeService) GetSubmissionsByChallengeID(c *fiber.Ctx, challe
 	return result, nil
 }
 
-func (s *AdminChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmissionRequest) error {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) ScoreSubmission(adminID uuid.UUID, req *ScoreSubmissionRequest) error {
 	// Validate score range
 	if req.Points < 1 || req.Points > 100 {
 		return errors.New("points must be between 1 and 100")
 	}
 
-	err = s.repo.ScoreSubmission(req.SubmissionID, req.Points, claims.UserID, true)
+	err := s.repo.ScoreSubmission(req.SubmissionID, req.Points, adminID, true)
 	if err != nil {
 		return errors.New("failed to score submission")
 	}
@@ -343,18 +270,9 @@ func (s *AdminChallengeService) ScoreSubmission(c *fiber.Ctx, req *ScoreSubmissi
 	return nil
 }
 
-func (s *AdminChallengeService) GetLeaderboard(c *fiber.Ctx, challengeID *uuid.UUID) ([]challenge.LeaderboardEntry, error) {
-	// Verify admin access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "admin" {
-		return nil, errors.New("access denied: admin role required")
-	}
-
+func (s *AdminChallengeService) GetLeaderboard(challengeID *uuid.UUID) ([]challenge.LeaderboardEntry, error) {
 	var leaderboard []challenge.LeaderboardEntry
+	var err error
 
 	if challengeID != nil {
 		// Get leaderboard for specific challenge

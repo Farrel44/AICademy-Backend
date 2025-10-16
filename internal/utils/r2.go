@@ -2,69 +2,92 @@ package utils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
+	"io"
+	"mime/multipart"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 )
 
-func main() {
-	var bucketName = os.Getenv("R2_BUCKET_NAME")
-	var accountId = os.Getenv("R2_ACCOUNT_ID")
-	var accessKeyId = os.Getenv("R2_KEY_ID")
-	var accessKeySecret = os.Getenv("ACCESS_KEY_SECRET")
+type R2Client struct {
+	s3Client *s3.Client
+	bucket   string
+	baseURL  string
+}
+
+func NewR2Client() (*R2Client, error) {
+	bucketName := os.Getenv("R2_BUCKET_NAME")
+	accountId := os.Getenv("R2_ACCOUNT_ID")
+	accessKeyId := os.Getenv("R2_KEY_ID")
+	accessKeySecret := os.Getenv("ACCESS_KEY_SECRET")
+	baseURL := os.Getenv("OBJECT_STORAGE_URL")
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, "")),
 		config.WithRegion("auto"),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to load AWS config: %v", err)
 	}
 
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountId))
 	})
 
-	listObjectsOutput, err := client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input{
-		Bucket: &bucketName,
+	return &R2Client{
+		s3Client: client,
+		bucket:   bucketName,
+		baseURL:  baseURL,
+	}, nil
+}
+
+func (r *R2Client) UploadFile(file *multipart.FileHeader, folder string) (string, error) {
+	src, err := file.Open()
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+
+	ext := filepath.Ext(file.Filename)
+	filename := fmt.Sprintf("%s/%s%s", folder, uuid.New().String(), ext)
+
+	_, err = r.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(filename),
+		Body:   src,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
-	for _, object := range listObjectsOutput.Contents {
-		obj, _ := json.MarshalIndent(object, "", "\t")
-		fmt.Println(string(obj))
-	}
+	return fmt.Sprintf("%s/%s", r.baseURL, filename), nil
+}
 
-	//  {
-	//    "ChecksumAlgorithm": null,
-	//    "ETag": "\"eb2b891dc67b81755d2b726d9110af16\"",
-	//    "Key": "ferriswasm.png",
-	//    "LastModified": "2022-05-18T17:20:21.67Z",
-	//    "Owner": null,
-	//    "Size": 87671,
-	//    "StorageClass": "STANDARD"
-	//  }
+func (r *R2Client) UploadFileFromReader(reader io.Reader, filename string, folder string) (string, error) {
+	key := fmt.Sprintf("%s/%s", folder, filename)
 
-	listBucketsOutput, err := client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
+	_, err := r.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+		Body:   reader,
+	})
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
-	for _, object := range listBucketsOutput.Buckets {
-		obj, _ := json.MarshalIndent(object, "", "\t")
-		fmt.Println(string(obj))
-	}
+	return fmt.Sprintf("%s/%s", r.baseURL, key), nil
+}
 
-	// {
-	//     "CreationDate": "2022-05-18T17:19:59.645Z",
-	//     "Name": "sdk-example"
-	// }
+func (r *R2Client) DeleteFile(key string) error {
+	_, err := r.s3Client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+	})
+	return err
 }

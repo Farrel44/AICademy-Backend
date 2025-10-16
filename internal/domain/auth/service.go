@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"strings"
 	"time"
 
@@ -16,11 +17,36 @@ import (
 const DefaultStudentPassword = "telkom@2025"
 
 type AuthService struct {
-	repo *AuthRepository
+	repo     *AuthRepository
+	r2Client *utils.R2Client
 }
 
 func NewAuthService(repo *AuthRepository) *AuthService {
-	return &AuthService{repo: repo}
+	r2Client, err := utils.NewR2Client()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
+	}
+
+	return &AuthService{
+		repo:     repo,
+		r2Client: r2Client,
+	}
+}
+
+func (s *AuthService) UploadCompanyLogo(file *multipart.FileHeader) (string, error) {
+	return s.r2Client.UploadFile(file, "company-logos")
+}
+
+func (s *AuthService) UploadCompanyPhotos(files []*multipart.FileHeader) ([]string, error) {
+	var urls []string
+	for _, file := range files {
+		url, err := s.r2Client.UploadFile(file, "company-photos")
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload photo %s: %w", file.Filename, err)
+		}
+		urls = append(urls, url)
+	}
+	return urls, nil
 }
 
 func (s *AuthService) RegisterAlumni(req RegisterAlumniRequest) (*AuthResponse, error) {

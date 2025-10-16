@@ -7,10 +7,14 @@ import (
 )
 
 type UpdateStudentRequest struct {
-	ProfilePicture *string `json:"profile_picture"`
-	Bio            *string `json:"bio"`
-	Headline       *string `json:"headline"`
-	CvFile         *string `json:"cv_file"`
+	ProfilePicture *string     `json:"profile_picture"`
+	Bio            *string     `json:"bio"`
+	Headline       *string     `json:"headline"`
+	CvFile         *string     `json:"cv_file"`
+	Phone          *string     `json:"phone"`
+	PersonalEmail  *string     `json:"personal_email"`
+	Location       *string     `json:"location"`
+	Languages      *[]Language `json:"languages"`
 }
 
 type RecommendedRoleInfo struct {
@@ -81,12 +85,16 @@ type EnhancedStudentProfile struct {
 	Headline        string                  `json:"headline"`
 	Bio             string                  `json:"bio"`
 	CVFile          *string                 `json:"cv_file"`
+	Phone           string                  `json:"phone"`
+	PersonalEmail   string                  `json:"personal_email"`
+	Location        string                  `json:"location"`
+	Languages       []Language              `json:"languages"`
 	CreatedAt       time.Time               `json:"created_at"`
 	UpdatedAt       time.Time               `json:"updated_at"`
 	RecommendedRole *RecommendedRoleInfo    `json:"recommended_role,omitempty"`
 	Projects        []UserProjectInfo       `json:"projects"`
 	Certifications  []UserCertificationInfo `json:"certifications"`
-	ProfileURL      string                  `json:"profile_url"` // aiademy.smktelkom-pwt.sch.id/NIS
+	ProfileURL      string                  `json:"profile_url"`
 }
 
 type EnhancedAlumniProfile struct {
@@ -116,6 +124,24 @@ type EnhancedUserResponse struct {
 }
 
 // Public profile view by NIS (LinkedIn-like)
+type UserExperienceInfo struct {
+	ID               uuid.UUID  `json:"id"`
+	CompanyName      string     `json:"company_name"`
+	Position         string     `json:"position"`
+	Department       string     `json:"department"`
+	EmploymentType   string     `json:"employment_type"`
+	Location         string     `json:"location"`
+	LocationType     string     `json:"location_type"`
+	Description      string     `json:"description"`
+	Responsibilities string     `json:"responsibilities"`
+	Achievements     string     `json:"achievements"`
+	Skills           string     `json:"skills"`
+	StartDate        time.Time  `json:"start_date"`
+	EndDate          *time.Time `json:"end_date"`
+	IsCurrent        bool       `json:"is_current"`
+	CreatedAt        time.Time  `json:"created_at"`
+}
+
 type PublicStudentProfileResponse struct {
 	NIS             string                  `json:"nis"`
 	Fullname        string                  `json:"fullname"`
@@ -123,6 +149,7 @@ type PublicStudentProfileResponse struct {
 	ProfilePicture  string                  `json:"profile_picture"`
 	Headline        string                  `json:"headline"`
 	Bio             string                  `json:"bio"`
+	Experiences     []UserExperienceInfo    `json:"experiences"`
 	Projects        []UserProjectInfo       `json:"projects"`
 	Certifications  []UserCertificationInfo `json:"certifications"`
 	ProfileURL      string                  `json:"profile_url"`

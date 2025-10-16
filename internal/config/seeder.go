@@ -85,6 +85,26 @@ func SeedData(db *gorm.DB) error {
 		return fmt.Errorf("gagal melakukan seeding student CVs: %v", err)
 	}
 
+	if err := SeedTeams(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding teams: %v", err)
+	}
+
+	if err := SeedChallengeSubmissions(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding challenge submissions: %v", err)
+	}
+
+	if err := SeedChallengeJudges(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding challenge judges: %v", err)
+	}
+
+	if err := SeedInternshipApplications(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding internship applications: %v", err)
+	}
+
+	if err := SeedInternshipReviews(db); err != nil {
+		return fmt.Errorf("gagal melakukan seeding internship reviews: %v", err)
+	}
+
 	log.Println("Proses seeding database selesai dengan sukses")
 	return nil
 }
@@ -775,6 +795,15 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					EstimatedDuration:    40,
 					DifficultyLevel:      "advanced",
 				},
+				{
+					Order:                4,
+					Title:                "Testing & Documentation",
+					Description:          "Pelajari unit testing dan API documentation",
+					LearningObjectives:   "Membuat test coverage minimal 80% dan dokumentasi API lengkap",
+					SubmissionGuidelines: "Submit link repository dengan test coverage report dan dokumentasi API",
+					EstimatedDuration:    25,
+					DifficultyLevel:      "intermediate",
+				},
 			},
 		},
 		{
@@ -807,6 +836,90 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					SubmissionGuidelines: "Upload project interactive website dengan fitur dinamis",
 					EstimatedDuration:    35,
 					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Modern Frontend Framework",
+					Description:          "Pelajari React.js atau Vue.js untuk building aplikasi modern",
+					LearningObjectives:   "Membuat single page application dengan state management",
+					SubmissionGuidelines: "Deploy aplikasi web ke hosting dan berikan source code",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Mobile Developer",
+			Description: "Jalur pembelajaran untuk menjadi Mobile Developer yang mahir",
+			RoleIndex:   2,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Mobile UI/UX Design",
+					Description:          "Pelajari prinsip desain mobile dan user experience",
+					LearningObjectives:   "Memahami design patterns mobile dan membuat wireframe",
+					SubmissionGuidelines: "Upload mockup aplikasi mobile dengan justifikasi design choices",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Cross-Platform Development",
+					Description:          "Belajar Flutter atau React Native untuk development mobile",
+					LearningObjectives:   "Membuat aplikasi mobile yang bisa berjalan di Android dan iOS",
+					SubmissionGuidelines: "Submit APK/IPA file dan source code aplikasi mobile",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap DevOps Engineer",
+			Description: "Jalur pembelajaran untuk menjadi DevOps Engineer yang kompeten",
+			RoleIndex:   3,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Linux System Administration",
+					Description:          "Kuasai administrasi sistem Linux dan command line",
+					LearningObjectives:   "Mampu mengelola server Linux dan automation script",
+					SubmissionGuidelines: "Upload dokumentasi setup server dan automation scripts",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "Containerization & Orchestration",
+					Description:          "Pelajari Docker dan Kubernetes untuk container management",
+					LearningObjectives:   "Deploy aplikasi menggunakan Docker dan Kubernetes",
+					SubmissionGuidelines: "Berikan link repository dengan Docker compose dan K8s manifests",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "CI/CD Pipeline",
+					Description:          "Buat pipeline otomatis untuk testing dan deployment",
+					LearningObjectives:   "Mengimplementasikan CI/CD dengan GitHub Actions atau Jenkins",
+					SubmissionGuidelines: "Setup working CI/CD pipeline untuk aplikasi sample",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "advanced",
 				},
 			},
 		},
@@ -1149,9 +1262,9 @@ func SeedQuestionnaireResponses(db *gorm.DB) error {
 func SeedStudentRoadmapProgress(db *gorm.DB) error {
 	log.Println("Seeding student roadmap progress...")
 
-	// Get students, roadmaps, and teachers
+	// Get all students and roadmaps and teachers
 	var studentProfiles []user.StudentProfile
-	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+	if err := db.Find(&studentProfiles).Error; err != nil {
 		return fmt.Errorf("student profiles not found: %v", err)
 	}
 
@@ -1165,12 +1278,38 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 		return fmt.Errorf("teacher profiles not found: %v", err)
 	}
 
-	for i, studentProfile := range studentProfiles {
-		if i >= len(featureRoadmaps) {
-			break
-		}
+	if len(featureRoadmaps) == 0 {
+		log.Println("No roadmaps found, skipping student roadmap progress seeding")
+		return nil
+	}
 
-		roadmapData := featureRoadmaps[i]
+	// Create diverse scenarios for different students
+	scenarios := []struct {
+		Description      string
+		CompletedSteps   int
+		HasPendingSteps  bool
+		HasRejectedSteps bool
+		ProgressPattern  string // "linear", "mixed", "advanced"
+	}{
+		{"Beginner student - just started", 0, false, false, "linear"},
+		{"Active student - making progress", 1, true, false, "linear"},
+		{"Progressing student - some submissions pending", 2, true, false, "linear"},
+		{"Advanced student - mixed progress with some rejections", 3, true, true, "mixed"},
+		{"Struggling student - multiple rejections", 1, true, true, "mixed"},
+		{"High achiever - consistent progress", 4, false, false, "linear"},
+		{"Inconsistent student - sporadic submissions", 2, true, true, "mixed"},
+		{"Recent starter - first submission pending", 1, true, false, "linear"},
+		{"Fast learner - rapid progression", 3, true, false, "advanced"},
+		{"Methodical student - steady progress", 2, false, false, "linear"},
+	}
+
+	for i, studentProfile := range studentProfiles {
+		// Assign roadmap based on student index (cycling through available roadmaps)
+		roadmapIndex := i % len(featureRoadmaps)
+		roadmapData := featureRoadmaps[roadmapIndex]
+
+		// Use scenario based on student index
+		scenario := scenarios[i%len(scenarios)]
 
 		var existingProgress roadmap.StudentRoadmapProgress
 		err := db.Where("student_profile_id = ? AND roadmap_id = ?",
@@ -1180,21 +1319,26 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			continue
 		}
 
-		// Create roadmap progress
-		completedSteps := randomInt(len(roadmapData.Steps) + 1)
-		progressPercent := float64(completedSteps) / float64(len(roadmapData.Steps)) * 100
+		// Determine completed steps based on scenario and available steps
+		maxSteps := len(roadmapData.Steps)
+		completedSteps := scenario.CompletedSteps
+		if completedSteps > maxSteps {
+			completedSteps = maxSteps
+		}
+
+		progressPercent := float64(completedSteps) / float64(maxSteps) * 100
 
 		newProgress := roadmap.StudentRoadmapProgress{
 			RoadmapID:        roadmapData.ID,
 			StudentProfileID: studentProfile.ID,
-			TotalSteps:       len(roadmapData.Steps),
+			TotalSteps:       maxSteps,
 			CompletedSteps:   completedSteps,
 			ProgressPercent:  progressPercent,
-			StartedAt:        timePtr(time.Now().AddDate(0, 0, -randomInt(60))),
+			StartedAt:        timePtr(time.Now().AddDate(0, 0, -randomInt(90))),
 			LastActivityAt:   timePtr(time.Now().AddDate(0, 0, -randomInt(7))),
 		}
 
-		if completedSteps == len(roadmapData.Steps) {
+		if completedSteps == maxSteps {
 			newProgress.CompletedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(30)))
 		}
 
@@ -1202,7 +1346,7 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			return fmt.Errorf("failed to create roadmap progress: %v", err)
 		}
 
-		// Create step progress
+		// Create step progress with diverse statuses
 		for j, step := range roadmapData.Steps {
 			status := roadmap.RoadmapProgressStatusLocked
 			var startedAt, submittedAt, completedAt *time.Time
@@ -1212,20 +1356,49 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			var validationScore *int
 
 			if j < completedSteps {
-				status = roadmap.RoadmapProgressStatusSubmitted
-				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(45) + 15)))
-				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(30) + 5)))
-				completedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(25)))
-				evidenceLink = stringPtr("https://github.com/student/project-" + fmt.Sprintf("%d", j+1))
-				submissionNotes = stringPtr("Project berhasil diselesaikan sesuai dengan requirements yang diberikan")
+				// Completed steps
+				status = roadmap.RoadmapProgressStatusApproved
+				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(60) + 20)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(45) + 15)))
+				completedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(30) + 10)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+
 				if len(teacherProfiles) > 0 {
 					validatedByTeacherID = &teacherProfiles[randomInt(len(teacherProfiles))].ID
-					validationNotes = stringPtr("Bagus! Project sudah memenuhi semua kriteria penilaian")
-					validationScore = intPtr(85 + randomInt(15))
+					validationNotes = stringPtr(getRandomValidationNote(true))
+					validationScore = intPtr(75 + randomInt(25)) // 75-100 for approved
 				}
-			} else if j == completedSteps && completedSteps < len(roadmapData.Steps) {
+			} else if j == completedSteps && scenario.HasPendingSteps && completedSteps < maxSteps {
+				// Pending submission
+				status = roadmap.RoadmapProgressStatusSubmitted
+				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(20)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+			} else if j == completedSteps && scenario.HasRejectedSteps && completedSteps < maxSteps {
+				// Rejected submission
+				status = roadmap.RoadmapProgressStatusRejected
+				startedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(25) + 10)))
+				submittedAt = timePtr(time.Now().AddDate(0, 0, -(randomInt(15) + 5)))
+				evidenceLink = stringPtr(fmt.Sprintf("https://github.com/%s/project-step-%d",
+					strings.ToLower(strings.ReplaceAll(studentProfile.Fullname, " ", "")), j+1))
+				submissionNotes = stringPtr(getRandomSubmissionNote())
+
+				if len(teacherProfiles) > 0 {
+					validatedByTeacherID = &teacherProfiles[randomInt(len(teacherProfiles))].ID
+					validationNotes = stringPtr(getRandomValidationNote(false))
+					validationScore = intPtr(40 + randomInt(35)) // 40-75 for rejected
+				}
+			} else if j == completedSteps+1 && scenario.ProgressPattern == "advanced" && completedSteps < maxSteps-1 {
+				// In progress for advanced students
 				status = roadmap.RoadmapProgressStatusInProgress
-				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(15)))
+				startedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(10)))
+			} else if j <= completedSteps+1 && scenario.ProgressPattern == "mixed" {
+				// Unlocked for mixed pattern students
+				status = roadmap.RoadmapProgressStatusUnlocked
 			}
 
 			stepProgress := roadmap.StudentStepProgress{
@@ -1248,8 +1421,8 @@ func SeedStudentRoadmapProgress(db *gorm.DB) error {
 			}
 		}
 
-		log.Printf("Roadmap progress berhasil dibuat untuk student %s dengan %d/%d steps completed",
-			studentProfile.Fullname, completedSteps, len(roadmapData.Steps))
+		log.Printf("Roadmap progress berhasil dibuat untuk student %s (%s) dengan %d/%d steps completed - %s",
+			studentProfile.Fullname, roadmapData.RoadmapName, completedSteps, maxSteps, scenario.Description)
 	}
 
 	return nil
@@ -1556,4 +1729,433 @@ func intPtr(i int) *int {
 
 func randomInt(n int) int {
 	return int(time.Now().UnixNano()) % n
+}
+
+func SeedTeams(db *gorm.DB) error {
+	log.Println("Seeding teams...")
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(9).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	if len(studentProfiles) < 6 {
+		log.Println("Not enough students for team creation")
+		return nil
+	}
+
+	var targetRoles []project.TargetRole
+	if err := db.Limit(3).Find(&targetRoles).Error; err != nil {
+		return fmt.Errorf("target roles not found: %v", err)
+	}
+
+	teams := []struct {
+		TeamName   string
+		About      string
+		LeaderIdx  int
+		MemberIdxs []int
+	}{
+		{
+			TeamName:   "Code Warriors",
+			About:      "Tim yang berfokus pada pengembangan aplikasi web dengan teknologi modern",
+			LeaderIdx:  0,
+			MemberIdxs: []int{0, 1, 2},
+		},
+		{
+			TeamName:   "Data Miners",
+			About:      "Tim yang berspesialisasi dalam analisis data dan machine learning",
+			LeaderIdx:  3,
+			MemberIdxs: []int{3, 4, 5},
+		},
+		{
+			TeamName:   "Tech Innovators",
+			About:      "Tim yang menciptakan solusi teknologi inovatif untuk berbagai masalah",
+			LeaderIdx:  6,
+			MemberIdxs: []int{6, 7, 8},
+		},
+	}
+
+	for _, teamData := range teams {
+		if teamData.LeaderIdx >= len(studentProfiles) {
+			continue
+		}
+
+		var existingTeam challenge.Team
+		err := db.Where("team_name = ?", teamData.TeamName).First(&existingTeam).Error
+		if err == nil {
+			log.Printf("Team '%s' sudah ada, melewati...", teamData.TeamName)
+			continue
+		}
+
+		newTeam := challenge.Team{
+			TeamName:                  teamData.TeamName,
+			About:                     &teamData.About,
+			CreatedByStudentProfileID: studentProfiles[teamData.LeaderIdx].ID,
+		}
+
+		if err := db.Create(&newTeam).Error; err != nil {
+			return fmt.Errorf("failed to create team %s: %v", teamData.TeamName, err)
+		}
+
+		for i, memberIdx := range teamData.MemberIdxs {
+			if memberIdx >= len(studentProfiles) {
+				continue
+			}
+
+			role := "Developer"
+			if i == 0 {
+				role = "Team Leader"
+			}
+
+			member := challenge.TeamMember{
+				TeamID:           newTeam.ID,
+				StudentProfileID: studentProfiles[memberIdx].ID,
+				MemberRole:       &role,
+				ProfilingRoleID:  &targetRoles[i%len(targetRoles)].ID,
+				JoinedAt:         time.Now().AddDate(0, 0, -randomInt(30)),
+			}
+
+			if err := db.Create(&member).Error; err != nil {
+				return fmt.Errorf("failed to create team member: %v", err)
+			}
+		}
+
+		log.Printf("Team '%s' berhasil dibuat dengan %d members", teamData.TeamName, len(teamData.MemberIdxs))
+	}
+
+	return nil
+}
+
+func SeedChallengeSubmissions(db *gorm.DB) error {
+	log.Println("Seeding challenge submissions...")
+
+	var challenges []challenge.Challenge
+	if err := db.Find(&challenges).Error; err != nil {
+		return fmt.Errorf("challenges not found: %v", err)
+	}
+
+	var teams []challenge.Team
+	if err := db.Find(&teams).Error; err != nil {
+		return fmt.Errorf("teams not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	submissions := []struct {
+		Title    string
+		ImageURL string
+		RepoURL  string
+		DocsURL  string
+		Points   int
+	}{
+		{
+			Title:    "AI-Powered Learning Platform",
+			ImageURL: "https://example.com/images/ai-learning-platform.jpg",
+			RepoURL:  "https://github.com/team/ai-learning-platform",
+			DocsURL:  "https://docs.example.com/ai-learning-platform",
+			Points:   95,
+		},
+		{
+			Title:    "Smart Campus Management System",
+			ImageURL: "https://example.com/images/campus-system.jpg",
+			RepoURL:  "https://github.com/team/campus-management",
+			DocsURL:  "https://docs.example.com/campus-management",
+			Points:   88,
+		},
+		{
+			Title:    "Student Collaboration Hub",
+			ImageURL: "https://example.com/images/collaboration-hub.jpg",
+			RepoURL:  "https://github.com/team/collaboration-hub",
+			DocsURL:  "https://docs.example.com/collaboration-hub",
+			Points:   82,
+		},
+	}
+
+	for i, submissionData := range submissions {
+		if i >= len(challenges) {
+			break
+		}
+
+		var existingSubmission challenge.Submission
+		err := db.Where("title = ? AND challenge_id = ?", submissionData.Title, challenges[i].ID).First(&existingSubmission).Error
+		if err == nil {
+			log.Printf("Submission '%s' sudah ada, melewati...", submissionData.Title)
+			continue
+		}
+
+		newSubmission := challenge.Submission{
+			ChallengeID: challenges[i].ID,
+			Title:       submissionData.Title,
+			ImageURL:    &submissionData.ImageURL,
+			RepoURL:     &submissionData.RepoURL,
+			DocsURL:     &submissionData.DocsURL,
+			SubmittedAt: time.Now().AddDate(0, 0, -randomInt(10)),
+			Points:      &submissionData.Points,
+		}
+
+		if i < len(teams) {
+			newSubmission.TeamID = &teams[i].ID
+		} else if i < len(studentProfiles) {
+			newSubmission.StudentProfileID = &studentProfiles[i].ID
+		}
+
+		if err := db.Create(&newSubmission).Error; err != nil {
+			return fmt.Errorf("failed to create submission %s: %v", submissionData.Title, err)
+		}
+
+		log.Printf("Submission '%s' berhasil dibuat", submissionData.Title)
+	}
+
+	return nil
+}
+
+func SeedChallengeJudges(db *gorm.DB) error {
+	log.Println("Seeding challenge judges...")
+
+	var challenges []challenge.Challenge
+	if err := db.Find(&challenges).Error; err != nil {
+		return fmt.Errorf("challenges not found: %v", err)
+	}
+
+	var teacherProfiles []user.TeacherProfile
+	if err := db.Find(&teacherProfiles).Error; err != nil {
+		return fmt.Errorf("teacher profiles not found: %v", err)
+	}
+
+	if len(teacherProfiles) == 0 {
+		log.Println("No teacher profiles found, skipping challenge judges seeding")
+		return nil
+	}
+
+	for i, challengeData := range challenges {
+		teacherIdx := i % len(teacherProfiles)
+
+		var existingJudge challenge.ChallengeJudge
+		err := db.Where("challenge_id = ? AND teacher_profile_id = ?", challengeData.ID, teacherProfiles[teacherIdx].ID).First(&existingJudge).Error
+		if err == nil {
+			log.Printf("Judge untuk challenge '%s' sudah ada, melewati...", challengeData.Title)
+			continue
+		}
+
+		newJudge := challenge.ChallengeJudge{
+			ChallengeID:      challengeData.ID,
+			TeacherProfileID: teacherProfiles[teacherIdx].ID,
+		}
+
+		if err := db.Create(&newJudge).Error; err != nil {
+			return fmt.Errorf("failed to create challenge judge: %v", err)
+		}
+
+		log.Printf("Judge berhasil ditambahkan untuk challenge '%s'", challengeData.Title)
+	}
+
+	return nil
+}
+
+func SeedInternshipApplications(db *gorm.DB) error {
+	log.Println("Seeding internship applications...")
+
+	var internships []pkl.Internship
+	if err := db.Limit(3).Find(&internships).Error; err != nil {
+		return fmt.Errorf("internships not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(5).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	var alumniProfiles []user.AlumniProfile
+	if err := db.Limit(3).Find(&alumniProfiles).Error; err != nil {
+		return fmt.Errorf("alumni profiles not found: %v", err)
+	}
+
+	var teacherProfiles []user.TeacherProfile
+	if err := db.Find(&teacherProfiles).Error; err != nil {
+		return fmt.Errorf("teacher profiles not found: %v", err)
+	}
+
+	applicationCount := 0
+	for i, internship := range internships {
+		for j := 0; j < 2 && j < len(studentProfiles); j++ {
+			var existingApp pkl.InternshipApplication
+			err := db.Where("internship_id = ? AND student_profile_id = ?", internship.ID, studentProfiles[j].ID).First(&existingApp).Error
+			if err == nil {
+				continue
+			}
+
+			status := pkl.ApplicationStatusPending
+			var reviewedAt *time.Time
+			var approvedByUserID *uuid.UUID
+			var approvedByRole *string
+
+			if applicationCount%3 == 0 {
+				status = pkl.ApplicationStatusApproved
+				reviewedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				if len(teacherProfiles) > 0 {
+					approvedByUserID = &teacherProfiles[0].UserID
+					role := "teacher"
+					approvedByRole = &role
+				}
+			} else if applicationCount%3 == 1 {
+				status = pkl.ApplicationStatusRejected
+				reviewedAt = timePtr(time.Now().AddDate(0, 0, -randomInt(5)))
+				if len(teacherProfiles) > 0 {
+					approvedByUserID = &teacherProfiles[0].UserID
+					role := "teacher"
+					approvedByRole = &role
+				}
+			}
+
+			newApp := pkl.InternshipApplication{
+				InternshipID:     internship.ID,
+				StudentProfileID: &studentProfiles[j].ID,
+				Status:           status,
+				AppliedAt:        time.Now().AddDate(0, 0, -randomInt(15)),
+				ReviewedAt:       reviewedAt,
+				ApprovedByUserID: approvedByUserID,
+				ApprovedByRole:   approvedByRole,
+			}
+
+			if err := db.Create(&newApp).Error; err != nil {
+				log.Printf("Warning: failed to create internship application: %v", err)
+			} else {
+				log.Printf("Internship application berhasil dibuat untuk student %s", studentProfiles[j].Fullname)
+			}
+			applicationCount++
+		}
+
+		if i < len(alumniProfiles) {
+			var existingApp pkl.InternshipApplication
+			err := db.Where("internship_id = ? AND alumni_profile_id = ?", internship.ID, alumniProfiles[i].ID).First(&existingApp).Error
+			if err != nil {
+				newApp := pkl.InternshipApplication{
+					InternshipID:    internship.ID,
+					AlumniProfileID: &alumniProfiles[i].ID,
+					Status:          pkl.ApplicationStatusPending,
+					AppliedAt:       time.Now().AddDate(0, 0, -randomInt(15)),
+				}
+
+				if err := db.Create(&newApp).Error; err != nil {
+					log.Printf("Warning: failed to create alumni internship application: %v", err)
+				} else {
+					log.Printf("Internship application berhasil dibuat untuk alumni %s", alumniProfiles[i].Fullname)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func SeedInternshipReviews(db *gorm.DB) error {
+	log.Println("Seeding internship reviews...")
+
+	var internships []pkl.Internship
+	if err := db.Find(&internships).Error; err != nil {
+		return fmt.Errorf("internships not found: %v", err)
+	}
+
+	var studentProfiles []user.StudentProfile
+	if err := db.Limit(3).Find(&studentProfiles).Error; err != nil {
+		return fmt.Errorf("student profiles not found: %v", err)
+	}
+
+	reviews := []struct {
+		Rating      int
+		Testimonial string
+	}{
+		{
+			Rating:      5,
+			Testimonial: "Pengalaman magang yang luar biasa! Mendapat bimbingan yang sangat baik dari mentor dan team. Banyak belajar tentang development process dan best practices dalam industri.",
+		},
+		{
+			Rating:      4,
+			Testimonial: "Magang yang sangat bermanfaat, environment kerja yang supportive dan project yang challenging. Sangat membantu untuk mempersiapkan karir di bidang teknologi.",
+		},
+		{
+			Rating:      5,
+			Testimonial: "Amazing internship experience! Tim yang solid, mentor yang berpengalaman, dan project yang real-world. Definitely recommended untuk yang ingin belajar lebih dalam tentang software development.",
+		},
+	}
+
+	for i, reviewData := range reviews {
+		if i >= len(internships) || i >= len(studentProfiles) {
+			break
+		}
+
+		var existingReview pkl.InternshipReview
+		err := db.Where("internship_id = ? AND student_profile_id = ?", internships[i].ID, studentProfiles[i].ID).First(&existingReview).Error
+		if err == nil {
+			log.Printf("Review sudah ada untuk internship dan student, melewati...")
+			continue
+		}
+
+		newReview := pkl.InternshipReview{
+			InternshipID:     internships[i].ID,
+			StudentProfileID: studentProfiles[i].ID,
+			Rating:           reviewData.Rating,
+			Testimonial:      reviewData.Testimonial,
+		}
+
+		if err := db.Create(&newReview).Error; err != nil {
+			return fmt.Errorf("failed to create internship review: %v", err)
+		}
+
+		log.Printf("Internship review berhasil dibuat untuk student %s", studentProfiles[i].Fullname)
+	}
+
+	return nil
+}
+
+// Helper functions for generating random content
+func getRandomSubmissionNote() string {
+	notes := []string{
+		"Project berhasil diselesaikan sesuai dengan requirements yang diberikan. Semua fitur telah diimplementasikan dengan baik.",
+		"Implementasi sudah sesuai dengan spesifikasi teknis. Testing telah dilakukan dan semua test case passed.",
+		"Aplikasi berjalan dengan lancar dan memenuhi kriteria penilaian. User interface responsif dan user-friendly.",
+		"Source code clean dan well-documented. Best practices sudah diterapkan dalam development process.",
+		"Deployment berhasil dan aplikasi dapat diakses dengan baik. Performance optimization sudah dilakukan.",
+		"Fitur tambahan berhasil diimplementasikan untuk meningkatkan user experience.",
+		"Integration dengan external API berjalan dengan baik. Error handling sudah diterapkan dengan proper.",
+		"Database design optimal dan normalized. Query performance sudah dioptimasi.",
+		"Security measures telah diimplementasikan sesuai dengan standar keamanan.",
+		"Code review internal sudah dilakukan dan feedback sudah diincorporate.",
+	}
+	return notes[randomInt(len(notes))]
+}
+
+func getRandomValidationNote(approved bool) string {
+	if approved {
+		notes := []string{
+			"Excellent work! Project memenuhi semua kriteria penilaian dengan sangat baik.",
+			"Great job! Implementation sangat solid dan code quality bagus.",
+			"Outstanding! Creativity dan problem-solving skills terlihat jelas dalam project ini.",
+			"Very good! Technical implementation sesuai dengan best practices.",
+			"Impressive work! Attention to detail sangat baik dan hasil akhir memuaskan.",
+			"Well done! Project menunjukkan pemahaman yang mendalam terhadap materi.",
+			"Fantastic! Innovation dan technical skills yang ditunjukkan sangat baik.",
+			"Superb execution! Code organization dan dokumentasi sangat rapi.",
+			"Excellent problem-solving approach dan implementation yang efisien.",
+			"Outstanding project! Menunjukkan kemampuan development yang matang.",
+		}
+		return notes[randomInt(len(notes))]
+	} else {
+		notes := []string{
+			"Project needs improvement. Beberapa requirements belum terpenuhi dengan baik.",
+			"Implementation perlu diperbaiki. Code quality masih bisa ditingkatkan.",
+			"Submission tidak memenuhi kriteria minimum. Silakan revisi dan submit ulang.",
+			"Functionality tidak sesuai dengan spesifikasi. Perlu review ulang requirements.",
+			"Code structure perlu diperbaiki. Best practices belum diterapkan dengan konsisten.",
+			"Testing tidak sufficient. Perlu menambahkan test cases yang lebih comprehensive.",
+			"Documentation kurang lengkap. Silakan tambahkan penjelasan yang lebih detail.",
+			"Performance issues ditemukan. Optimasi diperlukan sebelum submission final.",
+			"Security vulnerabilities terdeteksi. Silakan perbaiki sebelum submit ulang.",
+			"UI/UX perlu improvement. User experience masih bisa diperbaiki.",
+		}
+		return notes[randomInt(len(notes))]
+	}
 }

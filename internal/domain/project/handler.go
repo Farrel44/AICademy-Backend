@@ -35,7 +35,7 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
 			req.StartDate = startDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -43,7 +43,7 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
 			req.EndDate = endDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -53,7 +53,7 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		if err := json.Unmarshal([]byte(contributorsStr), &contributors); err == nil {
 			req.Contributors = contributors
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid contributors format. Must be valid JSON array")
+			return utils.SendError(c, 400, "Invalid contributors format. Must be valid JSON array")
 		}
 	}
 
@@ -65,21 +65,21 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 
 	// Validate required fields manually
 	if req.ProjectName == "" {
-		return utils.ErrorResponse(c, 400, "project_name is required")
+		return utils.SendError(c, 400, "project_name is required")
 	}
 	if req.Description == "" {
-		return utils.ErrorResponse(c, 400, "description is required")
+		return utils.SendError(c, 400, "description is required")
 	}
 	if req.StartDate.IsZero() {
-		return utils.ErrorResponse(c, 400, "start_date is required")
+		return utils.SendError(c, 400, "start_date is required")
 	}
 	if req.EndDate.IsZero() {
-		return utils.ErrorResponse(c, 400, "end_date is required")
+		return utils.SendError(c, 400, "end_date is required")
 	}
 
 	// Validate end date is after start date
 	if req.EndDate.Before(req.StartDate) {
-		return utils.ErrorResponse(c, 400, "end_date must be after start_date")
+		return utils.SendError(c, 400, "end_date must be after start_date")
 	}
 
 	project, err := h.service.CreateProject(c, &req)
@@ -93,7 +93,7 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 func (h *ProjectHandler) GetProjectByID(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid project ID")
+		return utils.SendError(c, 400, "Invalid project ID")
 	}
 
 	project, err := h.service.GetProjectByID(id)
@@ -127,7 +127,7 @@ func (h *ProjectHandler) GetMyProjects(c *fiber.Ctx) error {
 func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid project ID")
+		return utils.SendError(c, 400, "Invalid project ID")
 	}
 
 	var req UpdateProjectRequest
@@ -148,7 +148,7 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
 			req.StartDate = &startDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid start_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -156,7 +156,7 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
 			req.EndDate = &endDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid end_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -177,7 +177,7 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid project ID")
+		return utils.SendError(c, 400, "Invalid project ID")
 	}
 
 	if err := h.service.DeleteProject(id); err != nil {
@@ -207,7 +207,7 @@ func (h *ProjectHandler) CreateCertification(c *fiber.Ctx) error {
 		if issueDate, err := time.Parse("2006-01-02", issueDateStr); err == nil {
 			req.IssueDate = issueDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -225,13 +225,13 @@ func (h *ProjectHandler) CreateCertification(c *fiber.Ctx) error {
 
 	// Validate required fields manually
 	if req.Name == "" {
-		return utils.ErrorResponse(c, 400, "name is required")
+		return utils.SendError(c, 400, "name is required")
 	}
 	if req.IssuingOrganization == "" {
-		return utils.ErrorResponse(c, 400, "issuing_organization is required")
+		return utils.SendError(c, 400, "issuing_organization is required")
 	}
 	if req.IssueDate.IsZero() {
-		return utils.ErrorResponse(c, 400, "issue_date is required")
+		return utils.SendError(c, 400, "issue_date is required")
 	}
 
 	certification, err := h.service.CreateCertification(c, &req)
@@ -245,7 +245,7 @@ func (h *ProjectHandler) CreateCertification(c *fiber.Ctx) error {
 func (h *ProjectHandler) GetCertificationByID(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid certification ID")
+		return utils.SendError(c, 400, "Invalid certification ID")
 	}
 
 	certification, err := h.service.GetCertificationByID(id)
@@ -268,7 +268,7 @@ func (h *ProjectHandler) GetMyCertifications(c *fiber.Ctx) error {
 func (h *ProjectHandler) UpdateCertification(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid certification ID")
+		return utils.SendError(c, 400, "Invalid certification ID")
 	}
 
 	var req UpdateCertificationRequest
@@ -292,7 +292,7 @@ func (h *ProjectHandler) UpdateCertification(c *fiber.Ctx) error {
 		if issueDate, err := time.Parse("2006-01-02", issueDateStr); err == nil {
 			req.IssueDate = &issueDate
 		} else {
-			return utils.ErrorResponse(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
+			return utils.SendError(c, 400, "Invalid issue_date format. Use YYYY-MM-DD")
 		}
 	}
 
@@ -319,7 +319,7 @@ func (h *ProjectHandler) UpdateCertification(c *fiber.Ctx) error {
 func (h *ProjectHandler) DeleteCertification(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid certification ID")
+		return utils.SendError(c, 400, "Invalid certification ID")
 	}
 
 	if err := h.service.DeleteCertification(id); err != nil {

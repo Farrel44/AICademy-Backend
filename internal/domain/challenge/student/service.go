@@ -1,72 +1,37 @@
 package student_challenge
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"mime/multipart"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/challenge"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
 type StudentChallengeService struct {
 	repo     *challenge.ChallengeRepository
 	redis    *utils.RedisClient
-	s3Client *s3.Client
-	bucket   string
-	baseURL  string
+	r2Client *utils.R2Client
 }
 
 func NewStudentChallengeService(repo *challenge.ChallengeRepository, redis *utils.RedisClient) *StudentChallengeService {
-	bucketName := os.Getenv("R2_BUCKET_NAME")
-	accountId := os.Getenv("R2_ACCOUNT_ID")
-	accessKeyId := os.Getenv("R2_KEY_ID")
-	accessKeySecret := os.Getenv("ACCESS_KEY_SECRET")
-	baseURL := os.Getenv("OBJECT_STORAGE_URL")
-
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, "")),
-		config.WithRegion("auto"),
-	)
+	r2Client, err := utils.NewR2Client()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load AWS config: %v", err))
+		panic(fmt.Sprintf("Failed to initialize R2 client: %v", err))
 	}
-
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountId))
-	})
 
 	return &StudentChallengeService{
 		repo:     repo,
 		redis:    redis,
-		s3Client: client,
-		bucket:   bucketName,
-		baseURL:  baseURL,
+		r2Client: r2Client,
 	}
 }
 
-func (s *StudentChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uuid.UUID) (*challenge.Challenge, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetChallengeByID(challengeID uuid.UUID) (*challenge.Challenge, error) {
 	// Use the new method with auto winner check
 	challengeData, err := s.repo.GetChallengeByIDWithWinnerCheck(challengeID)
 	if err != nil {
@@ -77,45 +42,17 @@ func (s *StudentChallengeService) GetChallengeByID(c *fiber.Ctx, challengeID uui
 }
 
 func (s *StudentChallengeService) uploadFile(file *multipart.FileHeader, folder string) (string, error) {
-	src, err := file.Open()
-	if err != nil {
-		return "", err
-	}
-	defer src.Close()
-
-	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("%s/%s%s", folder, uuid.New().String(), ext)
-
-	// Upload to R2
-	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(filename),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/%s", s.baseURL, filename), nil
+	return s.r2Client.UploadFile(file, folder)
 }
 
 // SearchStudents allows students to search for other students (limited information)
-func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) SearchStudents(userID uuid.UUID, req *SearchStudentRequest) ([]challenge.StudentSearchResult, error) {
 	query := strings.TrimSpace(req.Query)
 	if req.Limit == 0 {
 		req.Limit = 10
 	}
 
-	students, err := s.repo.SearchStudents(query, req.Limit, claims.UserID)
+	students, err := s.repo.SearchStudents(query, req.Limit, userID)
 	if err != nil {
 		return nil, errors.New("failed to search students")
 	}
@@ -124,19 +61,9 @@ func (s *StudentChallengeService) SearchStudents(c *fiber.Ctx, req *SearchStuden
 }
 
 // Create team
-func (s *StudentChallengeService) CreateTeam(c *fiber.Ctx, req *CreateTeamRequest) (*CreateTeamResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) CreateTeam(userID uuid.UUID, req *CreateTeamRequest) (*CreateTeamResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -228,19 +155,9 @@ func convertToDTOMembers(members []challenge.TeamMemberInfo) []TeamMemberInfo {
 }
 
 // Get my teams
-func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetMyTeams(userID uuid.UUID) ([]MyTeamResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -278,17 +195,7 @@ func (s *StudentChallengeService) GetMyTeams(c *fiber.Ctx) ([]MyTeamResponse, er
 }
 
 // Get available challenges
-func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, limit int, search string) (*utils.PaginationResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("akses ditolak: diperlukan role siswa")
-	}
-
+func (s *StudentChallengeService) GetAvailableChallenges(userID uuid.UUID, page, limit int, search string) (*utils.PaginationResponse, error) {
 	// Check and auto announce winners before getting challenges
 	s.repo.CheckAndAutoAnnounceWinners()
 
@@ -303,7 +210,7 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, lim
 	search = validation.Query
 
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("profil siswa tidak ditemukan")
 	}
@@ -386,19 +293,9 @@ func (s *StudentChallengeService) GetAvailableChallenges(c *fiber.Ctx, page, lim
 }
 
 // Register team to challenge
-func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) RegisterTeamToChallenge(userID uuid.UUID, req *RegisterChallengeRequest) (*RegisterChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -458,19 +355,9 @@ func (s *StudentChallengeService) RegisterTeamToChallenge(c *fiber.Ctx, req *Reg
 }
 
 // Auto register to challenge without team_id
-func (s *StudentChallengeService) AutoRegisterToChallenge(c *fiber.Ctx, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) AutoRegisterToChallenge(userID uuid.UUID, req *AutoRegisterChallengeRequest) (*AutoRegisterChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -537,19 +424,9 @@ func (s *StudentChallengeService) AutoRegisterToChallenge(c *fiber.Ctx, req *Aut
 }
 
 // Submit challenge
-func (s *StudentChallengeService) SubmitChallenge(c *fiber.Ctx, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) SubmitChallenge(userID uuid.UUID, req *SubmitChallengeRequest) (*SubmitChallengeResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}
@@ -621,19 +498,9 @@ func (s *StudentChallengeService) SubmitChallenge(c *fiber.Ctx, req *SubmitChall
 }
 
 // Get my submissions
-func (s *StudentChallengeService) GetMySubmissions(c *fiber.Ctx, page, limit int) (*utils.PaginationResponse, error) {
-	// Verify student access
-	claims, err := utils.GetClaimsFromHeader(c)
-	if err != nil {
-		return nil, errors.New("unauthorized")
-	}
-
-	if claims.Role != "student" {
-		return nil, errors.New("access denied: student role required")
-	}
-
+func (s *StudentChallengeService) GetMySubmissions(userID uuid.UUID, page, limit int) (*utils.PaginationResponse, error) {
 	// Get student profile ID
-	studentProfileID, err := s.repo.GetStudentProfileByUserID(claims.UserID)
+	studentProfileID, err := s.repo.GetStudentProfileByUserID(userID)
 	if err != nil {
 		return nil, errors.New("student profile not found")
 	}

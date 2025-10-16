@@ -41,33 +41,18 @@ func GetUserIDFromToken(c *fiber.Ctx) (uuid.UUID, error) {
 	if userIDStr == nil {
 		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "User ID not found in token")
 	}
-	
+
 	userIDString, ok := userIDStr.(string)
 	if !ok {
 		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID format")
 	}
-	
+
 	userID, err := uuid.Parse(userIDString)
 	if err != nil {
 		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID")
 	}
-	
+
 	return userID, nil
-}
-
-func SuccessResponse(c *fiber.Ctx, data interface{}, message string) error {
-	return c.JSON(Response{
-		Success: true,
-		Message: message,
-		Data:    data,
-	})
-}
-
-func ErrorResponse(c *fiber.Ctx, statusCode int, message string) error {
-	return c.Status(statusCode).JSON(Response{
-		Success: false,
-		Error:   message,
-	})
 }
 
 func ValidationErrorResponse(c *fiber.Ctx, err error) error {
@@ -81,7 +66,7 @@ func ValidationErrorResponse(c *fiber.Ctx, err error) error {
 			})
 		}
 	} else {
-		return ErrorResponse(c, 400, err.Error())
+		return SendError(c, 400, err.Error())
 	}
 
 	return c.Status(400).JSON(Response{
