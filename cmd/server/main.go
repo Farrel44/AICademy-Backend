@@ -396,8 +396,8 @@ func main() {
 	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
 
 	app := fiber.New()
-	app.Use(middleware.JWTCookieBridge())
 
+	// 1. Sentry (jika ada)
 	if os.Getenv("SENTRY_DSN") != "" {
 		app.Use(sentryfiber.New(sentryfiber.Options{
 			Repanic:         true,
@@ -406,6 +406,7 @@ func main() {
 		}))
 	}
 
+	// 2. Basic middleware
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
@@ -420,7 +421,14 @@ func main() {
 				strings.Contains(contentType, "multipart/form-data")
 		},
 	}))
+
+	// 3. CORS DULU - PENTING!
 	app.Use(config.SetupCors())
+
+	// 4. SETELAH CORS, baru Cookie Bridge
+	app.Use(middleware.JWTCookieBridge())
+
+	// 5. OPTIONS handler
 	app.Options("/*", func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})

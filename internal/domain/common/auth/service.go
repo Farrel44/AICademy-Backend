@@ -66,21 +66,24 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 		}
 	}
 
+	// PERBAIKAN: Check requirePasswordChange dengan lebih akurat
+	requirePasswordChange := false
+	if foundUser.Role == user.RoleStudent && utils.CheckPassword("telkom@2025", foundUser.PasswordHash) {
+		requirePasswordChange = true
+	}
+
 	response := &AuthResponse{
-		AccessToken:  tokenPair.AccessToken,
-		RefreshToken: tokenPair.RefreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    tokenPair.ExpiresIn,
+		AccessToken:           tokenPair.AccessToken,
+		RefreshToken:          tokenPair.RefreshToken,
+		TokenType:             "Bearer",
+		ExpiresIn:             tokenPair.ExpiresIn,
+		RequirePasswordChange: requirePasswordChange, // TAMBAHAN INI
 		User: UserProfile{
 			ID:    foundUser.ID,
 			Email: foundUser.Email,
 			Role:  string(foundUser.Role),
 			Name:  userName,
 		},
-	}
-
-	if foundUser.Role == user.RoleStudent && utils.CheckPassword("telkom@2025", foundUser.PasswordHash) {
-		response.RequirePasswordChange = true
 	}
 
 	return response, nil

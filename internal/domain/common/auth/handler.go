@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -41,8 +42,8 @@ func (h *CommonAuthHandler) Login(c *fiber.Ctx) error {
 		}
 	}
 
-	// Set cookies dengan access token
-	h.setAuthCookies(c, result.AccessToken, result.User.Role, result.RefreshToken)
+	// Set cookies dengan access token DAN requirePasswordChange
+	h.setAuthCookiesWithPasswordFlag(c, result.AccessToken, result.User.Role, result.RefreshToken, result.RequirePasswordChange)
 
 	return utils.SendSuccess(c, "Login successful", result)
 
@@ -192,19 +193,25 @@ func isProduction() bool {
 	return env == "production"
 }
 
-// Helper methods - UPDATED
+// Helper methods - UPDATED dengan domain support
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh string) {
 	secure := isProduction()
 	sameSite := "Lax"
+	domain := ""
+
 	if secure {
 		sameSite = "None"
+		if cookieDomain := os.Getenv("COOKIE_DOMAIN"); cookieDomain != "" {
+			domain = cookieDomain
+		}
 	}
 
-	// Access token (readable by FE jika perlu; bisa dipertimbangkan HttpOnly=false/true sesuai desain)
+	// Access token (readable by FE)
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    token,
 		Path:     "/",
+		Domain:   domain,
 		Secure:   secure,
 		HTTPOnly: false,
 		SameSite: sameSite,
@@ -216,17 +223,19 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Name:     "token",
 		Value:    token,
 		Path:     "/",
+		Domain:   domain, // TAMBAHAN INI
 		Secure:   secure,
 		HTTPOnly: false,
 		SameSite: sameSite,
 		Expires:  time.Now().Add(15 * time.Minute),
 	})
 
-	// Role (opsional)
+	// Role
 	c.Cookie(&fiber.Cookie{
 		Name:     "role",
 		Value:    role,
 		Path:     "/",
+		Domain:   domain, // TAMBAHAN INI
 		Secure:   secure,
 		HTTPOnly: false,
 		SameSite: sameSite,
@@ -238,20 +247,42 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Name:     "refresh_token",
 		Value:    refresh,
 		Path:     "/",
+		Domain:   domain, // TAMBAHAN INI
 		Secure:   secure,
 		HTTPOnly: true,
 		SameSite: sameSite,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
+
+	// TAMBAHAN: requirePasswordChange cookie berdasarkan kondisi
+	requirePasswordChange := false
+	// Logic untuk menentukan apakah perlu ganti password
+	// Misalnya dari response login service
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "requirePasswordChange",
+		Value:    fmt.Sprintf("%t", requirePasswordChange),
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
 }
 
 func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
-	cookieNames := []string{"access_token", "token", "role", "refresh_token"}
+	cookieNames := []string{"access_token", "token", "role", "refresh_token", "requirePasswordChange"}
 
 	isSecure := isProduction()
 	sameSite := "Lax"
+	domain := ""
+
 	if isSecure {
 		sameSite = "None"
+		if cookieDomain := os.Getenv("COOKIE_DOMAIN"); cookieDomain != "" {
+			domain = cookieDomain
+		}
 	}
 
 	for _, name := range cookieNames {
@@ -264,7 +295,7 @@ func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
 			Secure:   isSecure,
 			SameSite: sameSite,
 			Path:     "/",
-			Domain:   "",
+			Domain:   domain, // TAMBAHAN INI
 		})
 	}
 }
@@ -336,4 +367,78 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 	})
 
 	return utils.SendSuccess(c, "Token refreshed successfully", result)
+}
+
+// TAMBAHAN: Method baru untuk set cookies dengan password change flag
+func (h *CommonAuthHandler) setAuthCookiesWithPasswordFlag(c *fiber.Ctx, token, role, refresh string, requirePasswordChange bool) {
+	secure := isProduction()
+	sameSite := "Lax"
+	domain := ""
+
+	if secure {
+		sameSite = "None"
+		if cookieDomain := os.Getenv("COOKIE_DOMAIN"); cookieDomain != "" {
+			domain = cookieDomain
+		}
+	}
+
+	// Access token
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(15 * time.Minute),
+	})
+
+	// Legacy token
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(15 * time.Minute),
+	})
+
+	// Role
+	c.Cookie(&fiber.Cookie{
+		Name:     "role",
+		Value:    role,
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+
+	// Refresh token
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refresh,
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: true,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+	})
+
+	// RequirePasswordChange
+	c.Cookie(&fiber.Cookie{
+		Name:     "requirePasswordChange",
+		Value:    fmt.Sprintf("%t", requirePasswordChange),
+		Path:     "/",
+		Domain:   domain,
+		Secure:   secure,
+		HTTPOnly: false,
+		SameSite: sameSite,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
 }
