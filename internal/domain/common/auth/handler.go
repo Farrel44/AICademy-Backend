@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"os"
 	"time"
 
 	"github.com/Farrel44/AICademy-Backend/internal/middleware"
@@ -185,21 +186,35 @@ func (h *CommonAuthHandler) ResetPassword(c *fiber.Ctx) error {
 	})
 }
 
-// Helper methods - UPDATE INI
+// Helper function to check if we're in production
+func isProduction() bool {
+	env := os.Getenv("APP_ENV")
+	return env == "production"
+}
+
+// Helper methods - UPDATED
 func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh string) {
 	if token == "" || role == "" {
 		return
+	}
+
+	// Determine security settings based on environment
+	isSecure := isProduction()
+	sameSite := "Lax"
+	if isSecure {
+		sameSite = "None" // Only use None in production with HTTPS
 	}
 
 	// Set access token cookie
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    token,
-		Expires:  time.Now().Add(15 * time.Minute), // 15 menit
+		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   true, // SECURE TRUE untuk local dan production
-		SameSite: "None",
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "", // Let browser decide
 	})
 
 	// Set role cookie
@@ -208,47 +223,56 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   true, // SECURE TRUE
-		SameSite: "None",
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "",
 	})
 
 	// Set refresh token cookie - HTTPOnly untuk keamanan
 	c.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    refresh,
-		Expires:  time.Now().Add(7 * 24 * time.Hour), // 7 hari
-		HTTPOnly: true,                               // HTTPOnly untuk refresh token
-		Secure:   true,                               // SECURE TRUE
-		SameSite: "None",
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "",
 	})
 
-	// Legacy token cookie untuk backward compatibility
 	c.Cookie(&fiber.Cookie{
 		Name:     "token",
 		Value:    token,
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   true, // SECURE TRUE
-		SameSite: "None",
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "",
 	})
 }
 
 func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
 	cookieNames := []string{"access_token", "token", "role", "refresh_token"}
 
+	isSecure := isProduction()
+	sameSite := "Lax"
+	if isSecure {
+		sameSite = "None"
+	}
+
 	for _, name := range cookieNames {
-		httpOnly := name == "refresh_token" // Only refresh token is HTTPOnly
+		httpOnly := name == "refresh_token"
 		c.Cookie(&fiber.Cookie{
 			Name:     name,
 			Value:    "",
 			Expires:  time.Now().Add(-time.Hour),
 			HTTPOnly: httpOnly,
-			Secure:   false, // SECURE TRUE
-			SameSite: "None",
+			Secure:   isSecure,
+			SameSite: sameSite,
 			Path:     "/",
+			Domain:   "",
 		})
 	}
 }
@@ -289,15 +313,23 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 		}
 	}
 
-	// Update access token cookie dengan secure
+	// Determine security settings based on environment
+	isSecure := isProduction()
+	sameSite := "Lax"
+	if isSecure {
+		sameSite = "None"
+	}
+
+	// Update access token cookie
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    result.AccessToken,
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   true, // SECURE TRUE
-		SameSite: "None",
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "",
 	})
 
 	c.Cookie(&fiber.Cookie{
@@ -305,9 +337,10 @@ func (h *CommonAuthHandler) RefreshToken(c *fiber.Ctx) error {
 		Value:    result.AccessToken,
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   true, // SECURE TRUE
-		SameSite: "None",
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
+		Domain:   "",
 	})
 
 	return utils.SendSuccess(c, "Token refreshed successfully", result)
