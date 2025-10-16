@@ -88,7 +88,7 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 		Value:    result.Token,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 
@@ -97,7 +97,7 @@ func (h *AuthHandler) RegisterAlumni(c *fiber.Ctx) error {
 		Value:    result.User.Role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 
@@ -130,7 +130,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		Value:    result.Token,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 
@@ -139,7 +139,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		Value:    result.User.Role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 
@@ -152,7 +152,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 
@@ -161,7 +161,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   false,
+		Secure:   true,
 		SameSite: "Lax",
 	})
 

@@ -197,7 +197,7 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    token,
 		Expires:  time.Now().Add(15 * time.Minute), // 15 menit
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE untuk local dan production
+		Secure:   true, // SECURE TRUE untuk local dan production
 		SameSite: "Lax",
 		Path:     "/",
 	})
@@ -208,7 +208,7 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    role,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE
+		Secure:   true, // SECURE TRUE
 		SameSite: "Lax",
 		Path:     "/",
 	})
@@ -219,7 +219,7 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    refresh,
 		Expires:  time.Now().Add(7 * 24 * time.Hour), // 7 hari
 		HTTPOnly: true,                               // HTTPOnly untuk refresh token
-		Secure:   false,                              // SECURE TRUE
+		Secure:   true,                               // SECURE TRUE
 		SameSite: "Lax",
 		Path:     "/",
 	})
@@ -230,7 +230,7 @@ func (h *CommonAuthHandler) setAuthCookies(c *fiber.Ctx, token, role, refresh st
 		Value:    token,
 		Expires:  time.Now().Add(15 * time.Minute),
 		HTTPOnly: false,
-		Secure:   false, // SECURE TRUE
+		Secure:   true, // SECURE TRUE
 		SameSite: "Lax",
 		Path:     "/",
 	})
@@ -246,7 +246,7 @@ func (h *CommonAuthHandler) clearAuthCookies(c *fiber.Ctx) {
 			Value:    "",
 			Expires:  time.Now().Add(-time.Hour),
 			HTTPOnly: httpOnly,
-			Secure:   false, // SECURE TRUE
+			Secure:   true, // SECURE TRUE
 			SameSite: "Lax",
 			Path:     "/",
 		})
