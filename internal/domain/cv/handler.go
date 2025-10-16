@@ -1,9 +1,6 @@
 package cv
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -222,22 +219,31 @@ func (h *CVHandler) DownloadCV(c *fiber.Ctx) error {
 		return utils.SendError(c, 400, "Invalid CV ID")
 	}
 
+	_, err = utils.GetUserIDFromToken(c)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
 	cv, err := h.service.GetCVByID(cvID)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusNotFound, err.Error())
+		return utils.SendError(c, fiber.StatusNotFound, "CV not found")
 	}
 
 	if cv.PDFPath == "" {
-		return utils.SendError(c, fiber.StatusNotFound, "PDF file not found")
+		pdfURL, err := h.service.GeneratePDF(cvID)
+		if err != nil {
+			return utils.SendError(c, fiber.StatusInternalServerError, "Failed to generate PDF: "+err.Error())
+		}
+		cv.PDFPath = pdfURL
 	}
 
-	// Set proper headers for PDF download
-	filename := fmt.Sprintf("%s.pdf", strings.ReplaceAll(cv.Title, " ", "_"))
-	c.Set("Content-Type", "application/pdf")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	if cv.PDFPath == "" {
+		return utils.SendError(c, fiber.StatusInternalServerError, "PDF not available")
+	}
 
-	// Redirect to R2 URL for download
-	return c.Redirect(cv.PDFPath, fiber.StatusTemporaryRedirect)
+	return utils.SendSuccess(c, "PDF path retrieved successfully", map[string]string{
+		"pdf_path": cv.PDFPath,
+	})
 }
 
 func (h *CVHandler) AnalyzeATS(c *fiber.Ctx) error {

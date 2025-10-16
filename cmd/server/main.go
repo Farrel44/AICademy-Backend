@@ -327,6 +327,7 @@ func main() {
 	teacherDashboardHandler := teacherDashboard.NewHandler(teacherDashboardService)
 
 	app := fiber.New(fiber.Config{
+		BodyLimit:    10 * 1024 * 1024, // 10MB limit
 		AppName:      "AICademy API v1.0",
 		ServerHeader: "Fiber",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -353,6 +354,12 @@ func main() {
 				if err != nil {
 					message = err.Error()
 				}
+			}
+
+			// Handle specific errors
+			if strings.Contains(err.Error(), "request body too large") {
+				code = fiber.StatusRequestEntityTooLarge
+				message = "File terlalu besar, maksimal 10MB"
 			}
 
 			return c.Status(code).JSON(fiber.Map{
@@ -576,6 +583,7 @@ func main() {
 	cvRoutes.Get("/:id/download", cvHandler.DownloadCV)
 	cvRoutes.Get("/:id/analyze", cvHandler.AnalyzeATS)
 
+	// Debug route (only for development)
 	// Student Experience Routes
 	experienceRoutes := studentRoutes.Group("/experiences")
 	experienceRoutes.Post("/", experienceHandler.CreateExperience)
