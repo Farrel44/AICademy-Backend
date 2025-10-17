@@ -737,7 +737,7 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 
 	// Get some target roles
 	var targetRoles []project.TargetRole
-	if err := db.Limit(5).Find(&targetRoles).Error; err != nil {
+	if err := db.Find(&targetRoles).Error; err != nil {
 		return fmt.Errorf("target roles not found: %v", err)
 	}
 
@@ -851,7 +851,7 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 		{
 			Name:        "Roadmap Mobile Developer",
 			Description: "Jalur pembelajaran untuk menjadi Mobile Developer yang mahir",
-			RoleIndex:   2,
+			RoleIndex:   3,
 			Steps: []struct {
 				Order                int
 				Title                string
@@ -884,7 +884,7 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 		{
 			Name:        "Roadmap DevOps Engineer",
 			Description: "Jalur pembelajaran untuk menjadi DevOps Engineer yang kompeten",
-			RoleIndex:   3,
+			RoleIndex:   4,
 			Steps: []struct {
 				Order                int
 				Title                string
@@ -919,6 +919,258 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					LearningObjectives:   "Mengimplementasikan CI/CD dengan GitHub Actions atau Jenkins",
 					SubmissionGuidelines: "Setup working CI/CD pipeline untuk aplikasi sample",
 					EstimatedDuration:    30,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Full Stack Developer",
+			Description: "Jalur pembelajaran untuk menjadi Full Stack Developer yang handal",
+			RoleIndex:   2, // Full Stack Developer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Frontend Fundamentals",
+					Description:          "Pelajari HTML, CSS, dan JavaScript untuk development frontend",
+					LearningObjectives:   "Mampu membuat website responsive dengan vanilla JavaScript",
+					SubmissionGuidelines: "Upload portfolio website dengan minimal 3 halaman interaktif",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Backend Development",
+					Description:          "Pelajari server-side programming dan database management",
+					LearningObjectives:   "Membangun RESTful API dengan authentication dan database",
+					SubmissionGuidelines: "Deploy backend API dengan dokumentasi lengkap",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Full Stack Integration",
+					Description:          "Integrasikan frontend dan backend untuk aplikasi lengkap",
+					LearningObjectives:   "Membuat aplikasi web full stack yang production-ready",
+					SubmissionGuidelines: "Deploy aplikasi full stack dengan user authentication",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Data Scientist",
+			Description: "Jalur pembelajaran untuk menjadi Data Scientist yang kompeten",
+			RoleIndex:   5, // Data Scientist
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Statistics & Mathematics",
+					Description:          "Pelajari statistik, probabilitas, dan matematika untuk data science",
+					LearningObjectives:   "Memahami konsep statistik dan dapat melakukan analisis data dasar",
+					SubmissionGuidelines: "Upload laporan analisis statistik dataset dengan Python/R",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "Data Analysis & Visualization",
+					Description:          "Pelajari pandas, matplotlib, seaborn untuk analisis dan visualisasi data",
+					LearningObjectives:   "Mampu melakukan EDA dan membuat visualisasi data yang informatif",
+					SubmissionGuidelines: "Submit Jupyter notebook dengan analisis dataset kompleks",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Machine Learning Implementation",
+					Description:          "Implementasikan algoritma machine learning untuk solving business problems",
+					LearningObjectives:   "Membangun dan deploy model ML untuk prediksi atau klasifikasi",
+					SubmissionGuidelines: "Deploy model ML dengan API endpoint dan dokumentasi",
+					EstimatedDuration:    60,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap UI/UX Designer",
+			Description: "Jalur pembelajaran untuk menjadi UI/UX Designer yang kreatif",
+			RoleIndex:   8, // UI/UX Designer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Design Fundamentals",
+					Description:          "Pelajari prinsip dasar design, typography, color theory, dan layout",
+					LearningObjectives:   "Memahami elemen design dan dapat membuat composition yang baik",
+					SubmissionGuidelines: "Upload portfolio design dasar dengan 5 design variations",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "User Research & Wireframing",
+					Description:          "Pelajari user research methods, persona creation, dan wireframing",
+					LearningObjectives:   "Mampu melakukan user research dan membuat wireframe yang user-centered",
+					SubmissionGuidelines: "Submit case study dengan user research findings dan wireframes",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Prototyping & User Testing",
+					Description:          "Buat prototype interaktif dan lakukan user testing",
+					LearningObjectives:   "Membuat prototype high-fidelity dan menguji usability dengan users",
+					SubmissionGuidelines: "Upload prototype interaktif dengan user testing report",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap QA Engineer",
+			Description: "Jalur pembelajaran untuk menjadi QA Engineer yang detail-oriented",
+			RoleIndex:   11, // QA Engineer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Software Testing Fundamentals",
+					Description:          "Pelajari testing methodologies, test cases, dan bug reporting",
+					LearningObjectives:   "Memahami SDLC, testing types, dan dapat membuat test cases yang comprehensive",
+					SubmissionGuidelines: "Submit test plan dan test cases untuk aplikasi web sample",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Manual Testing Excellence",
+					Description:          "Kuasai manual testing, exploratory testing, dan defect management",
+					LearningObjectives:   "Mampu melakukan testing manual yang thorough dan reporting bugs yang clear",
+					SubmissionGuidelines: "Upload bug reports dan testing documentation untuk real application",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Test Automation Basics",
+					Description:          "Pelajari automation testing tools seperti Selenium dan API testing",
+					LearningObjectives:   "Membuat automated test scripts untuk UI dan API testing",
+					SubmissionGuidelines: "Deploy automation test suite dengan CI/CD integration",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Machine Learning Engineer",
+			Description: "Jalur pembelajaran untuk menjadi ML Engineer yang production-ready",
+			RoleIndex:   7, // Machine Learning Engineer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "ML Fundamentals & Programming",
+					Description:          "Pelajari Python, data structures, dan machine learning algorithms",
+					LearningObjectives:   "Memahami algoritma ML dan dapat implement dari scratch",
+					SubmissionGuidelines: "Upload implementation algoritma ML dasar dengan Python",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "ML Pipeline Development",
+					Description:          "Belajar data preprocessing, feature engineering, dan model evaluation",
+					LearningObjectives:   "Mampu membangun ML pipeline yang robust dan scalable",
+					SubmissionGuidelines: "Submit end-to-end ML pipeline dengan proper evaluation metrics",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "ML Model Deployment",
+					Description:          "Deploy ML models ke production dengan monitoring dan maintenance",
+					LearningObjectives:   "Memahami MLOps dan dapat deploy model ke cloud platform",
+					SubmissionGuidelines: "Deploy ML model dengan API, monitoring, dan CI/CD pipeline",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Cloud Engineer",
+			Description: "Jalur pembelajaran untuk menjadi Cloud Engineer yang reliable",
+			RoleIndex:   14, // Cloud Engineer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Cloud Fundamentals",
+					Description:          "Pelajari cloud computing concepts, AWS/Azure/GCP basics",
+					LearningObjectives:   "Memahami cloud services dan dapat deploy aplikasi sederhana",
+					SubmissionGuidelines: "Deploy web application ke cloud platform dengan dokumentasi",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Infrastructure as Code",
+					Description:          "Pelajari Terraform, CloudFormation untuk infrastructure automation",
+					LearningObjectives:   "Mampu manage infrastructure menggunakan code dan version control",
+					SubmissionGuidelines: "Submit IaC scripts untuk deploy complete infrastructure",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Cloud Architecture & Security",
+					Description:          "Design scalable cloud architecture dengan security best practices",
+					LearningObjectives:   "Merancang dan implement secure, scalable cloud solutions",
+					SubmissionGuidelines: "Design dan deploy production-ready cloud architecture",
+					EstimatedDuration:    50,
 					DifficultyLevel:      "advanced",
 				},
 			},
