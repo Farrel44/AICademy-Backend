@@ -245,12 +245,6 @@ func (pg *PDFGenerator) generateProjects(projects []CVProject) {
 			pg.pdf.MultiCell(0, 5, project.Description, "", "", false)
 		}
 
-		if len(project.Technologies) > 0 {
-			pg.pdf.SetFont("Arial", "I", 9)
-			techText := "Technologies: " + strings.Join(project.Technologies, ", ")
-			pg.pdf.MultiCell(0, 4, techText, "", "", false)
-		}
-
 		if len(project.Highlights) > 0 {
 			pg.pdf.SetFont("Arial", "", 10)
 			for _, highlight := range project.Highlights {

@@ -756,7 +756,12 @@ func (s *CVService) optimizeExperienceDescription(experience CVExperience) (stri
 		return experience.Description, err
 	}
 
-	return optimizedDesc, nil
+	cleanedDesc := s.cleanAIResponse(optimizedDesc)
+	if s.containsPlaceholders(cleanedDesc) {
+		return experience.Description, nil
+	}
+
+	return cleanedDesc, nil
 }
 
 // optimizeProjectDescription uses AI to optimize project descriptions for ATS
@@ -825,9 +830,30 @@ func (s *CVService) optimizeProjectDescription(project CVProject) (string, []str
 
 	if optimizedDesc == "" {
 		optimizedDesc = project.Description
+	} else {
+		cleanedDesc := s.cleanAIResponse(optimizedDesc)
+		if s.containsPlaceholders(cleanedDesc) {
+			optimizedDesc = project.Description
+		} else {
+			optimizedDesc = cleanedDesc
+		}
 	}
+
 	if len(highlights) == 0 {
 		highlights = project.Highlights
+	} else {
+		var cleanedHighlights []string
+		for _, highlight := range highlights {
+			cleaned := s.cleanAIResponse(highlight)
+			if !s.containsPlaceholders(cleaned) {
+				cleanedHighlights = append(cleanedHighlights, cleaned)
+			}
+		}
+		if len(cleanedHighlights) > 0 {
+			highlights = cleanedHighlights
+		} else {
+			highlights = project.Highlights
+		}
 	}
 
 	return optimizedDesc, highlights, nil
@@ -930,4 +956,35 @@ func (s *CVService) generateAndSavePDF(cv *CV) (string, error) {
 	}
 
 	return pdfURL, nil
+}
+
+func (s *CVService) cleanAIResponse(text string) string {
+	cleaned := strings.TrimSpace(text)
+	cleaned = strings.Trim(cleaned, "\"'")
+	return cleaned
+}
+
+func (s *CVService) containsPlaceholders(text string) bool {
+	placeholderPatterns := []string{
+		"[mention",
+		"[quantifiable",
+		"[specific",
+		"e.g.,",
+		"[insert",
+		"[add",
+		"[your",
+		"[company",
+		"[technology",
+		"[metric",
+		"[percentage",
+		"[number",
+	}
+
+	lowerText := strings.ToLower(text)
+	for _, pattern := range placeholderPatterns {
+		if strings.Contains(lowerText, pattern) {
+			return true
+		}
+	}
+	return false
 }
