@@ -122,9 +122,10 @@ type ResourceInfo struct {
 }
 
 type MyRoadmapResponse struct {
-	HasRoadmap bool                   `json:"has_roadmap"`
-	Roadmap    *RoadmapDetailResponse `json:"roadmap,omitempty"`
-	Message    string                 `json:"message,omitempty"`
+	HasRoadmap        bool                   `json:"has_roadmap"`
+	HasStartedRoadmap bool                   `json:"has_started_roadmap"`
+	Roadmap           *RoadmapDetailResponse `json:"roadmap,omitempty"`
+	Message           string                 `json:"message,omitempty"`
 }
 
 type RoadmapDetailResponse struct {

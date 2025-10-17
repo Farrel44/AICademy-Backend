@@ -27,12 +27,7 @@ func (h *StudentRoadmapHandler) GetMyRoadmap(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	// If no roadmap found but service returned success with message
-	if result.Roadmap == nil {
-		return utils.SendSuccess(c, result.Message, nil)
-	}
-
-	return utils.SendSuccess(c, result.Message, result.Roadmap)
+	return utils.SendSuccess(c, result.Message, result)
 }
 
 func (h *StudentRoadmapHandler) StartRoadmap(c *fiber.Ctx) error {

@@ -22,12 +22,16 @@ func (s *StudentRoadmapService) GetMyRoadmap(studentProfileID uuid.UUID) (*MyRoa
 	if err != nil {
 		if err.Error() == "no recommended role found for student" {
 			return &MyRoadmapResponse{
-				Message: "Silakan lengkapi questionnaire profiling karir terlebih dahulu untuk melihat roadmap yang sesuai dengan minat dan kemampuan Anda",
+				Message:           "Silakan lengkapi questionnaire profiling karir terlebih dahulu untuk melihat roadmap yang sesuai dengan minat dan kemampuan Anda",
+				HasRoadmap:        false,
+				HasStartedRoadmap: false,
 			}, nil
 		}
 		if err.Error() == "no active roadmap found for student's recommended role" {
 			return &MyRoadmapResponse{
-				Message: "Belum ada roadmap yang tersedia untuk role yang direkomendasikan",
+				Message:           "Belum ada roadmap yang tersedia untuk role yang direkomendasikan",
+				HasRoadmap:        false,
+				HasStartedRoadmap: false,
 			}, nil
 		}
 		return nil, errors.New("gagal mendapatkan roadmap")
@@ -159,7 +163,9 @@ func (s *StudentRoadmapService) GetMyRoadmap(studentProfileID uuid.UUID) (*MyRoa
 	}
 
 	response := &MyRoadmapResponse{
-		Message: "Roadmap berhasil diambil",
+		Message:           "Roadmap berhasil diambil",
+		HasRoadmap:        true,
+		HasStartedRoadmap: progressInfo != nil,
 		Roadmap: &RoadmapDetailResponse{
 			ID:                roadmap.ID,
 			RoadmapName:       roadmap.RoadmapName,
