@@ -37,7 +37,7 @@ func (h *AdminUserHandler) GetStudents(c *fiber.Ctx) error {
 	return c.JSON(utils.Response{
 		Success: true,
 		Message: "Data siswa berhasil diambil",
-		Data:    result.Data,
+		Data:    result,
 	})
 }
 
@@ -124,7 +124,7 @@ func (h *AdminUserHandler) GetTeachers(c *fiber.Ctx) error {
 	return c.JSON(utils.Response{
 		Success: true,
 		Message: "Data guru berhasil diambil",
-		Data:    result.Data,
+		Data:    result,
 	})
 }
 
@@ -220,7 +220,7 @@ func (h *AdminUserHandler) GetCompanies(c *fiber.Ctx) error {
 	return c.JSON(utils.Response{
 		Success: true,
 		Message: "Data perusahaan berhasil diambil",
-		Data:    result.Data,
+		Data:    result,
 	})
 }
 
