@@ -35,11 +35,10 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 		return nil, errors.New("failed to generate token")
 	}
 
-	// Simpan refresh token ke database
 	refreshTokenRecord := &user.RefreshToken{
 		UserID:    foundUser.ID,
 		Token:     tokenPair.RefreshToken,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 hari
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
 
 	err = s.repo.CreateRefreshToken(refreshTokenRecord)
@@ -50,18 +49,15 @@ func (s *CommonAuthService) Login(req LoginRequest) (*AuthResponse, error) {
 	var userName string
 	switch foundUser.Role {
 	case user.RoleStudent:
-		profile, err := s.repo.GetStudentProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetStudentProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	case user.RoleAlumni:
-		profile, err := s.repo.GetAlumniProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetAlumniProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	case user.RoleTeacher:
-		profile, err := s.repo.GetTeacherProfileByUserID(foundUser.ID)
-		if err == nil {
+		if profile, err := s.repo.GetTeacherProfileByUserID(foundUser.ID); err == nil {
 			userName = profile.Fullname
 		}
 	}
@@ -279,19 +275,16 @@ func (s *CommonAuthService) Logout(refreshToken string) error {
 }
 
 func (s *CommonAuthService) RefreshToken(req RefreshTokenRequest) (*RefreshTokenResponse, error) {
-	// Validate refresh token
 	refreshTokenRecord, err := s.repo.GetRefreshTokenByToken(req.RefreshToken)
 	if err != nil {
 		return nil, errors.New("invalid or expired refresh token")
 	}
 
-	// Get user data
 	foundUser, err := s.repo.GetUserByID(refreshTokenRecord.UserID)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	// Generate new access token
 	accessToken, err := utils.GenerateAccessToken(foundUser)
 	if err != nil {
 		return nil, errors.New("failed to generate access token")
@@ -300,6 +293,6 @@ func (s *CommonAuthService) RefreshToken(req RefreshTokenRequest) (*RefreshToken
 	return &RefreshTokenResponse{
 		AccessToken: accessToken,
 		TokenType:   "Bearer",
-		ExpiresIn:   15 * 60, // 15 menit dalam detik
+		ExpiresIn:   15 * 60,
 	}, nil
 }

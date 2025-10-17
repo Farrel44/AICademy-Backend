@@ -156,7 +156,9 @@ func (r *AuthRepository) CreateRefreshToken(refreshToken *user.RefreshToken) err
 
 func (r *AuthRepository) GetRefreshTokenByToken(token string) (*user.RefreshToken, error) {
 	var refreshToken user.RefreshToken
-	err := r.db.Where("token = ? AND expires_at > ?", token, time.Now()).First(&refreshToken).Error
+	err := r.db.Select("user_id, token, expires_at").
+		Where("token = ? AND expires_at > ?", token, time.Now()).
+		First(&refreshToken).Error
 	if err != nil {
 		return nil, err
 	}

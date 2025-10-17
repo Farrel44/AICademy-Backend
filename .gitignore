@@ -209,3 +209,5 @@ __pycache__/
 # Code coverage
 coverage.txt
 coverage.html
+
+k6_test/

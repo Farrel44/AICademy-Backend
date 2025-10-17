@@ -3,7 +3,6 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/Farrel44/AICademy-Backend/internal/domain/user"
 	"github.com/Farrel44/AICademy-Backend/internal/utils"
@@ -22,11 +21,9 @@ func AuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var token string
 
-		authHeader := c.Get("Authorization")
-		if authHeader != "" {
-			tokenParts := strings.Split(authHeader, " ")
-			if len(tokenParts) == 2 && tokenParts[0] == "Bearer" {
-				token = tokenParts[1]
+		if authHeader := c.Get("Authorization"); authHeader != "" {
+			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+				token = authHeader[7:]
 			}
 		}
 

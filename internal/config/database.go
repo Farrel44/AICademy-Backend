@@ -1,6 +1,7 @@
 package config
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -26,11 +27,13 @@ func getConnectionPoolConfig() (maxOpen, maxIdle int, maxLifetime, maxIdleTime t
 
 	switch env {
 	case "production":
-		return 100, 25, 2 * time.Hour, time.Hour // Production: balanced for high load
+		return 100, 25, 2 * time.Hour, time.Hour
 	case "staging":
 		return 50, 15, time.Hour, 30 * time.Minute
+	case "testing":
+		return 150, 50, 15 * time.Minute, 5 * time.Minute
 	case "development":
-		return 20, 5, 30 * time.Minute, 15 * time.Minute
+		return 50, 15, 30 * time.Minute, 15 * time.Minute
 	default:
 		return 30, 10, time.Hour, 30 * time.Minute
 	}
@@ -90,6 +93,8 @@ func InitDatabase() (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(maxIdle)
 	sqlDB.SetConnMaxLifetime(maxLifetime)
 	sqlDB.SetConnMaxIdleTime(maxIdleTime)
+
+	monitorConnectionPool(sqlDB)
 
 	// Test connection
 	if err := sqlDB.Ping(); err != nil {
@@ -198,7 +203,8 @@ func addIndexes(db *gorm.DB) {
 	// Refresh token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_expires ON refresh_tokens(token, expires_at)")
 
 	// Reset password token indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_reset_password_tokens_user_id ON reset_password_tokens(user_id)")
@@ -355,4 +361,34 @@ func setupQueryMonitoring(db *gorm.DB) {
 	})
 
 	log.Println("📊 Query monitoring enabled")
+}
+func monitorConnectionPool(sqlDB *sql.DB) {
+	ticker := time.NewTicker(10 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		var lastWaitCount int64
+		for range ticker.C {
+			stats := sqlDB.Stats()
+
+			newWaits := stats.WaitCount - lastWaitCount
+			lastWaitCount = stats.WaitCount
+
+			// Skip log kalau gak ada peningkatan
+			if newWaits == 0 {
+				continue
+			}
+
+			if newWaits > 10 {
+				log.Printf("[DB Pool] High wait activity detected — NewWaits: %d | InUse: %d | Idle: %d | Open: %d | WaitDuration: %s",
+					newWaits,
+					stats.InUse,
+					stats.Idle,
+					stats.OpenConnections,
+					stats.WaitDuration,
+				)
+			}
+		}
+	}()
 }
