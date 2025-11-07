@@ -652,7 +652,7 @@ CUSTOM INSTRUCTIONS: %s
 PENTING — ATURAN PRIORITAS (dibaca dari paling tinggi ke bawah):
 A. FIRST QUESTION (WAJIB ADA, HARUS DI URUTAN PERTAMA / INDEX 0):
    - question_text: "Coba deskripsikan dirimu sendiri"
-   - question_type: "text"
+   - question_type: "case"
    - category: "personality"
    - Pertanyaan ini harus memiliki bobot yang tinggi (paling berpengaruh terhadap hasil akhir)
 B. JUMLAH PERTANYAAN HARUS TEPAT %d
