@@ -625,13 +625,13 @@ func (s *AdminQuestionnaireService) mapTargetRoleToResponse(role *project.Target
 		UpdatedAt:   role.UpdatedAt,
 	}
 }
+
 func (s *AdminQuestionnaireService) buildQuestionGenerationPrompt(req GenerateQuestionnaireRequest, targetRoleNames []string) string {
 	customInstructions := ""
 	if req.CustomInstructions != nil {
 		customInstructions = *req.CustomInstructions
 	}
 
-	// Get hardcoded focus areas based on target roles
 	focusAreas := GetDefaultFocusAreas(targetRoleNames)
 
 	return fmt.Sprintf(`Anda adalah seorang ahli psikologi karir dan teknologi yang akan membuat kuesioner profiling karir untuk siswa SMK.
@@ -642,14 +642,24 @@ TARGET ROLES: %v
 
 LEVEL KESULITAN: %s
 - basic: Pertanyaan mudah dipahami siswa SMK, fokus pada minat dasar
-- intermediate: Pertanyaan yang menggali preferensi kerja dan gaya belajar  
-- advanced: Pertanyaan mendalam tentang problem-solving dan thinking patterns
+- intermediate: Pertanyaan yang menggali preferensi kerja dan gaya belajar
+- advanced: Pertanyaan mendalam tentang problem-solving dan pola berpikir
 
 FOKUS AREA: %v
 
 CUSTOM INSTRUCTIONS: %s
 
-PENTING: HARUS MENGHASILKAN TEPAT %d PERTANYAAN, TIDAK BOLEH KURANG ATAU LEBIH!
+PENTING — ATURAN PRIORITAS (dibaca dari paling tinggi ke bawah):
+A. FIRST QUESTION (WAJIB ADA, HARUS DI URUTAN PERTAMA / INDEX 0):
+   - question_text: "Coba deskripsikan dirimu sendiri"
+   - question_type: "text"
+   - category: "personality"
+   - Pertanyaan ini harus memiliki bobot yang tinggi (paling berpengaruh terhadap hasil akhir)
+B. JUMLAH PERTANYAAN HARUS TEPAT %d
+C. Distribusi tipe (boleh fleksibel jika bertentangan dengan A/B):
+   - ~60%% likert
+   - ~25%% mcq
+   - ~15%% case/text
 
 FORMAT OUTPUT JSON:
 {
@@ -660,27 +670,30 @@ FORMAT OUTPUT JSON:
       "options": [
         {"text": "Option text", "score": 0-5}
       ],
-      "category": "technical|behavioral|interest|aptitude"
+      "category": "technical|behavioral|interest|aptitude|personality"
     }
   ]
 }
 
-RULES:
-1. WAJIB: Hasilkan TEPAT %d pertanyaan, tidak boleh kurang!
-2. Gunakan bahasa Indonesia yang mudah dipahami siswa SMK
-3. Variasikan jenis pertanyaan (60%% likert, 25%% mcq, 15%% case/text)
-4. Pastikan pertanyaan dapat membedakan antar target roles
-5. Fokus pada minat, kepribadian, dan kemampuan teknis dasar
-6. Hindari pertanyaan yang bias gender atau latar belakang sosial
-7. Untuk mcq, berikan 4-5 opsi yang masuk akal
-8. Untuk likert, gunakan skala 1-5 (sangat tidak setuju - sangat setuju)
-9. Urutkan output JSON dengan urutan tipe pertanyaan: **mcq → likert → case → text**
+RULES TAMBAHAN:
+1. Gunakan bahasa Indonesia yang mudah dipahami oleh siswa SMK.
+2. Pertanyaan harus bisa membedakan kecenderungan antar target roles.
+3. Untuk MCQ: berikan 4–5 opsi yang realistis dan masuk akal.
+4. Untuk Likert: gunakan skala 1–5 (sangat tidak setuju – sangat setuju).
+5. Hindari bias gender, agama, atau latar belakang sosial.
+6. Pastikan variasi tipe pertanyaan tetap seimbang (lihat poin C).
+7. VALIDASI AKHIR:
+   - Jumlah pertanyaan harus TEPAT %d.
+   - Pertanyaan pertama (index 0) HARUS sesuai aturan A di atas.
 
-VALIDASI AKHIR: Pastikan array "questions" memiliki TEPAT %d elemen!
-
-Mulai generasi sekarang:`,
-		req.QuestionCount, targetRoleNames, req.DifficultyLevel, focusAreas, customInstructions,
-		req.QuestionCount, req.QuestionCount, req.QuestionCount)
+Mulai proses generasi sekarang:`,
+		req.QuestionCount,
+		targetRoleNames,
+		req.DifficultyLevel,
+		focusAreas,
+		customInstructions,
+		req.QuestionCount,
+		req.QuestionCount)
 }
 
 func (s *AdminQuestionnaireService) processQuestionGeneration(questionnaireID uuid.UUID, promptUsed string, req GenerateQuestionnaireRequest) {
@@ -890,7 +903,7 @@ func (s *AdminQuestionnaireService) GetGenerationStatus(questionnaireID uuid.UUI
 		var status GenerationStatus
 		if json.Unmarshal([]byte(result), &status) == nil {
 			return &status, nil
-		}
+		}   
 	}
 
 	dbQuestionnaire, err := s.repo.GetQuestionnaireByID(questionnaireID)
