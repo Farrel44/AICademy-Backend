@@ -557,154 +557,155 @@ func SeedDefaultQuestionnaires(db *gorm.DB) error {
 
 	return nil
 }
+
 func SeedTargetRoles(db *gorm.DB) error {
 	roles := []project.TargetRole{
-		{
+		{ //0
 			Name:        "Backend Developer",
 			Description: "Mengembangkan aplikasi server-side, API, dan sistem database",
-			Category:    "Technology",
+			Category:    "Technology",  
 		},
-		{
+		{//1
 			Name:        "Frontend Developer",
 			Description: "Mengembangkan antarmuka pengguna dan pengalaman pengguna aplikasi web",
 			Category:    "Technology",
 		},
-		{
+		{//2
 			Name:        "Full Stack Developer",
 			Description: "Mengembangkan aplikasi end-to-end dari frontend hingga backend",
 			Category:    "Technology",
 		},
-		{
+		{//3
 			Name:        "Mobile Developer",
 			Description: "Mengembangkan aplikasi mobile untuk Android dan iOS",
 			Category:    "Technology",
 		},
-		{
+		{//4
 			Name:        "DevOps Engineer",
 			Description: "Mengelola infrastruktur, deployment, dan operasi sistem",
 			Category:    "Technology",
 		},
-		{
+		{//5
 			Name:        "Data Scientist",
 			Description: "Menganalisis data dan membangun model machine learning",
 			Category:    "Technology",
 		},
-		{
+		{//6
 			Name:        "Data Analyst",
 			Description: "Menganalisis data bisnis untuk menghasilkan insight dan laporan",
 			Category:    "Technology",
 		},
-		{
+		{//7
 			Name:        "Machine Learning Engineer",
 			Description: "Mengimplementasikan dan deploy model machine learning ke production",
 			Category:    "Technology",
 		},
-		{
+		{//8
 			Name:        "UI/UX Designer",
 			Description: "Merancang antarmuka dan pengalaman pengguna aplikasi",
 			Category:    "Creative",
 		},
-		{
+		{//9
 			Name:        "Graphic Designer",
 			Description: "Membuat desain visual untuk berbagai media dan platform",
 			Category:    "Creative",
 		},
-		{
+		{//10
 			Name:        "Product Designer",
 			Description: "Merancang produk digital dari konsep hingga implementasi",
 			Category:    "Creative",
 		},
-		{
+		{//11
 			Name:        "QA Engineer",
 			Description: "Menguji kualitas software dan memastikan aplikasi bebas bug",
 			Category:    "Technology",
 		},
-		{
+		{//12
 			Name:        "Test Automation Engineer",
 			Description: "Mengembangkan dan mengelola automated testing frameworks",
 			Category:    "Technology",
 		},
-		{
+		{//13
 			Name:        "System Administrator",
 			Description: "Mengelola infrastruktur IT dan sistem operasi",
 			Category:    "Technology",
 		},
-		{
+		{//14
 			Name:        "Cloud Engineer",
 			Description: "Merancang dan mengelola infrastruktur cloud",
 			Category:    "Technology",
 		},
-		{
+		{//15
 			Name:        "Cloud Architect",
 			Description: "Merancang arsitektur cloud untuk aplikasi enterprise",
 			Category:    "Technology",
 		},
-		{
+		{//16
 			Name:        "Cyber Security Specialist",
 			Description: "Melindungi sistem dan data dari ancaman keamanan",
 			Category:    "Technology",
 		},
-		{
+		{//17
 			Name:        "Security Analyst",
 			Description: "Menganalisis ancaman keamanan dan implementasi solusi keamanan",
 			Category:    "Technology",
 		},
-		{
+		{//18
 			Name:        "Database Administrator",
 			Description: "Mengelola dan mengoptimalkan sistem database enterprise",
 			Category:    "Technology",
 		},
-		{
+		{//19
 			Name:        "Database Developer",
 			Description: "Mengembangkan struktur database dan stored procedures",
 			Category:    "Technology",
 		},
-		{
+		{//20
 			Name:        "Product Manager",
 			Description: "Mengelola pengembangan produk dari perencanaan hingga peluncuran",
 			Category:    "Business",
 		},
-		{
+		{//21
 			Name:        "Technical Product Manager",
 			Description: "Mengelola produk teknologi dengan fokus pada aspek teknis",
 			Category:    "Business",
 		},
-		{
+		{//22
 			Name:        "Business Analyst",
 			Description: "Menganalisis kebutuhan bisnis dan merancang solusi teknologi",
 			Category:    "Business",
 		},
-		{
+		{//23
 			Name:        "Systems Analyst",
 			Description: "Menganalisis sistem informasi dan merancang perbaikan",
 			Category:    "Business",
 		},
-		{
+		{//24
 			Name:        "Game Developer",
 			Description: "Mengembangkan game untuk berbagai platform",
 			Category:    "Technology",
 		},
-		{
+		{//25
 			Name:        "Game Designer",
 			Description: "Merancang gameplay, level, dan experience dalam game",
 			Category:    "Creative",
 		},
-		{
+		{//26
 			Name:        "Blockchain Developer",
 			Description: "Mengembangkan aplikasi dan smart contracts berbasis blockchain",
 			Category:    "Technology",
 		},
-		{
+		{//27
 			Name:        "IoT Developer",
 			Description: "Mengembangkan sistem Internet of Things dan embedded systems",
 			Category:    "Technology",
 		},
-		{
+		{//28
 			Name:        "AI Engineer",
 			Description: "Mengembangkan solusi artificial intelligence dan deep learning",
 			Category:    "Technology",
 		},
-		{
+		{//29
 			Name:        "Robotics Engineer",
 			Description: "Merancang dan mengembangkan sistem robotika",
 			Category:    "Technology",
@@ -848,6 +849,49 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 				},
 			},
 		},
+
+		{
+			Name:        "Roadmap Full Stack Developer",
+			Description: "Jalur pembelajaran untuk menjadi Full Stack Developer yang handal",
+			RoleIndex:   2, // Full Stack Developer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Frontend Fundamentals",
+					Description:          "Pelajari HTML, CSS, dan JavaScript untuk development frontend",
+					LearningObjectives:   "Mampu membuat website responsive dengan vanilla JavaScript",
+					SubmissionGuidelines: "Upload portfolio website dengan minimal 3 halaman interaktif",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Backend Development",
+					Description:          "Pelajari server-side programming dan database management",
+					LearningObjectives:   "Membangun RESTful API dengan authentication dan database",
+					SubmissionGuidelines: "Deploy backend API dengan dokumentasi lengkap",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Full Stack Integration",
+					Description:          "Integrasikan frontend dan backend untuk aplikasi lengkap",
+					LearningObjectives:   "Membuat aplikasi web full stack yang production-ready",
+					SubmissionGuidelines: "Deploy aplikasi full stack dengan user authentication",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
 		{
 			Name:        "Roadmap Mobile Developer",
 			Description: "Jalur pembelajaran untuk menjadi Mobile Developer yang mahir",
@@ -924,48 +968,6 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 			},
 		},
 		{
-			Name:        "Roadmap Full Stack Developer",
-			Description: "Jalur pembelajaran untuk menjadi Full Stack Developer yang handal",
-			RoleIndex:   2, // Full Stack Developer
-			Steps: []struct {
-				Order                int
-				Title                string
-				Description          string
-				LearningObjectives   string
-				SubmissionGuidelines string
-				EstimatedDuration    int
-				DifficultyLevel      string
-			}{
-				{
-					Order:                1,
-					Title:                "Frontend Fundamentals",
-					Description:          "Pelajari HTML, CSS, dan JavaScript untuk development frontend",
-					LearningObjectives:   "Mampu membuat website responsive dengan vanilla JavaScript",
-					SubmissionGuidelines: "Upload portfolio website dengan minimal 3 halaman interaktif",
-					EstimatedDuration:    35,
-					DifficultyLevel:      "beginner",
-				},
-				{
-					Order:                2,
-					Title:                "Backend Development",
-					Description:          "Pelajari server-side programming dan database management",
-					LearningObjectives:   "Membangun RESTful API dengan authentication dan database",
-					SubmissionGuidelines: "Deploy backend API dengan dokumentasi lengkap",
-					EstimatedDuration:    45,
-					DifficultyLevel:      "intermediate",
-				},
-				{
-					Order:                3,
-					Title:                "Full Stack Integration",
-					Description:          "Integrasikan frontend dan backend untuk aplikasi lengkap",
-					LearningObjectives:   "Membuat aplikasi web full stack yang production-ready",
-					SubmissionGuidelines: "Deploy aplikasi full stack dengan user authentication",
-					EstimatedDuration:    50,
-					DifficultyLevel:      "advanced",
-				},
-			},
-		},
-		{
 			Name:        "Roadmap Data Scientist",
 			Description: "Jalur pembelajaran untuk menjadi Data Scientist yang kompeten",
 			RoleIndex:   5, // Data Scientist
@@ -1008,6 +1010,91 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 			},
 		},
 		{
+			Name:        "Roadmap Data Analyst",
+			Description: "Jalur pembelajaran untuk menjadi Data Analyst yang solid dalam SQL, EDA, dan dashboarding",
+			RoleIndex:   6,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order: 1,
+					Title: "Fundamental Data & SQL",
+					Description: "Pelajari tipe data, normalisasi, dan SQL untuk query analitis",
+					LearningObjectives: "Menguasai SELECT, JOIN, GROUP BY, window function dasar",
+					SubmissionGuidelines: "Kirim notebook/skrip SQL yang menjawab 10 pertanyaan analitis pada dataset retail",
+					EstimatedDuration: 30,
+					DifficultyLevel:   "beginner",
+				},
+				{
+					Order: 2,
+					Title: "Exploratory Data Analysis (EDA)",
+					Description: "Analisis data menggunakan Python (pandas, matplotlib/seaborn) atau R",
+					LearningObjectives: "Membersihkan data, membuat visualisasi deskriptif, menarik insight",
+					SubmissionGuidelines: "Upload notebook EDA dengan narasi dan minimal 5 chart yang relevan",
+					EstimatedDuration: 40,
+					DifficultyLevel:   "intermediate",
+				},
+				{
+					Order: 3,
+					Title: "Dashboard & Reporting",
+					Description: "Membangun dashboard interaktif (Metabase/Power BI/Tableau)",
+					LearningObjectives: "Merancang KPI, filter, dan storytelling data",
+					SubmissionGuidelines: "Publish dashboard dan lampirkan link + definisi KPI",
+					EstimatedDuration: 45,
+					DifficultyLevel:   "advanced",
+				},
+			},
+		},
+
+		{
+			Name:        "Roadmap Machine Learning Engineer",
+			Description: "Jalur pembelajaran untuk menjadi ML Engineer yang production-ready",
+			RoleIndex:   7, // Machine Learning Engineer
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "ML Fundamentals & Programming",
+					Description:          "Pelajari Python, data structures, dan machine learning algorithms",
+					LearningObjectives:   "Memahami algoritma ML dan dapat implement dari scratch",
+					SubmissionGuidelines: "Upload implementation algoritma ML dasar dengan Python",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "ML Pipeline Development",
+					Description:          "Belajar data preprocessing, feature engineering, dan model evaluation",
+					LearningObjectives:   "Mampu membangun ML pipeline yang robust dan scalable",
+					SubmissionGuidelines: "Submit end-to-end ML pipeline dengan proper evaluation metrics",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "ML Model Deployment",
+					Description:          "Deploy ML models ke production dengan monitoring dan maintenance",
+					LearningObjectives:   "Memahami MLOps dan dapat deploy model ke cloud platform",
+					SubmissionGuidelines: "Deploy ML model dengan API, monitoring, dan CI/CD pipeline",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
 			Name:        "Roadmap UI/UX Designer",
 			Description: "Jalur pembelajaran untuk menjadi UI/UX Designer yang kreatif",
 			RoleIndex:   8, // UI/UX Designer
@@ -1045,6 +1132,90 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					LearningObjectives:   "Membuat prototype high-fidelity dan menguji usability dengan users",
 					SubmissionGuidelines: "Upload prototype interaktif dengan user testing report",
 					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+				},
+		{
+			Name:        "Roadmap Graphic Designer",
+			Description: "Jalur pembelajaran untuk menjadi Graphic Designer yang kuat di brand & marketing assets",
+			RoleIndex:   9,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Dasar Desain & Tools",
+					Description:          "Prinsip desain, tipografi, warna; pengenalan Figma/Adobe",
+					LearningObjectives:   "Menerapkan prinsip kontras, hierarki, dan grid",
+					SubmissionGuidelines: "Upload 3 poster sederhana dengan variasi tipografi/warna",
+					EstimatedDuration:    25,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Branding & Ilustrasi Vektor",
+					Description:          "Logo, palet warna, ikon/ilustrasi vektor",
+					LearningObjectives:   "Mendesain identitas visual yang konsisten",
+					SubmissionGuidelines: "Kirim brand kit (logo, palet, ikon) dalam 1 paket",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Marketing Assets & Export",
+					Description:          "Layout social media, banner, cetak; format & ekspor",
+					LearningObjectives:   "Menyiapkan file siap produksi",
+					SubmissionGuidelines: "Upload 5 aset kampanye beserta file sumber",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Product Designer",
+			Description: "Jalur pembelajaran untuk Product Designer dari riset hingga handoff",
+			RoleIndex:   10,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Discovery & UX Research",
+					Description:          "Persona, problem framing, user interview, JTBD",
+					LearningObjectives:   "Merumuskan problem statement & insight riset",
+					SubmissionGuidelines: "Case study ringkas berisi temuan riset dan persona",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Wireframing & Prototyping",
+					Description:          "Low–hi fidelity di Figma; arsitektur informasi",
+					LearningObjectives:   "Mendesain alur end-to-end yang usable",
+					SubmissionGuidelines: "Prototype interaktif + skenario tugas",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Design System & Handoff",
+					Description:          "Komponen, tokens, dokumentasi, kolaborasi dev",
+					LearningObjectives:   "Menyusun design system & spesifikasi",
+					SubmissionGuidelines: "Link design system + file handoff lengkap",
+					EstimatedDuration:    45,
 					DifficultyLevel:      "advanced",
 				},
 			},
@@ -1092,9 +1263,9 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 			},
 		},
 		{
-			Name:        "Roadmap Machine Learning Engineer",
-			Description: "Jalur pembelajaran untuk menjadi ML Engineer yang production-ready",
-			RoleIndex:   7, // Machine Learning Engineer
+			Name:        "Roadmap Test Automation Engineer",
+			Description: "Jalur untuk spesialisasi automation testing (UI, API, CI)",
+			RoleIndex:   12,
 			Steps: []struct {
 				Order                int
 				Title                string
@@ -1106,28 +1277,70 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 			}{
 				{
 					Order:                1,
-					Title:                "ML Fundamentals & Programming",
-					Description:          "Pelajari Python, data structures, dan machine learning algorithms",
-					LearningObjectives:   "Memahami algoritma ML dan dapat implement dari scratch",
-					SubmissionGuidelines: "Upload implementation algoritma ML dasar dengan Python",
+					Title:                "Automation Fundamentals",
+					Description:          "Selenium/WebDriver, locator strategy, Page Object",
+					LearningObjectives:   "Menulis skrip UI automation yang stabil",
+					SubmissionGuidelines: "Repo dengan 5 test UI berbasis Page Object",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "API Test Automation",
+					Description:          "REST Assured/Newman, schema validation, data-driven test",
+					LearningObjectives:   "Mengotomasi test API & assertions",
+					SubmissionGuidelines: "Suite API tests + laporan hasil run",
 					EstimatedDuration:    40,
 					DifficultyLevel:      "intermediate",
 				},
 				{
-					Order:                2,
-					Title:                "ML Pipeline Development",
-					Description:          "Belajar data preprocessing, feature engineering, dan model evaluation",
-					LearningObjectives:   "Mampu membangun ML pipeline yang robust dan scalable",
-					SubmissionGuidelines: "Submit end-to-end ML pipeline dengan proper evaluation metrics",
-					EstimatedDuration:    50,
+					Order:                3,
+					Title:                "CI Integration & Reporting",
+					Description:          "Integrasi GitHub Actions/Jenkins, flaky test handling",
+					LearningObjectives:   "Pipeline otomatis & laporan (mis. Allure)",
+					SubmissionGuidelines: "Pipeline CI yang menjalankan test & publish report",
+					EstimatedDuration:    45,
 					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap System Administrator",
+			Description: "Jalur pembelajaran untuk SysAdmin on-prem & cloud dasar",
+			RoleIndex:   13,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Linux & Networking Basics",
+					Description:          "User/group, filesystem, systemd; TCP/IP, DNS, firewall",
+					LearningObjectives:   "Mengelola server & layanan jaringan dasar",
+					SubmissionGuidelines: "Dokumentasi setup server + hardening dasar",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Services, Backup, Monitoring",
+					Description:          "Web/proxy, database basic; backup & alert",
+					LearningObjectives:   "Menyusun backup & monitoring server",
+					SubmissionGuidelines: "Konfigurasi backup + dashboard monitoring",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
 				},
 				{
 					Order:                3,
-					Title:                "ML Model Deployment",
-					Description:          "Deploy ML models ke production dengan monitoring dan maintenance",
-					LearningObjectives:   "Memahami MLOps dan dapat deploy model ke cloud platform",
-					SubmissionGuidelines: "Deploy ML model dengan API, monitoring, dan CI/CD pipeline",
+					Title:                "Troubleshooting & Scripting",
+					Description:          "Diagnostik performa & shell scripting",
+					LearningObjectives:   "Menyelesaikan insiden & automasi rutin",
+					SubmissionGuidelines: "Kumpulan skrip otomasi + postmortem 1 insiden",
 					EstimatedDuration:    45,
 					DifficultyLevel:      "advanced",
 				},
@@ -1170,6 +1383,636 @@ func SeedFeatureRoadmaps(db *gorm.DB) error {
 					Description:          "Design scalable cloud architecture dengan security best practices",
 					LearningObjectives:   "Merancang dan implement secure, scalable cloud solutions",
 					SubmissionGuidelines: "Design dan deploy production-ready cloud architecture",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Cloud Architect",
+			Description: "Jalur untuk merancang arsitektur cloud yang scalable & cost-aware",
+			RoleIndex:   15,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Architecture Patterns",
+					Description:          "Microservices, event-driven, serverless; trade-off",
+					LearningObjectives:   "Memilih pola arsitektur sesuai kebutuhan",
+					SubmissionGuidelines: "Dokumen arsitektur solusi studi kasus",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Reliability & Cost",
+					Description:          "Well-Architected, HA/DR, autoscaling, FinOps",
+					LearningObjectives:   "Menyeimbangkan SLO, biaya, performa",
+					SubmissionGuidelines: "DR plan + perhitungan biaya komponen",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Security & Governance",
+					Description:          "IAM, jaringan, enkripsi, compliance",
+					LearningObjectives:   "Merancang kontrol keamanan menyeluruh",
+					SubmissionGuidelines: "Rancangan kontrol keamanan & guardrails",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Cyber Security Specialist",
+			Description: "Jalur spesialis keamanan: dari dasar sampai operasi biru",
+			RoleIndex:   16,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Security Fundamentals",
+					Description:          "CIA triad, threat modeling, risk assessment",
+					LearningObjectives:   "Menyusun baseline kebijakan keamanan",
+					SubmissionGuidelines: "Dokumen threat model untuk web app sederhana",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Network & Web Security",
+					Description:          "Segmentation, TLS, OWASP Top 10, secure coding",
+					LearningObjectives:   "Mengidentifikasi & memitigasi kerentanan umum",
+					SubmissionGuidelines: "Laporan temuan + rekomendasi mitigasi",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Blue Team Operations",
+					Description:          "SIEM, detections, playbook IR, forensik dasar",
+					LearningObjectives:   "Menangani insiden dari deteksi hingga recovery",
+					SubmissionGuidelines: "Playbook IR + simulasi insiden terekam",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Security Analyst",
+			Description: "Jalur analis keamanan berfokus monitoring, vulnerability, dan IR",
+			RoleIndex:   17,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "SIEM & Log Analysis",
+					Description:          "Kumpulan log, parsing, korelasi, alerting",
+					LearningObjectives:   "Membangun rule deteksi efektif",
+					SubmissionGuidelines: "Rule SIEM + laporan alert triage",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Vulnerability Management",
+					Description:          "Scanning, CVSS, prioritisasi & remedi",
+					LearningObjectives:   "Menyusun siklus vuln management",
+					SubmissionGuidelines: "Report pemindaian + rencana remedi",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Incident Response",
+					Description:          "Proses IR, komunikasi, pelaporan pasca-insiden",
+					LearningObjectives:   "Menangani insiden end-to-end",
+					SubmissionGuidelines: "Post-incident report (template disediakan)",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Database Administrator",
+			Description: "Jalur untuk menjadi DBA yang andal",
+			RoleIndex:   18,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "RDBMS Fundamentals",
+					Description:          "Instalasi, skema, permission, backup dasar",
+					LearningObjectives:   "Mengelola instance & keamanan dasar",
+					SubmissionGuidelines: "Dokumentasi setup + skenario backup/restore",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "High Availability & Replication",
+					Description:          "Streaming replication, failover, recovery",
+					LearningObjectives:   "Menyusun HA & DR untuk database",
+					SubmissionGuidelines: "Simulasi failover + hasil uji",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Performance & Monitoring",
+					Description:          "Indexing, EXPLAIN, tuning, observability",
+					LearningObjectives:   "Mengoptimalkan query & resource",
+					SubmissionGuidelines: "Laporan tuning dari workload nyata",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Database Developer",
+			Description: "Jalur untuk developer yang fokus pada desain & logika DB",
+			RoleIndex:   19,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "SQL Lanjut & Desain Skema",
+					Description:          "Constraint, indexing, normalisasi/denormalisasi",
+					LearningObjectives:   "Membuat skema efisien & konsisten",
+					SubmissionGuidelines: "ERD + skrip pembuatan skema",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Stored Procedures & Transaksi",
+					Description:          "Function, trigger, ACID, concurrency",
+					LearningObjectives:   "Menulis SP/trigger aman & performan",
+					SubmissionGuidelines: "Repo berisi SP/trigger + test",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Optimasi & Migrasi",
+					Description:          "EXPLAIN, partisi, migrasi skema/data",
+					LearningObjectives:   "Mengoptimasi query & rencana migrasi",
+					SubmissionGuidelines: "Rencana migrasi + hasil benchmark",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Product Manager",
+			Description: "Jalur PM dari discovery sampai delivery & iterasi",
+			RoleIndex:   20,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Product Discovery & Strategy",
+					Description:          "Market/user research, value proposition, OKR",
+					LearningObjectives:   "Merumuskan strategi & tujuan produk",
+					SubmissionGuidelines: "PRD ringkas + OKR Q1 untuk produk contoh",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Prioritization & Roadmapping",
+					Description:          "Kano, RICE, roadmap & dependency",
+					LearningObjectives:   "Menyusun roadmap realistis",
+					SubmissionGuidelines: "Roadmap 2 kuartal + rationale prioritas",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Delivery & Analytics",
+					Description:          "Backlog, release plan, eksperimen & telemetry",
+					LearningObjectives:   "Mengukur dampak dan iterasi",
+					SubmissionGuidelines: "Plan eksperimen + metrik keberhasilan",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Technical Product Manager",
+			Description: "Jalur TPM yang menjembatani bisnis & teknis",
+			RoleIndex:   21,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "System Fundamentals & APIs",
+					Description:          "Arsitektur web, REST/gRPC, integrasi",
+					LearningObjectives:   "Membaca/membuat spesifikasi teknis",
+					SubmissionGuidelines: "Spec API + kontrak & skenario integrasi",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Translating Requirements",
+					Description:          "Dari problem → requirement → desain teknis",
+					LearningObjectives:   "Menulis PRD teknis dan acceptance criteria",
+					SubmissionGuidelines: "PRD teknis + acceptance tests",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Tech Roadmap & Lifecycle",
+					Description:          "Skalabilitas, keamanan, deprecations",
+					LearningObjectives:   "Mengelola lifecycle komponen",
+					SubmissionGuidelines: "Tech roadmap 12 bulan + risk register",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Business Analyst",
+			Description: "Jalur BA untuk analisis kebutuhan & solusi",
+			RoleIndex:   22,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Requirements Elicitation",
+					Description:          "Interview, workshop, dokumentasi kebutuhan",
+					LearningObjectives:   "Mendefinisikan kebutuhan yang testable",
+					SubmissionGuidelines: "Dokumen kebutuhan + use cases",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Modeling & Process",
+					Description:          "BPMN/UML, mapping proses AS-IS/TO-BE",
+					LearningObjectives:   "Menyusun model proses yang jelas",
+					SubmissionGuidelines: "Diagram proses + analisis gap",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Solution Evaluation & UAT",
+					Description:          "Kriteria evaluasi, UAT, sign-off",
+					LearningObjectives:   "Memvalidasi solusi & nilai bisnis",
+					SubmissionGuidelines: "Rencana UAT + laporan hasil",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Systems Analyst",
+			Description: "Jalur analis sistem berfokus desain & integrasi",
+			RoleIndex:   23,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Analisis Kebutuhan & Spesifikasi",
+					Description:          "Teknik analisis & dokumentasi teknis",
+					LearningObjectives:   "Menulis spesifikasi sistem yang jelas",
+					SubmissionGuidelines: "Dokumen spesifikasi untuk modul inti",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Desain Arsitektur & Integrasi",
+					Description:          "Komponen, antarmuka, integrasi antar sistem",
+					LearningObjectives:   "Merancang integrasi yang robust",
+					SubmissionGuidelines: "Diagram arsitektur + kontrak integrasi",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Dokumentasi & Handover",
+					Description:          "Dokumentasi teknis, knowledge transfer",
+					LearningObjectives:   "Menjamin kelangsungan pemeliharaan",
+					SubmissionGuidelines: "Paket dokumentasi + sesi knowledge transfer",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Game Developer",
+			Description: "Jalur dev game menggunakan Unity/Godot",
+			RoleIndex:   24,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Fundamental Pemrograman Game",
+					Description:          "Game loop, input, scene, physics dasar",
+					LearningObjectives:   "Membangun prototype gameplay dasar",
+					SubmissionGuidelines: "Prototype mini game + kode sumber",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Gameplay & Systems",
+					Description:          "Spawner, inventory, AI sederhana",
+					LearningObjectives:   "Mengimplementasi sistem gameplay inti",
+					SubmissionGuidelines: "Demo fitur gameplay + penjelasan",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Optimasi & Build",
+					Description:          "Profiling, asset management, build multi-platform",
+					LearningObjectives:   "Membuat build yang stabil & efisien",
+					SubmissionGuidelines: "Build + catatan optimasi",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Game Designer",
+			Description: "Jalur perancangan game: mekanik, level, dan balancing",
+			RoleIndex:   25,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Game Design Principles",
+					Description:          "Core loop, mekanik, motivasi pemain",
+					LearningObjectives:   "Mendefinisikan high-level concept & loop",
+					SubmissionGuidelines: "GDD ringkas untuk game casual",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Level Design & Balancing",
+					Description:          "Pacing, difficulty curve, metrics",
+					LearningObjectives:   "Merancang level yang engaging",
+					SubmissionGuidelines: "2 level playable + rationale balancing",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Prototyping & Playtesting",
+					Description:          "Rapid prototyping, feedback loop",
+					LearningObjectives:   "Mengiterasi desain dari data playtest",
+					SubmissionGuidelines: "Laporan playtest + iterasi desain",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Blockchain Developer",
+			Description: "Jalur pengembangan blockchain & smart contract",
+			RoleIndex:   26,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Dasar Blockchain",
+					Description:          "Blok, konsensus, wallet, transaksi",
+					LearningObjectives:   "Memahami arsitektur blockchain modern",
+					SubmissionGuidelines: "Ringkasan konsep + diagram alur transaksi",
+					EstimatedDuration:    30,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Smart Contract Development",
+					Description:          "Solidity, standard ERC, testing",
+					LearningObjectives:   "Menulis & menguji smart contract",
+					SubmissionGuidelines: "Repo kontrak + unit test lulus",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "DApp & Security",
+					Description:          "Integrasi web3, audit dasar, best practices",
+					LearningObjectives:   "Membangun DApp end-to-end yang aman",
+					SubmissionGuidelines: "DApp live + catatan audit dasar",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap IoT Developer",
+			Description: "Jalur pengembangan sistem IoT dari device ke cloud",
+			RoleIndex:   27,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Embedded & Sensor Dasar",
+					Description:          "Microcontroller, GPIO, sensor/actuator",
+					LearningObjectives:   "Membaca sensor & mengontrol actuator",
+					SubmissionGuidelines: "Demo pembacaan 2 sensor + kode",
+					EstimatedDuration:    35,
+					DifficultyLevel:      "beginner",
+				},
+				{
+					Order:                2,
+					Title:                "Konektivitas & Edge",
+					Description:          "MQTT/HTTP, payload, edge processing",
+					LearningObjectives:   "Mengirim data ke broker/cloud",
+					SubmissionGuidelines: "Publikasi data realtime ke broker MQTT",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                3,
+					Title:                "Cloud Integration & Dashboard",
+					Description:          "Ingest, storage, alerting, visualisasi",
+					LearningObjectives:   "Menyusun pipeline device→cloud→dashboard",
+					SubmissionGuidelines: "Dashboard IoT + alert rule aktif",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap AI Engineer",
+			Description: "Jalur AI Engineer fokus deployment & skalabilitas model",
+			RoleIndex:   28,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Deep Learning Foundations",
+					Description:          "Neural network dasar, training loop, PyTorch/TensorFlow",
+					LearningObjectives:   "Membangun & melatih model DL sederhana",
+					SubmissionGuidelines: "Notebook training + hasil evaluasi",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "Serving & Retrieval",
+					Description:          "ONNX/Triton/TF Serving, vector DB, RAG",
+					LearningObjectives:   "Menyajikan model dengan latensi rendah",
+					SubmissionGuidelines: "Endpoint inferensi + latensi tercatat",
+					EstimatedDuration:    50,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "MLOps & Monitoring",
+					Description:          "CI/CD model, drift, observabilitas",
+					LearningObjectives:   "Mengelola siklus hidup model produksi",
+					SubmissionGuidelines: "Pipeline CI/CD + dashboard monitoring",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+			},
+		},
+		{
+			Name:        "Roadmap Robotics Engineer",
+			Description: "Jalur rekayasa robotika: kontrol, persepsi, navigasi",
+			RoleIndex:   29,
+			Steps: []struct {
+				Order                int
+				Title                string
+				Description          string
+				LearningObjectives   string
+				SubmissionGuidelines string
+				EstimatedDuration    int
+				DifficultyLevel      string
+			}{
+				{
+					Order:                1,
+					Title:                "Kinematika & Kontrol Dasar",
+					Description:          "Kinematika forward/inverse, kontrol PID",
+					LearningObjectives:   "Mengendalikan aktuator dengan stabil",
+					SubmissionGuidelines: "Demo kontrol motor + analisis respons",
+					EstimatedDuration:    40,
+					DifficultyLevel:      "intermediate",
+				},
+				{
+					Order:                2,
+					Title:                "ROS & Integrasi Sensor",
+					Description:          "ROS/ROS2, topic, tf, kamera/LiDAR/IMU",
+					LearningObjectives:   "Membangun node & pipeline sensor",
+					SubmissionGuidelines: "Proyek ROS sederhana + bagfile",
+					EstimatedDuration:    45,
+					DifficultyLevel:      "advanced",
+				},
+				{
+					Order:                3,
+					Title:                "Navigasi & SLAM",
+					Description:          "Path planning, mapping, SLAM",
+					LearningObjectives:   "Menavigasi lingkungan baru secara otonom",
+					SubmissionGuidelines: "Demo SLAM di simulator + laporan",
 					EstimatedDuration:    50,
 					DifficultyLevel:      "advanced",
 				},
